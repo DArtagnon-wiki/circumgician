@@ -6,6 +6,7 @@ import { ObstacleView } from '../render/ObstacleView'
 import { RuneView } from '../render/RuneView'
 import { MiasmaPuffView } from '../render/MiasmaPuffView'
 import { computeLayout, type FieldLayout } from './Layout'
+import { VIRTUAL_WIDTH, VIRTUAL_HEIGHT, computeFit } from './VirtualScreen'
 import { loadLevel, type GameState } from './GameState'
 import { LEVELS } from '../data/levels'
 import type { LevelConfig } from '../data/levels'
@@ -86,9 +87,10 @@ export class Game {
     this.layers = createLayers()
     this.app.stage.addChild(this.layers.root)
     this.layers.effects.addChild(this.previewLine)
+    this.applyFit()
 
     const level = this.selectLevel()
-    this.layout = computeLayout(this.app.screen.width, this.app.screen.height, this.safeAreaBottom())
+    this.layout = computeLayout(VIRTUAL_WIDTH, VIRTUAL_HEIGHT)
     this.state = loadLevel(level, this.layout.miasmaField, this.obstacleGrowth)
     this.bus = createEventBus()
     this.dragSystem = new DragPlacementSystem(this.state, this.bus, (id) => this.viewPositions.get(id))
@@ -153,6 +155,18 @@ export class Game {
     return parseFloat(raw) || 0
   }
 
+  // Uniform scale + centered offset applied to `layers.root` so the fixed
+  // VIRTUAL_WIDTH x VIRTUAL_HEIGHT canvas fits any real screen size,
+  // preserving aspect ratio (letterboxed on a mismatched device). Everything
+  // inside layers.root (background, obstacles, runes, puffs, effects) is
+  // scaled/positioned together as one unit — game logic never has to know
+  // the real screen size at all, only VIRTUAL_WIDTH/VIRTUAL_HEIGHT.
+  private applyFit(): void {
+    const fit = computeFit(window.innerWidth, window.innerHeight, this.safeAreaBottom())
+    this.layers.root.scale.set(fit.scale)
+    this.layers.root.position.set(fit.offsetX, fit.offsetY)
+  }
+
   // Redrawn from relayout() (not a renderer 'resize' listener) so it's
   // always in sync with the CURRENT `this.layout` — the renderer's resize
   // event fires mid-way through bindResize's own resize call, before
@@ -160,7 +174,7 @@ export class Game {
   // one frame behind on every resize.
   private redrawBackground(): void {
     this.layers.background.removeChildren()
-    this.layers.background.addChild(drawZoneBackground(this.app.screen.width, this.layout))
+    this.layers.background.addChild(drawZoneBackground(VIRTUAL_WIDTH, this.layout))
   }
 
   private buildObstacleViews(): void {
@@ -190,11 +204,11 @@ export class Game {
   }
 
   private inventorySlotPosition(slotIndex: number): Vec2 {
-    const { inventoryBar, inventoryContentHeight } = this.layout
+    const { inventoryBar } = this.layout
     const capacity = this.state.inventory.capacity
     return {
       x: inventoryBar.x + ((slotIndex + 0.5) / capacity) * inventoryBar.width,
-      y: inventoryBar.y + inventoryContentHeight / 2,
+      y: inventoryBar.y + inventoryBar.height / 2,
     }
   }
 
@@ -218,13 +232,14 @@ export class Game {
     view.container.on('pointerupoutside', onEnd)
 
     this.layers.effects.addChild(view.container) // draw above everything while dragging
-    view.setPosition(e.global.x, e.global.y)
+    const pos = this.layers.root.toLocal(e.global)
+    view.setPosition(pos.x, pos.y)
   }
 
   private onDragMove(e: FederatedPointerEvent): void {
     if (!this.dragState) return
     const { rune, view } = this.dragState
-    const pos = { x: e.global.x, y: e.global.y }
+    const pos = this.layers.root.toLocal(e.global)
     view.setPosition(pos.x, pos.y)
 
     const target = this.dragSystem.findNearestMatch(rune, pos)
@@ -239,7 +254,7 @@ export class Game {
     view.container.off('pointerup', onEnd)
     view.container.off('pointerupoutside', onEnd)
 
-    const pos = { x: e.global.x, y: e.global.y }
+    const pos = this.layers.root.toLocal(e.global)
     this.previewLine.clear()
 
     const result = this.dragSystem.tryPlace(rune, pos, this.layout.miasmaField)
@@ -504,7 +519,8 @@ export class Game {
   }
 
   private relayout(): void {
-    this.layout = computeLayout(this.app.screen.width, this.app.screen.height, this.safeAreaBottom())
+    this.applyFit()
+    this.layout = computeLayout(VIRTUAL_WIDTH, VIRTUAL_HEIGHT)
     this.redrawBackground()
     const { obstacleArea } = this.layout
 
