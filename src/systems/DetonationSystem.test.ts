@@ -8,7 +8,7 @@ import type { MiasmaPuff } from '../model/MiasmaPuff'
 import { RuneGrowthSystem } from './RuneGrowthSystem'
 import { DetonationSystem } from './DetonationSystem'
 
-function layer(sides: 3 | 4 | 5 | 6, catchColor: 'generic' | 'red' = 'generic', release: 'generic' | 'red' | 'annihilating' = 'generic'): RuneLayer {
+function layer(sides: 3 | 4 | 5 | 6, catchColor: 'red' | 'blue' = 'red', release: 'generic' | 'red' | 'annihilating' = 'generic'): RuneLayer {
   return {
     shape: { sides, radius: 30 },
     nodeColors: Array.from({ length: sides }, () => ({ catch: catchColor, release })),

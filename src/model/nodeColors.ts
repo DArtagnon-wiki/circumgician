@@ -1,5 +1,5 @@
 import type { ShapeSides } from '../core/types'
-import type { NodeColorSpec } from './Color'
+import type { Hue, NodeColorSpec, ReleaseColor } from './Color'
 import type { RuneLayer } from './Rune'
 import { radiusForSides } from './Polygon'
 
@@ -16,13 +16,12 @@ export function patternNodeColors(sides: ShapeSides, pattern: NodeColorSpec[]): 
   return Array.from({ length: sides }, (_, i) => ({ ...pattern[i % pattern.length] }))
 }
 
-const GENERIC: NodeColorSpec = { catch: 'generic', release: 'generic' }
-
 // Builds a full RuneLayer (shape + nodeColors) in one call — the common case
 // for level-authoring where every node on a layer shares one catch/release
-// pair, or a short pattern.
-export function simpleLayer(sides: ShapeSides, spec: NodeColorSpec = GENERIC): RuneLayer {
-  return { shape: { sides, radius: radiusForSides(sides) }, nodeColors: uniformNodeColors(sides, spec) }
+// pair. `catchHue` is required (an outer/catch node can never be generic);
+// `release` defaults to 'generic' since release values are allowed to be.
+export function simpleLayer(sides: ShapeSides, catchHue: Hue, release: ReleaseColor = 'generic'): RuneLayer {
+  return { shape: { sides, radius: radiusForSides(sides) }, nodeColors: uniformNodeColors(sides, { catch: catchHue, release }) }
 }
 
 export function patternLayer(sides: ShapeSides, pattern: NodeColorSpec[]): RuneLayer {

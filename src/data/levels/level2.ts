@@ -10,22 +10,22 @@ import { patternLayer, simpleLayer } from '../../model/nodeColors'
 // releases, per the design brief's own 5-gon example) shows up once middle
 // is promoted into the new outer.
 const pool: RuneTemplate[] = [
-  { outer: simpleLayer(4), middle: simpleLayer(3), centerGrowth: { type: 'scripted', params: { sequence: [simpleLayer(5)] } } },
+  { outer: simpleLayer(4, 'red'), middle: simpleLayer(3, 'blue'), centerGrowth: { type: 'scripted', params: { sequence: [simpleLayer(5, 'gold')] } } },
   {
-    outer: simpleLayer(5),
-    // 4 nodes: 2 catch red / 2 catch generic; releases into 1 gold, 1 teal,
-    // 2 generic — no 1:1 catch-to-release correspondence.
+    outer: simpleLayer(5, 'teal'),
+    // 4 nodes: 2 catch red, 1 catch blue, 1 catch violet; releases into 1 gold,
+    // 1 teal, 2 generic — no 1:1 catch-to-release correspondence.
     middle: patternLayer(4, [
       { catch: 'red', release: 'gold' },
-      { catch: 'generic', release: 'generic' },
+      { catch: 'blue', release: 'generic' },
       { catch: 'red', release: 'teal' },
-      { catch: 'generic', release: 'generic' },
+      { catch: 'violet', release: 'generic' },
     ]),
-    centerGrowth: { type: 'scripted', params: { sequence: [simpleLayer(6)] } },
+    centerGrowth: { type: 'scripted', params: { sequence: [simpleLayer(6, 'violet')] } },
   },
-  { outer: simpleLayer(6), middle: simpleLayer(5), centerGrowth: { type: 'none' } },
+  { outer: simpleLayer(6, 'gold'), middle: simpleLayer(5, 'blue'), centerGrowth: { type: 'none' } },
   {
-    outer: simpleLayer(4),
+    outer: simpleLayer(4, 'violet'),
     // 5 nodes: 3 catch gold, 1 catch red, 1 catch blue; releases into 1 teal,
     // 1 violet, 3 generic — matches the design brief's own worked example.
     middle: patternLayer(5, [

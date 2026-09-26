@@ -76,8 +76,12 @@ export class DetonationSystem {
       puff.targetNodeIndex = undefined
       puff.travelStartPos = undefined
       puff.travelElapsed = undefined
-      puff.position.x = bounds.x + randRange(0, bounds.width)
-      puff.position.y = bounds.y + randRange(0, bounds.height)
+      // Originates at the collapsing rune's own position, not a random spot
+      // anywhere in the field — a released mote should read as coming FROM
+      // the rune that just gave it up.
+      const origin = rune.fieldPosition ?? { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+      puff.position.x = origin.x + randRange(-12, 12)
+      puff.position.y = origin.y + randRange(-12, 12)
       puff.velocity.x = randRange(-12, 12)
       puff.velocity.y = randRange(-12, 12)
     })

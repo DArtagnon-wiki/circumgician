@@ -3,10 +3,17 @@ import { GlowFilter } from 'pixi-filters'
 import type { Rune } from '../model/Rune'
 import type { MoteColor } from '../model/Color'
 import { verticesOf } from '../model/Polygon'
-import { colorForMote, colorForRelease, colorForSides } from './Theme'
+import { colorForMote, colorForRelease, RUNE_BODY_COLOR } from './Theme'
 import { drawPolygon } from './drawPolygon'
 
 const CENTER_DISPLAY_RADIUS = 13 // fixed inset size regardless of the center's real side count/radius
+
+// Middle is drawn at a fraction of the CURRENT outer's actual radius, never
+// its own independently-baked radius — radiusForSides scales with side
+// count, so a middle layer with more sides than outer (routine after a
+// promotion, when an old center becomes the new middle) would otherwise
+// render literally bigger than, and poking out of, the outer it's nested in.
+const MIDDLE_SCALE = 0.62
 
 export class RuneView {
   container = new Container()
@@ -26,7 +33,7 @@ export class RuneView {
     this.glowFilter = new GlowFilter({
       distance: 10,
       outerStrength: 2.5,
-      color: colorForSides(rune.middle.shape.sides),
+      color: RUNE_BODY_COLOR,
       quality: 0.3,
     })
     this.container.addChild(
@@ -79,7 +86,7 @@ export class RuneView {
     // bug where the container rendered at a stale/wrong screen position
     // despite its actual transform being correct, discovered live during
     // an M7 playtest of a real detonation.
-    this.glowFilter.color = colorForSides(this.rune.middle.shape.sides)
+    this.glowFilter.color = RUNE_BODY_COLOR
     this.container.hitArea = new Circle(0, 0, this.rune.outer.shape.radius + 8)
     this.filledColors.clear() // nodes are always fresh right after a redraw is warranted
 
@@ -94,7 +101,7 @@ export class RuneView {
       this.rune.outer.shape,
       { x: 0, y: 0 },
       {
-        strokeColor: this.active ? 0xffffff : colorForSides(this.rune.outer.shape.sides),
+        strokeColor: this.active ? 0xffffff : RUNE_BODY_COLOR,
         strokeWidth: this.active ? 4 : 2,
       },
     )
@@ -102,28 +109,33 @@ export class RuneView {
     this.middleGraphic.clear()
     drawPolygon(
       this.middleGraphic,
-      this.rune.middle.shape,
+      { sides: this.rune.middle.shape.sides, radius: this.rune.outer.shape.radius * MIDDLE_SCALE },
       { x: 0, y: 0 },
-      { fillColor: colorForSides(this.rune.middle.shape.sides), fillAlpha: 0.9 },
+      { fillColor: RUNE_BODY_COLOR, fillAlpha: 0.9 },
     )
 
     this.drawCenter()
     this.syncNodes()
   }
 
+  // Every node always shows two colors: an outer ring for its catch (outer)
+  // requirement and a small inner dot for its release (inner) value — the
+  // ring is hollow until a mote is caught, then fills solid as the capture
+  // indicator, while the inner dot's release color never changes.
   syncNodes(): void {
     this.nodesGraphic.clear()
     const positions = verticesOf(this.rune.outer.shape, { x: 0, y: 0 })
     this.rune.nodes.forEach((node, i) => {
       const p = positions[i]
+      const nodeColors = this.rune.outer.nodeColors[i]
       if (node.filled) {
         const caught = this.filledColors.get(i)
-        const color = caught !== undefined ? colorForMote(caught) : colorForMote(this.rune.outer.nodeColors[i].catch)
-        this.nodesGraphic.circle(p.x, p.y, 6).fill({ color, alpha: 1 })
+        const ringColor = caught !== undefined ? colorForMote(caught) : colorForMote(nodeColors.catch)
+        this.nodesGraphic.circle(p.x, p.y, 6).fill({ color: ringColor, alpha: 1 })
       } else {
-        const catchColor = this.rune.outer.nodeColors[i].catch
-        this.nodesGraphic.circle(p.x, p.y, 4).stroke({ color: colorForMote(catchColor), width: 2, alpha: 0.8 })
+        this.nodesGraphic.circle(p.x, p.y, 6).stroke({ color: colorForMote(nodeColors.catch), width: 2, alpha: 0.8 })
       }
+      this.nodesGraphic.circle(p.x, p.y, 2.5).fill({ color: colorForRelease(nodeColors.release), alpha: 1 })
     })
   }
 
@@ -154,7 +166,7 @@ export class RuneView {
       this.centerGraphic,
       displaySpec,
       { x: 0, y: 0 },
-      { fillColor: colorForSides(this.rune.center.shape.sides), fillAlpha: 0.3, strokeColor: 0xffffff, strokeWidth: 1 },
+      { fillColor: RUNE_BODY_COLOR, fillAlpha: 0.3, strokeColor: 0xffffff, strokeWidth: 1 },
     )
     const positions = verticesOf(displaySpec, { x: 0, y: 0 })
     this.rune.center.nodeColors.forEach((nc, i) => {

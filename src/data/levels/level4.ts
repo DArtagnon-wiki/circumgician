@@ -1,8 +1,11 @@
 import type { ShapeSides } from '../../core/types'
 import type { LevelConfig } from './level1'
 import type { RuneTemplate } from '../../supply/RuneSupplyStrategy'
+import type { Hue } from '../../model/Color'
 import type { ObstacleLayerSpec, RuneLayerSpec } from '../../growth'
 import { simpleLayer } from '../../model/nodeColors'
+
+const HUES: Hue[] = ['red', 'blue', 'gold', 'teal', 'violet']
 
 // Exercises EventTriggeredUnlockStrategy's runeDetonated trigger, RANDOM
 // obstacle-layer growth (a genuine coin-flip each collapse, capped), and a
@@ -28,7 +31,8 @@ const randomCenterGrowth = {
     maxLayers: 2,
     generate: (ctx: { layerIndex: number; rng: () => number }): RuneLayerSpec => {
       const sides = RANDOM_OBSTACLE_SHAPES[Math.floor(ctx.rng() * RANDOM_OBSTACLE_SHAPES.length)]
-      return simpleLayer(sides)
+      const hue = HUES[Math.floor(ctx.rng() * HUES.length)]
+      return simpleLayer(sides, hue)
     },
   },
 }
@@ -48,17 +52,17 @@ export const level4: LevelConfig = {
     type: 'eventUnlock',
     params: {
       initial: [
-        { outer: simpleLayer(4), middle: simpleLayer(3), centerGrowth: { type: 'scripted', params: { sequence: [simpleLayer(4)] } } },
-        { outer: simpleLayer(5), middle: simpleLayer(4), centerGrowth: randomCenterGrowth },
+        { outer: simpleLayer(4, 'red'), middle: simpleLayer(3, 'blue'), centerGrowth: { type: 'scripted', params: { sequence: [simpleLayer(4, 'gold')] } } },
+        { outer: simpleLayer(5, 'teal'), middle: simpleLayer(4, 'violet'), centerGrowth: randomCenterGrowth },
       ] as RuneTemplate[],
       rules: [
         {
           trigger: { type: 'obstacleCleared', shape: 3 },
-          unlocks: [{ outer: simpleLayer(6), middle: simpleLayer(5), centerGrowth: { type: 'none' } }],
+          unlocks: [{ outer: simpleLayer(6, 'gold'), middle: simpleLayer(5, 'red'), centerGrowth: { type: 'none' } }],
         },
         {
           trigger: { type: 'runeDetonated', middle: 4, outer: 5 },
-          unlocks: [{ outer: simpleLayer(7), middle: simpleLayer(6), centerGrowth: randomCenterGrowth }],
+          unlocks: [{ outer: simpleLayer(7, 'blue'), middle: simpleLayer(6, 'violet'), centerGrowth: randomCenterGrowth }],
         },
       ],
     },

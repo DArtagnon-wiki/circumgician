@@ -5,7 +5,9 @@ import type { Obstacle } from '../model/Obstacle'
 import type { PolygonSpec } from '../model/Polygon'
 
 export type GameEvents = {
-  'rune:activated': { rune: Rune; obstacle: Obstacle }
+  // obstacle is undefined when a rune is placed with no matching obstacle
+  // nearby — it still goes active and collects miasma, just unlinked.
+  'rune:activated': { rune: Rune; obstacle?: Obstacle }
   'node:filled': { rune: Rune; nodeIndex: number }
   'rune:ready': { rune: Rune }
   'obstacle:damaged': { obstacle: Obstacle; damage: number }

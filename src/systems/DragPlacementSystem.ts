@@ -76,17 +76,20 @@ export class DragPlacementSystem {
     return false
   }
 
+  // A rune only needs a matching obstacle to LINK — placement itself only
+  // requires field-fit. An unlinked active rune still collects miasma and
+  // can pick up a link later (see ObstacleHealthSystem.refreshLinks and
+  // DetonationSystem.relink).
   tryPlace(rune: Rune, worldPos: Vec2, bounds: Rect): PlacementResult {
     if (rune.state !== 'idle') return { ok: false }
-    const obstacle = this.findNearestMatch(rune, worldPos)
-    if (!obstacle) return { ok: false }
     if (!this.fitsInField(rune, worldPos, bounds)) return { ok: false }
 
+    const obstacle = this.findNearestMatch(rune, worldPos)
     rune.state = 'active'
-    rune.linkedObstacleId = obstacle.id
+    rune.linkedObstacleId = obstacle?.id ?? null
     rune.fieldPosition = { x: worldPos.x, y: worldPos.y }
     rune.footprintRadius = effectiveFootprintRadius(rune)
-    this.bus.emit('rune:activated', { rune, obstacle })
-    return { ok: true, obstacle }
+    this.bus.emit('rune:activated', { rune, obstacle: obstacle ?? undefined })
+    return { ok: true, obstacle: obstacle ?? undefined }
   }
 }

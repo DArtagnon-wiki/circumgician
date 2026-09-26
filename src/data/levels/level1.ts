@@ -27,17 +27,17 @@ export interface LevelConfig {
 // rune-center chains, full insight — nothing hidden yet.
 const pool: RuneTemplate[] = [
   {
-    outer: simpleLayer(4),
-    middle: simpleLayer(3),
-    centerGrowth: { type: 'scripted', params: { sequence: [simpleLayer(5)] } },
+    outer: simpleLayer(4, 'red'),
+    middle: simpleLayer(3, 'blue'),
+    centerGrowth: { type: 'scripted', params: { sequence: [simpleLayer(5, 'gold')] } },
   },
   {
-    outer: simpleLayer(5),
-    middle: simpleLayer(4),
-    centerGrowth: { type: 'scripted', params: { sequence: [simpleLayer(3)] } },
+    outer: simpleLayer(5, 'teal'),
+    middle: simpleLayer(4, 'violet'),
+    centerGrowth: { type: 'scripted', params: { sequence: [simpleLayer(3, 'red')] } },
   },
-  { outer: simpleLayer(6), middle: simpleLayer(5), centerGrowth: { type: 'none' } },
-  { outer: simpleLayer(4), middle: simpleLayer(4), centerGrowth: { type: 'none' } },
+  { outer: simpleLayer(6, 'gold'), middle: simpleLayer(5, 'blue'), centerGrowth: { type: 'none' } },
+  { outer: simpleLayer(4, 'violet'), middle: simpleLayer(4, 'teal'), centerGrowth: { type: 'none' } },
 ]
 
 export const level1: LevelConfig = {

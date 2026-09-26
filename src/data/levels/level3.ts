@@ -26,23 +26,23 @@ export const level3: LevelConfig = {
     type: 'eventUnlock',
     params: {
       initial: [
-        { outer: simpleLayer(4), middle: simpleLayer(3), centerGrowth: { type: 'none' } },
-        { outer: simpleLayer(4), middle: simpleLayer(4), centerGrowth: { type: 'none' } },
+        { outer: simpleLayer(4, 'red'), middle: simpleLayer(3, 'blue'), centerGrowth: { type: 'none' } },
+        { outer: simpleLayer(4, 'gold'), middle: simpleLayer(4, 'teal'), centerGrowth: { type: 'none' } },
       ] as RuneTemplate[],
       rules: [
         {
           trigger: { type: 'obstacleCleared', shape: 3 },
-          unlocks: [{ outer: simpleLayer(6), middle: simpleLayer(5), centerGrowth: { type: 'none' } }],
+          unlocks: [{ outer: simpleLayer(6, 'violet'), middle: simpleLayer(5, 'red'), centerGrowth: { type: 'none' } }],
         },
         {
           trigger: { type: 'obstacleCleared', shape: 4 },
           unlocks: [
             {
-              outer: simpleLayer(6),
-              middle: simpleLayer(6),
+              outer: simpleLayer(6, 'blue'),
+              middle: simpleLayer(6, 'gold'),
               centerGrowth: {
                 type: 'scripted',
-                params: { sequence: [patternLayer(6, [{ catch: 'generic', release: 'annihilating' }])] },
+                params: { sequence: [patternLayer(6, [{ catch: 'violet', release: 'annihilating' }])] },
               },
             },
           ],

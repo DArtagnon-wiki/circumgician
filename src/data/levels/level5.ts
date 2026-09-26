@@ -22,29 +22,29 @@ const chaosGrowth = {
 }
 
 const pool: RuneTemplate[] = [
-  { outer: simpleLayer(4), middle: simpleLayer(3), centerGrowth: { type: 'scripted', params: { sequence: [simpleLayer(5)] } }, insightLevel: 'full' },
+  { outer: simpleLayer(4, 'red'), middle: simpleLayer(3, 'blue'), centerGrowth: { type: 'scripted', params: { sequence: [simpleLayer(5, 'gold')] } }, insightLevel: 'full' },
   {
-    outer: simpleLayer(5),
-    // Transmuting rune: catches red/blue and swaps their releases, generic
+    outer: simpleLayer(5, 'teal'),
+    // Transmuting rune: catches red/blue and swaps their releases, gold/violet
     // nodes pass through unchanged — a genuinely mixed catch/release layer
     // for the finale rather than a uniform color pair.
     middle: patternLayer(4, [
       { catch: 'red', release: 'blue' },
-      { catch: 'generic', release: 'generic' },
+      { catch: 'gold', release: 'generic' },
       { catch: 'blue', release: 'red' },
-      { catch: 'generic', release: 'generic' },
+      { catch: 'violet', release: 'generic' },
     ]),
-    centerGrowth: { type: 'scripted', params: { sequence: [simpleLayer(6)] } },
+    centerGrowth: { type: 'scripted', params: { sequence: [simpleLayer(6, 'violet')] } },
     insightLevel: 'shape',
   },
-  { outer: simpleLayer(6), middle: simpleLayer(5), centerGrowth: { type: 'none' }, insightLevel: 'none' },
+  { outer: simpleLayer(6, 'gold'), middle: simpleLayer(5, 'blue'), centerGrowth: { type: 'none' }, insightLevel: 'none' },
   {
-    outer: simpleLayer(7),
-    middle: simpleLayer(6),
-    centerGrowth: { type: 'scripted', params: { sequence: [patternLayer(7, [{ catch: 'generic', release: 'annihilating' }])] } },
+    outer: simpleLayer(7, 'violet'),
+    middle: simpleLayer(6, 'red'),
+    centerGrowth: { type: 'scripted', params: { sequence: [patternLayer(7, [{ catch: 'violet', release: 'annihilating' }])] } },
     insightLevel: 'none',
   },
-  { outer: simpleLayer(4), middle: simpleLayer(7), centerGrowth: { type: 'none' }, insightLevel: 'shape' },
+  { outer: simpleLayer(4, 'blue'), middle: simpleLayer(7, 'gold'), centerGrowth: { type: 'none' }, insightLevel: 'shape' },
 ]
 
 export const level5: LevelConfig = {

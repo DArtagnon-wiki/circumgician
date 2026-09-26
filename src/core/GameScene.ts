@@ -1,6 +1,6 @@
 import { Graphics, type Application, type Container, type FederatedPointerEvent } from 'pixi.js'
 import { createLayers, type Layers } from '../render/Layers'
-import { colorForSides } from '../render/Theme'
+import { ACCENT_COLOR } from '../render/Theme'
 import { drawZoneBackground } from '../render/ZoneBackground'
 import { ObstacleView } from '../render/ObstacleView'
 import { RuneView } from '../render/RuneView'
@@ -102,7 +102,7 @@ export class GameScene {
       this.runeGrowth,
       (id) => this.viewPositions.get(id),
     )
-    new ObstacleHealthSystem(this.state, this.bus, this.obstacleGrowth)
+    new ObstacleHealthSystem(this.state, this.bus, this.obstacleGrowth, (id) => this.viewPositions.get(id))
     this.bus.on('rune:activated', ({ rune, obstacle }) => this.onRuneActivated(rune, obstacle))
     this.bus.on('node:filled', ({ rune, nodeIndex }) => this.onNodeFilled(rune, nodeIndex))
     this.bus.on('obstacle:damaged', ({ obstacle }) => this.onObstacleDamaged(obstacle))
@@ -326,11 +326,13 @@ export class GameScene {
     })
   }
 
-  private onRuneActivated(rune: Rune, obstacle: Obstacle): void {
+  private onRuneActivated(rune: Rune, obstacle: Obstacle | undefined): void {
     this.runeViews.get(rune.id)?.setActive(true)
     if (rune.fieldPosition) this.viewPositions.set(rune.id, rune.fieldPosition)
-    this.linkTargets.set(rune.id, obstacle.id)
-    this.drawLinkLine(rune.id)
+    if (obstacle) {
+      this.linkTargets.set(rune.id, obstacle.id)
+      this.drawLinkLine(rune.id)
+    }
     this.sfx.place()
   }
 
@@ -347,7 +349,7 @@ export class GameScene {
   private onObstacleDamaged(obstacle: Obstacle): void {
     this.obstacleViews.get(obstacle.id)?.updateHp(obstacle.hp)
     const pos = this.viewPositions.get(obstacle.id)
-    if (pos) this.spawnBurst(pos, colorForSides(obstacle.shape.sides))
+    if (pos) this.spawnBurst(pos, ACCENT_COLOR)
   }
 
   private onObstacleCleared(obstacle: Obstacle): void {
@@ -361,14 +363,23 @@ export class GameScene {
     this.obstacleViews.delete(obstacle.id)
     this.viewPositions.delete(obstacle.id)
     this.sfx.obstacleCleared()
+    // The obstacle set just changed — ObstacleHealthSystem.refreshLinks()
+    // may have dropped or acquired links on any active rune; re-sync every
+    // link line's rendering to match the model's current state.
+    this.syncAllLinkLines()
   }
 
-  // Rune survived detonation (promoted in place: outer destroyed, middle
-  // became outer, center became middle plus a freshly-rolled center) — full
-  // re-render, and re-sync the link line since relinking may have changed
-  // (or dropped) the target.
-  private onRunePromoted(rune: Rune): void {
-    this.runeViews.get(rune.id)?.redraw()
+  // Re-syncs every active rune's link-line rendering against the model's
+  // current linkedObstacleId — used both right after a single rune's own
+  // promotion and whenever the obstacle set changes underneath potentially
+  // many runes at once (ObstacleHealthSystem.refreshLinks).
+  private syncAllLinkLines(): void {
+    for (const rune of this.state.inventory.slots) {
+      if (rune && rune.state === 'active') this.syncLinkLine(rune)
+    }
+  }
+
+  private syncLinkLine(rune: Rune): void {
     if (rune.linkedObstacleId) {
       this.linkTargets.set(rune.id, rune.linkedObstacleId)
       this.drawLinkLine(rune.id)
@@ -381,6 +392,15 @@ export class GameScene {
         this.linkGraphics.delete(rune.id)
       }
     }
+  }
+
+  // Rune survived detonation (promoted in place: outer destroyed, middle
+  // became outer, center became middle plus a freshly-rolled center) — full
+  // re-render, and re-sync the link line since relinking may have changed
+  // (or dropped) the target.
+  private onRunePromoted(rune: Rune): void {
+    this.runeViews.get(rune.id)?.redraw()
+    this.syncLinkLine(rune)
   }
 
   // Rune had no center to promote into a new middle — this is the only real
@@ -409,7 +429,8 @@ export class GameScene {
   private onObstacleLayerPromoted(obstacle: Obstacle): void {
     this.obstacleViews.get(obstacle.id)?.updateLayer(obstacle.shape, obstacle.hp, obstacle.maxHp)
     const pos = this.viewPositions.get(obstacle.id)
-    if (pos) this.spawnBurst(pos, colorForSides(obstacle.shape.sides))
+    if (pos) this.spawnBurst(pos, ACCENT_COLOR)
+    this.syncAllLinkLines()
   }
 
   private onRuneAdded(rune: Rune): void {
@@ -423,9 +444,9 @@ export class GameScene {
   debugSpawnRune(inner: ShapeSides, outer: ShapeSides): void {
     const id = makeId('rune')
     this.runeGrowth.register(id, { type: 'none' }) // debug runes are single-use, no further evolution
-    const generic = { catch: 'generic' as const, release: 'generic' as const }
-    const outerLayer: RuneLayer = { shape: { sides: outer, radius: radiusForSides(outer) }, nodeColors: uniformNodeColors(outer, generic) }
-    const middleLayer: RuneLayer = { shape: { sides: inner, radius: radiusForSides(inner) }, nodeColors: uniformNodeColors(inner, generic) }
+    const debugSpec = { catch: 'red' as const, release: 'generic' as const }
+    const outerLayer: RuneLayer = { shape: { sides: outer, radius: radiusForSides(outer) }, nodeColors: uniformNodeColors(outer, debugSpec) }
+    const middleLayer: RuneLayer = { shape: { sides: inner, radius: radiusForSides(inner) }, nodeColors: uniformNodeColors(inner, debugSpec) }
     const rune = createRune(id, outerLayer, middleLayer, null, 'full')
     const placed = this.state.inventory.forceAddRune(rune)
     this.bus.emit('rune:added', { rune: placed })
@@ -546,10 +567,8 @@ export class GameScene {
       this.layers.effects.addChild(line)
       this.linkGraphics.set(runeId, line)
     }
-    const obstacle = this.state.obstacles.find((o) => o.id === obstacleId)
-    const color = obstacle ? colorForSides(obstacle.shape.sides) : 0xffffff
     line.clear()
-    line.moveTo(from.x, from.y).lineTo(to.x, to.y).stroke({ color, width: 3, alpha: 0.55 })
+    line.moveTo(from.x, from.y).lineTo(to.x, to.y).stroke({ color: ACCENT_COLOR, width: 3, alpha: 0.55 })
   }
 
   relayout(): void {

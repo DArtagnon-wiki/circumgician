@@ -1,7 +1,7 @@
 import { Container, Graphics, Text } from 'pixi.js'
 import type { Obstacle } from '../model/Obstacle'
 import type { PolygonSpec } from '../model/Polygon'
-import { colorForSides } from './Theme'
+import { OBSTACLE_COLOR } from './Theme'
 import { drawPolygon } from './drawPolygon'
 
 export class ObstacleView {
@@ -48,7 +48,7 @@ export class ObstacleView {
       this.obstacle.shape,
       { x: 0, y: 0 },
       {
-        fillColor: colorForSides(this.obstacle.shape.sides),
+        fillColor: OBSTACLE_COLOR,
         fillAlpha: 0.85,
         strokeColor: 0xffffff,
         strokeWidth: 2,

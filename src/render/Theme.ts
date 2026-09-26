@@ -1,21 +1,16 @@
-// Hue per polygon side-count, shared by obstacles and their matching rune shapes
-// so a player can visually tell what goes with what without reading numbers.
-export const SHAPE_COLORS: Record<number, number> = {
-  3: 0xff5d5d, // triangle - red
-  4: 0x4da6ff, // square - blue
-  5: 0xb87bff, // pentagon - purple
-  6: 0x4de6a8, // hexagon - green
-  7: 0xffc93c, // heptagon - gold
-  8: 0xff8fd6, // octagon - pink
-}
+// Obstacles and rune bodies (outer/middle/center) are deliberately a single
+// neutral tone each, regardless of shape — color is reserved entirely for
+// node catch/release rings and miasma motes (HUE_COLORS below) so it always
+// carries gameplay meaning and is never confused with a decorative shape-
+// identity hint. Layers stay visually distinguishable by structure (stroke
+// vs. fill vs. small preview), not hue.
+export const OBSTACLE_COLOR = 0x4a3d6b
+export const RUNE_BODY_COLOR = 0xd8d0f0
+export const ACCENT_COLOR = 0xffffff // active glow / damage burst / link line
 
 export const BACKGROUND_TOP = 0x1a0f33
 export const BACKGROUND_BOTTOM = 0x090512
 export const MIASMA_COLOR = 0xd9c8ff
-
-export function colorForSides(sides: number): number {
-  return SHAPE_COLORS[sides] ?? 0xffffff
-}
 
 // Deliberately its own palette, distinct in hue from SHAPE_COLORS — mote/node
 // color must never be mistaken for a shape-matching hint.
