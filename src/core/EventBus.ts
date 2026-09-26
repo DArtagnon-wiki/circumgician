@@ -9,6 +9,7 @@ export type GameEvents = {
   'obstacle:damaged': { obstacle: Obstacle; damage: number }
   'obstacle:cleared': { obstacle: Obstacle }
   'rune:detonated': { rune: Rune }
+  'rune:added': { rune: Rune }
 }
 
 export type EventBus = ReturnType<typeof createEventBus>

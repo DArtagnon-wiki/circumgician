@@ -13,9 +13,14 @@ import { MiasmaFieldSystem } from '../systems/MiasmaFieldSystem'
 import { AttractionFillSystem } from '../systems/AttractionFillSystem'
 import { DetonationSystem } from '../systems/DetonationSystem'
 import { ObstacleHealthSystem } from '../systems/ObstacleHealthSystem'
-import type { Id, Vec2 } from './types'
+import { RuneSupplySystem } from '../systems/RuneSupplySystem'
+import { createStrategy } from '../supply'
+import type { Id, ShapeSides, Vec2 } from './types'
+import { createRune } from '../model/Rune'
 import type { Rune } from '../model/Rune'
+import { radiusForSides } from '../model/Polygon'
 import type { Obstacle } from '../model/Obstacle'
+import { makeId } from './id'
 
 type Animation = (dt: number) => boolean // return false when finished
 
@@ -37,6 +42,7 @@ export class Game {
   private dragSystem!: DragPlacementSystem
   private miasmaFieldSystem = new MiasmaFieldSystem()
   private attractionSystem!: AttractionFillSystem
+  private supplySystem!: RuneSupplySystem
   private obstacleViews = new Map<Id, ObstacleView>()
   private runeViews = new Map<Id, RuneView>()
   private puffViews = new Map<Id, MiasmaPuffView>()
@@ -80,6 +86,10 @@ export class Game {
     this.bus.on('obstacle:damaged', ({ obstacle }) => this.onObstacleDamaged(obstacle))
     this.bus.on('obstacle:cleared', ({ obstacle }) => this.onObstacleCleared(obstacle))
     this.bus.on('rune:detonated', ({ rune }) => this.onRuneDetonated(rune))
+    this.bus.on('rune:added', ({ rune }) => this.onRuneAdded(rune))
+    // Populates the inventory via the level's configured strategy — must run
+    // before buildRuneViews() so there's something to build views for.
+    this.supplySystem = new RuneSupplySystem(this.state, LEVELS[0], this.bus, createStrategy(LEVELS[0].supply))
 
     this.drawBackground()
     this.buildObstacleViews()
@@ -259,10 +269,10 @@ export class Game {
     this.viewPositions.delete(obstacle.id)
   }
 
+  // The rune is consumed on detonation (removed from its inventory slot by
+  // DetonationSystem) — its view goes away with it. Whatever the supply
+  // strategy adds to fill the vacated slot arrives as a separate 'rune:added'.
   private onRuneDetonated(rune: Rune): void {
-    const view = this.runeViews.get(rune.id)
-    view?.setActive(false)
-    view?.syncNodes()
     this.linkTargets.delete(rune.id)
     const line = this.linkGraphics.get(rune.id)
     if (line) {
@@ -271,13 +281,32 @@ export class Game {
       this.linkGraphics.delete(rune.id)
     }
 
-    rune.fieldPosition = undefined
+    const view = this.runeViews.get(rune.id)
     if (view) {
-      this.layers.inventory.addChild(view.container)
-      const slotPos = this.inventorySlotPosition(rune.slotIndex)
-      view.setPosition(slotPos.x, slotPos.y)
-      this.viewPositions.set(rune.id, slotPos)
+      view.container.parent?.removeChild(view.container)
+      view.container.destroy({ children: true })
     }
+    this.runeViews.delete(rune.id)
+    this.viewPositions.delete(rune.id)
+  }
+
+  private onRuneAdded(rune: Rune): void {
+    const view = new RuneView(rune)
+    view.container.on('pointerdown', (e) => this.beginDrag(rune, view, e))
+    this.layers.inventory.addChild(view.container)
+    this.runeViews.set(rune.id, view)
+    this.relayout() // capacity may have grown (debug force-add), reflow slots
+  }
+
+  debugSpawnRune(inner: ShapeSides, outer: ShapeSides): void {
+    const outerRadius = radiusForSides(outer)
+    const rune = createRune(
+      makeId('rune'),
+      { sides: inner, radius: outerRadius * 0.5 },
+      { sides: outer, radius: outerRadius },
+    )
+    const placed = this.state.inventory.forceAddRune(rune)
+    this.bus.emit('rune:added', { rune: placed })
   }
 
   private spawnBurst(position: Vec2, color: number): void {
@@ -365,6 +394,7 @@ export class Game {
   private update(dt: number): void {
     this.miasmaFieldSystem.update(this.state.miasmaPuffs, dt, this.layout.miasmaField)
     this.attractionSystem.update(dt)
+    this.supplySystem.update(dt)
 
     for (const puff of this.state.miasmaPuffs) {
       if (puff.state === 'consumed') continue

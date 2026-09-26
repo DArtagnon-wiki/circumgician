@@ -34,4 +34,12 @@ export class Inventory {
     const idx = this.slots.findIndex((s) => s?.id === id)
     if (idx !== -1) this.slots[idx] = null
   }
+
+  // Debug-only: guarantees placement by growing capacity if full, bypassing
+  // the normal fixed-slot constraint every other write path respects.
+  forceAddRune(rune: Rune): Rune {
+    rune.slotIndex = this.slots.length
+    this.slots.push(rune)
+    return rune
+  }
 }

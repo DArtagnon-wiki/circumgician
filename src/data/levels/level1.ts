@@ -1,4 +1,5 @@
 import type { ShapeSides } from '../../core/types'
+import type { SupplyConfig } from '../../supply'
 
 export interface LevelObstacleConfig {
   shape: ShapeSides
@@ -11,9 +12,8 @@ export interface LevelConfig {
   name: string
   obstacles: LevelObstacleConfig[]
   miasma: { ambientCount: number }
-  // Placeholder until the pluggable supply-strategy system lands (Day 7) —
-  // for now every level just starts with a fixed hand.
-  initialRunes: { inner: ShapeSides; outer: ShapeSides }[]
+  inventoryCapacity: number
+  supply: SupplyConfig
 }
 
 export const level1: LevelConfig = {
@@ -25,11 +25,17 @@ export const level1: LevelConfig = {
     { shape: 5, hp: 5, position: { x: 0.78, y: 0.32 } },
   ],
   miasma: { ambientCount: 18 },
-  initialRunes: [
-    { inner: 3, outer: 4 },
-    { inner: 4, outer: 5 },
-    { inner: 5, outer: 6 },
-    { inner: 3, outer: 6 },
-    { inner: 4, outer: 4 },
-  ],
+  inventoryCapacity: 5,
+  supply: {
+    type: 'fixedHand',
+    params: {
+      pool: [
+        { inner: 3, outer: 4 },
+        { inner: 4, outer: 5 },
+        { inner: 5, outer: 6 },
+        { inner: 3, outer: 6 },
+        { inner: 4, outer: 4 },
+      ],
+    },
+  },
 }

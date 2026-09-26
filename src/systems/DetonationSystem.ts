@@ -6,10 +6,12 @@ import { runeDamage } from '../model/Rune'
 import { randRange } from '../utils/math'
 
 // Consumes 'rune:ready': resolves damage against the linked obstacle, scatters
-// the rune's spent miasma back into the field, and resets the rune to idle.
-// Obstacle death/removal is ObstacleHealthSystem's job (it listens separately
-// to 'obstacle:damaged') so obstacle lifecycle stays decoupled from combat math —
-// future obstacle variety (shields, delayed death, etc.) hooks in there instead.
+// the rune's spent miasma back into the field, and consumes the rune (removes
+// it from its inventory slot — supply strategies decide what, if anything,
+// fills the vacated slot from here). Obstacle death/removal is
+// ObstacleHealthSystem's job (it listens separately to 'obstacle:damaged') so
+// obstacle lifecycle stays decoupled from combat math — future obstacle
+// variety (shields, delayed death, etc.) hooks in there instead.
 export class DetonationSystem {
   private state: GameState
   private bus: EventBus
@@ -31,7 +33,7 @@ export class DetonationSystem {
     }
 
     this.scatterConsumedPuffs(rune)
-    this.resetRune(rune)
+    this.state.inventory.removeRune(rune.id)
     this.bus.emit('rune:detonated', { rune })
   }
 
@@ -48,15 +50,6 @@ export class DetonationSystem {
       puff.position.y = bounds.y + randRange(0, bounds.height)
       puff.velocity.x = randRange(-12, 12)
       puff.velocity.y = randRange(-12, 12)
-    }
-  }
-
-  private resetRune(rune: Rune): void {
-    rune.state = 'idle'
-    rune.linkedObstacleId = null
-    for (const node of rune.nodes) {
-      node.filled = false
-      node.puffId = null
     }
   }
 }

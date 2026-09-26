@@ -1,11 +1,10 @@
 import type { Obstacle } from '../model/Obstacle'
 import type { MiasmaPuff } from '../model/MiasmaPuff'
 import { Inventory } from '../model/Inventory'
-import { createRune } from '../model/Rune'
-import { radiusForSides } from '../model/Polygon'
 import type { LevelConfig } from '../data/levels/level1'
 import type { Rect } from './Layout'
 import { randRange } from '../utils/math'
+import { makeId } from './id'
 
 export interface GameState {
   obstacles: Obstacle[]
@@ -13,14 +12,10 @@ export interface GameState {
   miasmaPuffs: MiasmaPuff[]
 }
 
-let nextId = 0
-function makeId(prefix: string): string {
-  nextId += 1
-  return `${prefix}-${nextId}`
-}
-
 // miasmaFieldRect is in world/root space (same space as obstacle and rune
 // positions) so attraction/targeting math never has to convert between spaces.
+// Inventory starts empty — populating it is the active RuneSupplyStrategy's
+// job (see systems/RuneSupplySystem), not this loader's.
 export function loadLevel(level: LevelConfig, miasmaFieldRect: Rect): GameState {
   const obstacles: Obstacle[] = level.obstacles.map((o) => ({
     id: makeId('obstacle'),
@@ -30,14 +25,7 @@ export function loadLevel(level: LevelConfig, miasmaFieldRect: Rect): GameState 
     maxHp: o.hp,
   }))
 
-  const inventory = new Inventory(Math.max(level.initialRunes.length, 5))
-  for (const pair of level.initialRunes) {
-    const outerRadius = radiusForSides(pair.outer)
-    const innerRadius = outerRadius * 0.5
-    inventory.tryAddRune(
-      createRune(makeId('rune'), { sides: pair.inner, radius: innerRadius }, { sides: pair.outer, radius: outerRadius }),
-    )
-  }
+  const inventory = new Inventory(level.inventoryCapacity)
 
   const miasmaPuffs: MiasmaPuff[] = Array.from({ length: level.miasma.ambientCount }, () => ({
     id: makeId('puff'),
