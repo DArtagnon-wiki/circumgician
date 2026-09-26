@@ -7,6 +7,7 @@ import { MiasmaPuffView } from '../render/MiasmaPuffView'
 import { computeLayout, type FieldLayout } from './Layout'
 import { loadLevel, type GameState } from './GameState'
 import { LEVELS } from '../data/levels'
+import type { LevelConfig } from '../data/levels'
 import { createEventBus, type EventBus } from './EventBus'
 import { DragPlacementSystem } from '../systems/DragPlacementSystem'
 import { MiasmaFieldSystem } from '../systems/MiasmaFieldSystem'
@@ -75,8 +76,9 @@ export class Game {
     this.app.stage.addChild(this.layers.root)
     this.layers.effects.addChild(this.previewLine)
 
+    const level = this.selectLevel()
     this.layout = computeLayout(this.app.screen.width, this.app.screen.height, this.safeAreaBottom())
-    this.state = loadLevel(LEVELS[0], this.layout.miasmaField)
+    this.state = loadLevel(level, this.layout.miasmaField)
     this.bus = createEventBus()
     this.dragSystem = new DragPlacementSystem(this.state, this.bus, (id) => this.viewPositions.get(id))
     this.attractionSystem = new AttractionFillSystem(this.state, this.bus, (id) => this.viewPositions.get(id))
@@ -92,7 +94,7 @@ export class Game {
     this.bus.on('rune:added', ({ rune }) => this.onRuneAdded(rune))
     // Populates the inventory via the level's configured strategy — must run
     // before buildRuneViews() so there's something to build views for.
-    this.supplySystem = new RuneSupplySystem(this.state, LEVELS[0], this.bus, createStrategy(LEVELS[0].supply))
+    this.supplySystem = new RuneSupplySystem(this.state, level, this.bus, createStrategy(level.supply))
     this.winFailSystem = new WinFailSystem(
       this.state,
       this.bus,
@@ -111,6 +113,14 @@ export class Game {
 
     this.app.ticker.add((ticker) => this.update(ticker.deltaMS / 1000))
     this.bindResize()
+  }
+
+  // `?level=N` (1-indexed) is a minimal test/dev hook for picking a level
+  // ahead of a real level-select UI — not wired to any in-game menu yet.
+  private selectLevel(): LevelConfig {
+    const requested = Number(new URLSearchParams(window.location.search).get('level'))
+    const index = Number.isInteger(requested) && requested >= 1 && requested <= LEVELS.length ? requested - 1 : 0
+    return LEVELS[index]
   }
 
   private safeAreaBottom(): number {
