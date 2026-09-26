@@ -18,6 +18,10 @@ body {
   background: #140a24;
   -webkit-user-select: none;
   user-select: none;
+  /* Our core interaction is press-and-drag — without these, iOS Safari
+     shows a text-selection/callout menu on long-press and a blue tap flash. */
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 #app {
