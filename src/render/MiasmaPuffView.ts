@@ -15,4 +15,8 @@ export class MiasmaPuffView {
       .circle(puff.position.x, puff.position.y, 6)
       .fill({ color: MIASMA_COLOR, alpha: 0.85 })
   }
+
+  hide(): void {
+    this.graphic.clear()
+  }
 }

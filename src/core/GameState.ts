@@ -3,6 +3,7 @@ import type { MiasmaPuff } from '../model/MiasmaPuff'
 import { Inventory } from '../model/Inventory'
 import { createRune } from '../model/Rune'
 import type { LevelConfig } from '../data/levels/level1'
+import type { Rect } from './Layout'
 import { randRange } from '../utils/math'
 
 export interface GameState {
@@ -17,7 +18,9 @@ function makeId(prefix: string): string {
   return `${prefix}-${nextId}`
 }
 
-export function loadLevel(level: LevelConfig, miasmaFieldWidth: number, miasmaFieldHeight: number): GameState {
+// miasmaFieldRect is in world/root space (same space as obstacle and rune
+// positions) so attraction/targeting math never has to convert between spaces.
+export function loadLevel(level: LevelConfig, miasmaFieldRect: Rect): GameState {
   const obstacles: Obstacle[] = level.obstacles.map((o) => ({
     id: makeId('obstacle'),
     shape: { sides: o.shape, radius: 34 },
@@ -33,7 +36,10 @@ export function loadLevel(level: LevelConfig, miasmaFieldWidth: number, miasmaFi
 
   const miasmaPuffs: MiasmaPuff[] = Array.from({ length: level.miasma.ambientCount }, () => ({
     id: makeId('puff'),
-    position: { x: randRange(0, miasmaFieldWidth), y: randRange(0, miasmaFieldHeight) },
+    position: {
+      x: miasmaFieldRect.x + randRange(0, miasmaFieldRect.width),
+      y: miasmaFieldRect.y + randRange(0, miasmaFieldRect.height),
+    },
     velocity: { x: randRange(-12, 12), y: randRange(-12, 12) },
     state: 'free' as const,
   }))

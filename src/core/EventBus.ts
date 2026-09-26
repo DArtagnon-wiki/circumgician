@@ -4,6 +4,8 @@ import type { Obstacle } from '../model/Obstacle'
 
 export type GameEvents = {
   'rune:activated': { rune: Rune; obstacle: Obstacle }
+  'node:filled': { rune: Rune; nodeIndex: number }
+  'rune:ready': { rune: Rune }
 }
 
 export type EventBus = ReturnType<typeof createEventBus>

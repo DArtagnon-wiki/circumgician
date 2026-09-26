@@ -56,9 +56,19 @@ export class RuneView {
       { fillColor: colorForSides(this.rune.inner.sides), fillAlpha: 0.9 },
     )
 
+    this.syncNodes()
+  }
+
+  syncNodes(): void {
     this.nodesGraphic.clear()
-    for (const node of verticesOf(this.rune.outer, { x: 0, y: 0 })) {
-      this.nodesGraphic.circle(node.x, node.y, 4).fill({ color: 0xffffff, alpha: 0.6 })
-    }
+    const positions = verticesOf(this.rune.outer, { x: 0, y: 0 })
+    this.rune.nodes.forEach((node, i) => {
+      const p = positions[i]
+      if (node.filled) {
+        this.nodesGraphic.circle(p.x, p.y, 6).fill({ color: colorForSides(this.rune.inner.sides), alpha: 1 })
+      } else {
+        this.nodesGraphic.circle(p.x, p.y, 4).fill({ color: 0xffffff, alpha: 0.6 })
+      }
+    })
   }
 }
