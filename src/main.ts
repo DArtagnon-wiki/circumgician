@@ -7,5 +7,9 @@ const game = new Game()
 game.mount(app)
 
 if (isDebugMode()) {
-  createDebugPanel((inner, outer) => game.debugSpawnRune(inner, outer))
+  createDebugPanel({
+    spawn: (inner, outer) => game.debugSpawnRune(inner, outer),
+    forceDamageObstacles: () => game.debugForceDamageObstacles(),
+    forceDetonateActive: () => game.debugForceDetonateActive(),
+  })
 }

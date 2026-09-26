@@ -1,6 +1,7 @@
 import { Application, Graphics, type Container, type FederatedPointerEvent, type Renderer } from 'pixi.js'
 import { createLayers, type Layers } from '../render/Layers'
-import { BACKGROUND_BOTTOM, BACKGROUND_TOP, colorForSides } from '../render/Theme'
+import { colorForSides } from '../render/Theme'
+import { drawZoneBackground } from '../render/ZoneBackground'
 import { ObstacleView } from '../render/ObstacleView'
 import { RuneView } from '../render/RuneView'
 import { MiasmaPuffView } from '../render/MiasmaPuffView'
@@ -27,6 +28,7 @@ import type { Rune } from '../model/Rune'
 import { radiusForSides } from '../model/Polygon'
 import { uniformNodeColors } from '../model/nodeColors'
 import type { Obstacle } from '../model/Obstacle'
+import type { MiasmaPuff } from '../model/MiasmaPuff'
 import { makeId } from './id'
 import { randRange } from '../utils/math'
 
@@ -129,7 +131,6 @@ export class Game {
       showHUD('lost', () => window.location.reload())
     })
 
-    this.drawBackground()
     this.buildObstacleViews()
     this.buildRuneViews()
     this.buildPuffViews()
@@ -152,25 +153,14 @@ export class Game {
     return parseFloat(raw) || 0
   }
 
-  private drawBackground(): void {
-    const draw = () => {
-      const w = this.app.screen.width
-      const h = this.app.screen.height
-      this.layers.background.removeChildren()
-      const g = new Graphics()
-      g.rect(0, 0, w, h).fill({ color: BACKGROUND_TOP })
-      const bands = 24
-      for (let i = 0; i < bands; i++) {
-        const t = i / (bands - 1)
-        g.rect(0, (h * i) / bands, w, h / bands + 1).fill({
-          color: BACKGROUND_BOTTOM,
-          alpha: t * 0.75,
-        })
-      }
-      this.layers.background.addChild(g)
-    }
-    draw()
-    this.app.renderer.on('resize', draw)
+  // Redrawn from relayout() (not a renderer 'resize' listener) so it's
+  // always in sync with the CURRENT `this.layout` — the renderer's resize
+  // event fires mid-way through bindResize's own resize call, before
+  // relayout() has a chance to recompute layout, which would otherwise draw
+  // one frame behind on every resize.
+  private redrawBackground(): void {
+    this.layers.background.removeChildren()
+    this.layers.background.addChild(drawZoneBackground(this.app.screen.width, this.layout))
   }
 
   private buildObstacleViews(): void {
@@ -294,8 +284,11 @@ export class Game {
   }
 
   private onNodeFilled(rune: Rune, nodeIndex: number): void {
-    this.runeViews.get(rune.id)?.syncNodes()
     const puffId = rune.nodes[nodeIndex].puffId
+    const puff = puffId ? this.state.miasmaPuffs.find((p) => p.id === puffId) : undefined
+    const view = this.runeViews.get(rune.id)
+    if (view && puff) view.setNodeCaughtColor(nodeIndex, puff.color)
+    else view?.syncNodes()
     if (puffId) this.puffViews.get(puffId)?.hide()
     this.sfx.nodeFilled()
   }
@@ -389,6 +382,39 @@ export class Game {
     this.bus.emit('rune:added', { rune: placed })
   }
 
+  // Drops every obstacle's current layer to 0 HP, exercising the
+  // layer-promotion/clear path without needing to actually fill runes.
+  debugForceDamageObstacles(): void {
+    for (const obstacle of [...this.state.obstacles]) {
+      obstacle.hp = 0
+      this.bus.emit('obstacle:damaged', { obstacle, damage: obstacle.maxHp })
+    }
+  }
+
+  // Instantly fills every remaining node on every active rune with a
+  // matching-color consumed puff and fires 'rune:ready', exercising
+  // detonation/promotion/annihilation without waiting on real attraction.
+  debugForceDetonateActive(): void {
+    for (const rune of this.state.inventory.slots) {
+      if (!rune || rune.state !== 'active' || !rune.fieldPosition) continue
+      rune.nodes.forEach((node, i) => {
+        if (node.filled) return
+        const catchColor = rune.outer.nodeColors[i].catch
+        const puff: MiasmaPuff = {
+          id: makeId('puff'),
+          position: { x: rune.fieldPosition!.x, y: rune.fieldPosition!.y },
+          velocity: { x: 0, y: 0 },
+          state: 'consumed',
+          color: catchColor,
+        }
+        this.state.miasmaPuffs.push(puff)
+        node.filled = true
+        node.puffId = puff.id
+      })
+      this.bus.emit('rune:ready', { rune })
+    }
+  }
+
   private acquireParticle(): Graphics {
     return this.particlePool.pop() ?? new Graphics()
   }
@@ -479,6 +505,7 @@ export class Game {
 
   private relayout(): void {
     this.layout = computeLayout(this.app.screen.width, this.app.screen.height, this.safeAreaBottom())
+    this.redrawBackground()
     const { obstacleArea } = this.layout
 
     const usableW = Math.max(1, obstacleArea.width - OBSTACLE_MARGIN * 2)
@@ -514,6 +541,10 @@ export class Game {
     for (const puff of this.state.miasmaPuffs) {
       if (puff.state === 'consumed') continue
       this.puffViews.get(puff.id)?.sync(puff)
+    }
+
+    for (const view of this.runeViews.values()) {
+      view.update(dt)
     }
 
     this.animations = this.animations.filter((animate) => animate(dt))

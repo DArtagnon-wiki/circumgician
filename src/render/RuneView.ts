@@ -1,22 +1,25 @@
 import { Circle, Container, Graphics } from 'pixi.js'
 import { GlowFilter } from 'pixi-filters'
 import type { Rune } from '../model/Rune'
+import type { MoteColor } from '../model/Color'
 import { verticesOf } from '../model/Polygon'
-import { colorForSides } from './Theme'
+import { colorForMote, colorForRelease, colorForSides } from './Theme'
 import { drawPolygon } from './drawPolygon'
 
-// NOTE: this is a mechanical port to the new outer/middle/center model —
-// full 3-layer rendering (per-node color rings, the center indicator's
-// none/shape/full spectrum) is M3's job. For now `center` isn't drawn at all.
+const CENTER_DISPLAY_RADIUS = 13 // fixed inset size regardless of the center's real side count/radius
+
 export class RuneView {
   container = new Container()
   private glowGraphic = new Graphics()
   private outerGraphic = new Graphics()
   private middleGraphic = new Graphics()
   private nodesGraphic = new Graphics()
+  private centerGraphic = new Graphics()
   private rune: Rune
   private active = false
   private glowFilter: GlowFilter
+  private filledColors = new Map<number, MoteColor>()
+  private enigmaRotation = 0
 
   constructor(rune: Rune) {
     this.rune = rune
@@ -26,7 +29,13 @@ export class RuneView {
       color: colorForSides(rune.middle.shape.sides),
       quality: 0.3,
     })
-    this.container.addChild(this.glowGraphic, this.outerGraphic, this.middleGraphic, this.nodesGraphic)
+    this.container.addChild(
+      this.glowGraphic,
+      this.outerGraphic,
+      this.middleGraphic,
+      this.centerGraphic,
+      this.nodesGraphic,
+    )
     this.container.eventMode = 'static'
     this.container.cursor = 'pointer'
     this.container.hitArea = new Circle(0, 0, rune.outer.shape.radius + 8)
@@ -42,6 +51,22 @@ export class RuneView {
     this.redraw()
   }
 
+  // A node actually caught a specific mote — recorded so the filled dot
+  // shows what was really caught, which may differ from a generic catch
+  // requirement (any matching color could have arrived).
+  setNodeCaughtColor(nodeIndex: number, color: MoteColor): void {
+    this.filledColors.set(nodeIndex, color)
+    this.syncNodes()
+  }
+
+  // Advances the center indicator's animated "enigma" state — only does
+  // anything while insightLevel is 'none' and there's something to obscure.
+  update(dt: number): void {
+    if (this.rune.insightLevel !== 'none' || !this.rune.center) return
+    this.enigmaRotation += dt * 1.4
+    this.drawCenter()
+  }
+
   // Public so callers can force a full re-render after the underlying
   // rune's shapes change in place (e.g. promotion) — not just active/inactive
   // toggling, which is what triggered a redraw before this model existed.
@@ -49,6 +74,7 @@ export class RuneView {
     this.container.filters = this.active ? [this.glowFilter] : []
     this.glowFilter.color = colorForSides(this.rune.middle.shape.sides)
     this.container.hitArea = new Circle(0, 0, this.rune.outer.shape.radius + 8)
+    this.filledColors.clear() // nodes are always fresh right after a redraw is warranted
 
     this.glowGraphic.clear()
     if (this.active) {
@@ -74,6 +100,7 @@ export class RuneView {
       { fillColor: colorForSides(this.rune.middle.shape.sides), fillAlpha: 0.9 },
     )
 
+    this.drawCenter()
     this.syncNodes()
   }
 
@@ -83,10 +110,58 @@ export class RuneView {
     this.rune.nodes.forEach((node, i) => {
       const p = positions[i]
       if (node.filled) {
-        this.nodesGraphic.circle(p.x, p.y, 6).fill({ color: colorForSides(this.rune.middle.shape.sides), alpha: 1 })
+        const caught = this.filledColors.get(i)
+        const color = caught !== undefined ? colorForMote(caught) : colorForMote(this.rune.outer.nodeColors[i].catch)
+        this.nodesGraphic.circle(p.x, p.y, 6).fill({ color, alpha: 1 })
       } else {
-        this.nodesGraphic.circle(p.x, p.y, 4).fill({ color: 0xffffff, alpha: 0.6 })
+        const catchColor = this.rune.outer.nodeColors[i].catch
+        this.nodesGraphic.circle(p.x, p.y, 4).stroke({ color: colorForMote(catchColor), width: 2, alpha: 0.8 })
       }
     })
+  }
+
+  private drawCenter(): void {
+    this.centerGraphic.clear()
+
+    if (!this.rune.center) {
+      // Nothing left to hide once there's nothing left — a distinct, minimal
+      // "spent core" glyph regardless of insight level.
+      this.centerGraphic.circle(0, 0, 5).fill({ color: 0x333344, alpha: 0.6 })
+      return
+    }
+
+    if (this.rune.insightLevel === 'none') {
+      this.drawEnigma()
+      return
+    }
+
+    const displaySpec = { sides: this.rune.center.shape.sides, radius: CENTER_DISPLAY_RADIUS }
+
+    if (this.rune.insightLevel === 'shape') {
+      drawPolygon(this.centerGraphic, displaySpec, { x: 0, y: 0 }, { strokeColor: 0x9a95ad, strokeWidth: 1.5 })
+      return
+    }
+
+    // 'full': real shape + real per-node colors, dimmed to read as preview.
+    drawPolygon(
+      this.centerGraphic,
+      displaySpec,
+      { x: 0, y: 0 },
+      { fillColor: colorForSides(this.rune.center.shape.sides), fillAlpha: 0.3, strokeColor: 0xffffff, strokeWidth: 1 },
+    )
+    const positions = verticesOf(displaySpec, { x: 0, y: 0 })
+    this.rune.center.nodeColors.forEach((nc, i) => {
+      const p = positions[i]
+      this.centerGraphic.circle(p.x, p.y, 2.5).fill({ color: colorForRelease(nc.release), alpha: 0.85 })
+    })
+  }
+
+  private drawEnigma(): void {
+    const r = CENTER_DISPLAY_RADIUS
+    this.centerGraphic
+      .arc(0, 0, r, this.enigmaRotation, this.enigmaRotation + Math.PI * 1.2)
+      .stroke({ color: 0xffffff, width: 2, alpha: 0.4 })
+      .arc(0, 0, r * 0.6, -this.enigmaRotation * 1.3, -this.enigmaRotation * 1.3 + Math.PI * 1.4)
+      .stroke({ color: 0xffffff, width: 2, alpha: 0.25 })
   }
 }
