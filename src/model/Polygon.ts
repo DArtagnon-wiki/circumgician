@@ -8,7 +8,10 @@ export interface PolygonSpec {
 
 // Rune outer radius scales with side count so field packing actually costs
 // more for bigger runes (a 7-gon takes up visibly more room than a triangle).
-export function radiusForSides(sides: ShapeSides, base = 20, perSide = 4): number {
+// Tuned down from an earlier base=20/perSide=4 pass, which crowded/overlapped
+// a 5-slot inventory bar at the fixed 400-unit virtual width (a hexagon/
+// heptagon outer radius left barely any gap between adjacent icons).
+export function radiusForSides(sides: ShapeSides, base = 16, perSide = 3): number {
   return base + sides * perSide
 }
 

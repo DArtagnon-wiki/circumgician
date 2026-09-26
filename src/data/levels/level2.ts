@@ -1,20 +1,42 @@
 import type { LevelConfig } from './level1'
 import type { RuneTemplate } from '../../supply/RuneSupplyStrategy'
-import { simpleLayer } from '../../model/nodeColors'
+import { patternLayer, simpleLayer } from '../../model/nodeColors'
 
 // Exercises TimeDripStrategy, scripted 2-layer obstacle growth, and
-// introduces colored (non-generic) motes for the first time.
-// NOTE: numeric balance here is a first pass — M6 revisits with real
-// playtesting once rendering makes the mechanics visible.
+// introduces colored (non-generic) motes for the first time. Each template's
+// outer starts simple (generic) so placement/detonation stays approachable
+// on the first stage — the escalation into genuinely mixed per-node colors
+// (no simple correspondence between what a node catches and what it
+// releases, per the design brief's own 5-gon example) shows up once middle
+// is promoted into the new outer.
 const pool: RuneTemplate[] = [
   { outer: simpleLayer(4), middle: simpleLayer(3), centerGrowth: { type: 'scripted', params: { sequence: [simpleLayer(5)] } } },
   {
     outer: simpleLayer(5),
-    middle: simpleLayer(4, { catch: 'red', release: 'generic' }),
+    // 4 nodes: 2 catch red / 2 catch generic; releases into 1 gold, 1 teal,
+    // 2 generic — no 1:1 catch-to-release correspondence.
+    middle: patternLayer(4, [
+      { catch: 'red', release: 'gold' },
+      { catch: 'generic', release: 'generic' },
+      { catch: 'red', release: 'teal' },
+      { catch: 'generic', release: 'generic' },
+    ]),
     centerGrowth: { type: 'scripted', params: { sequence: [simpleLayer(6)] } },
   },
   { outer: simpleLayer(6), middle: simpleLayer(5), centerGrowth: { type: 'none' } },
-  { outer: simpleLayer(4), middle: simpleLayer(6), centerGrowth: { type: 'none' } },
+  {
+    outer: simpleLayer(4),
+    // 5 nodes: 3 catch gold, 1 catch red, 1 catch blue; releases into 1 teal,
+    // 1 violet, 3 generic — matches the design brief's own worked example.
+    middle: patternLayer(5, [
+      { catch: 'gold', release: 'generic' },
+      { catch: 'gold', release: 'generic' },
+      { catch: 'gold', release: 'teal' },
+      { catch: 'red', release: 'violet' },
+      { catch: 'blue', release: 'generic' },
+    ]),
+    centerGrowth: { type: 'none' },
+  },
 ]
 
 export const level2: LevelConfig = {
@@ -26,7 +48,7 @@ export const level2: LevelConfig = {
     { shape: 5, hp: 7, position: { x: 0.65, y: 0.2 }, growth: { type: 'none' } },
     { shape: 6, hp: 8, position: { x: 0.88, y: 0.42 }, growth: { type: 'none' } },
   ],
-  miasma: { ambientCount: 22, colorWeights: { generic: 3, red: 1 } },
+  miasma: { ambientCount: 22, colorWeights: { generic: 3, red: 1, gold: 1, blue: 1 } },
   inventoryCapacity: 4,
   supply: { type: 'timeDrip', params: { pool, intervalSeconds: 5 } },
   defaultInsightLevel: 'shape',

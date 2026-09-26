@@ -6,8 +6,6 @@ import { patternLayer, simpleLayer } from '../../model/nodeColors'
 // triangle/square runes start available — pentagon/hexagon are genuinely
 // unreachable until their gating obstacle clears), scripted obstacle growth,
 // and one annihilating rune center (escalating attrition, fitting the name).
-// NOTE: numeric balance here is a first pass — M6 revisits with real
-// playtesting once rendering makes the mechanics visible.
 export const level3: LevelConfig = {
   id: 'level3',
   name: 'Chain Reaction',

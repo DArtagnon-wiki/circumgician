@@ -7,8 +7,6 @@ import { patternLayer, simpleLayer } from '../../model/nodeColors'
 // Finale: FixedHandRefillStrategy again, mixed scripted ("boss") and random
 // ("chaos") obstacle growth, and a rune pool spanning the full insight
 // spectrum (full/shape/none) plus an annihilating template, all at once.
-// NOTE: numeric balance here is a first pass — M6 revisits with real
-// playtesting once rendering makes the mechanics visible.
 const CHAOS_SHAPES: ShapeSides[] = [3, 4, 5, 6, 7]
 
 const chaosGrowth = {
@@ -25,7 +23,20 @@ const chaosGrowth = {
 
 const pool: RuneTemplate[] = [
   { outer: simpleLayer(4), middle: simpleLayer(3), centerGrowth: { type: 'scripted', params: { sequence: [simpleLayer(5)] } }, insightLevel: 'full' },
-  { outer: simpleLayer(5), middle: simpleLayer(4), centerGrowth: { type: 'scripted', params: { sequence: [simpleLayer(6)] } }, insightLevel: 'shape' },
+  {
+    outer: simpleLayer(5),
+    // Transmuting rune: catches red/blue and swaps their releases, generic
+    // nodes pass through unchanged — a genuinely mixed catch/release layer
+    // for the finale rather than a uniform color pair.
+    middle: patternLayer(4, [
+      { catch: 'red', release: 'blue' },
+      { catch: 'generic', release: 'generic' },
+      { catch: 'blue', release: 'red' },
+      { catch: 'generic', release: 'generic' },
+    ]),
+    centerGrowth: { type: 'scripted', params: { sequence: [simpleLayer(6)] } },
+    insightLevel: 'shape',
+  },
   { outer: simpleLayer(6), middle: simpleLayer(5), centerGrowth: { type: 'none' }, insightLevel: 'none' },
   {
     outer: simpleLayer(7),

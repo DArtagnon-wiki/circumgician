@@ -7,8 +7,6 @@ import { simpleLayer } from '../../model/nodeColors'
 // Exercises EventTriggeredUnlockStrategy's runeDetonated trigger, RANDOM
 // obstacle-layer growth (a genuine coin-flip each collapse, capped), and a
 // mix of scripted/random rune-center growth — full mystery (insight 'none').
-// NOTE: numeric balance here is a first pass — M6 revisits with real
-// playtesting once rendering makes the mechanics visible.
 const RANDOM_OBSTACLE_SHAPES: ShapeSides[] = [3, 4, 5, 6]
 
 const randomObstacleGrowth = {
