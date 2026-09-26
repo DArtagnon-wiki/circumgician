@@ -41,6 +41,7 @@ interface DragState {
   view: RuneView
   onMove: (e: FederatedPointerEvent) => void
   onEnd: (e: FederatedPointerEvent) => void
+  onCancel: () => void
 }
 
 export interface GameSceneCallbacks {
@@ -230,10 +231,18 @@ export class GameScene {
     // assigning `hitArea` on a container short-circuits its child hit-tests).
     const onMove = (ev: FederatedPointerEvent) => this.onDragMove(ev)
     const onEnd = (ev: FederatedPointerEvent) => this.onDragEnd(ev)
-    this.dragState = { rune, view, onMove, onEnd }
+    // A real touch drag can be interrupted by the OS (incoming call, app
+    // switch, a multi-touch gesture stealing the pointer) without ever
+    // firing pointerup/pointerupoutside — 'pointercancel' is the spec's
+    // signal for exactly that. Without handling it, dragState would never
+    // clear, and beginDrag's `|| this.dragState` guard would silently block
+    // every future drag for the rest of the session.
+    const onCancel = () => this.cancelDrag()
+    this.dragState = { rune, view, onMove, onEnd, onCancel }
     view.container.on('globalpointermove', onMove)
     view.container.on('pointerup', onEnd)
     view.container.on('pointerupoutside', onEnd)
+    view.container.on('pointercancel', onCancel)
 
     this.layers.effects.addChild(view.container) // draw above everything while dragging
     const pos = this.layers.root.toLocal(e.global)
@@ -253,10 +262,8 @@ export class GameScene {
 
   private onDragEnd(e: FederatedPointerEvent): void {
     if (!this.dragState) return
-    const { rune, view, onMove, onEnd } = this.dragState
-    view.container.off('globalpointermove', onMove)
-    view.container.off('pointerup', onEnd)
-    view.container.off('pointerupoutside', onEnd)
+    const { rune, view } = this.dragState
+    this.detachDragListeners()
 
     const pos = this.layers.root.toLocal(e.global)
     this.previewLine.clear()
@@ -270,6 +277,31 @@ export class GameScene {
     // On success, 'rune:activated' (emitted by tryPlace) drives the rest via onRuneActivated.
 
     this.dragState = null
+  }
+
+  // The pointer's own release never resolved to a placement attempt — always
+  // snap back to the inventory slot rather than trying tryPlace() against
+  // whatever stale/undefined position a cancel event carries.
+  private cancelDrag(): void {
+    if (!this.dragState) return
+    const { rune, view } = this.dragState
+    this.detachDragListeners()
+    this.previewLine.clear()
+
+    const slotPos = this.inventorySlotPosition(rune.slotIndex)
+    this.layers.inventory.addChild(view.container)
+    this.animateMove(view, { x: view.container.x, y: view.container.y }, slotPos)
+
+    this.dragState = null
+  }
+
+  private detachDragListeners(): void {
+    if (!this.dragState) return
+    const { view, onMove, onEnd, onCancel } = this.dragState
+    view.container.off('globalpointermove', onMove)
+    view.container.off('pointerup', onEnd)
+    view.container.off('pointerupoutside', onEnd)
+    view.container.off('pointercancel', onCancel)
   }
 
   private drawPreviewLine(from: Vec2, obstacle: Obstacle | null, fits: boolean): void {

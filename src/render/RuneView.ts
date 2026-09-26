@@ -48,6 +48,7 @@ export class RuneView {
 
   setActive(active: boolean): void {
     this.active = active
+    this.container.filters = active ? [this.glowFilter] : []
     this.redraw()
   }
 
@@ -71,7 +72,13 @@ export class RuneView {
   // rune's shapes change in place (e.g. promotion) — not just active/inactive
   // toggling, which is what triggered a redraw before this model existed.
   redraw(): void {
-    this.container.filters = this.active ? [this.glowFilter] : []
+    // filters is intentionally NOT reassigned here (only in setActive(),
+    // where the active flag genuinely changes) — reassigning the filters
+    // array on the same tick the outer Graphics geometry is cleared and
+    // redrawn (as every promotion does) triggered a PixiJS filter-bounds
+    // bug where the container rendered at a stale/wrong screen position
+    // despite its actual transform being correct, discovered live during
+    // an M7 playtest of a real detonation.
     this.glowFilter.color = colorForSides(this.rune.middle.shape.sides)
     this.container.hitArea = new Circle(0, 0, this.rune.outer.shape.radius + 8)
     this.filledColors.clear() // nodes are always fresh right after a redraw is warranted
