@@ -1,6 +1,6 @@
-import { Application, Graphics, type Renderer } from 'pixi.js'
+import { Application, Graphics, type Container, type Renderer } from 'pixi.js'
 import { createLayers, type Layers } from '../render/Layers'
-import { BACKGROUND_BOTTOM, BACKGROUND_TOP } from '../render/Theme'
+import { BACKGROUND_BOTTOM, BACKGROUND_TOP, colorForSides } from '../render/Theme'
 import { ObstacleView } from '../render/ObstacleView'
 import { RuneView } from '../render/RuneView'
 import { MiasmaPuffView } from '../render/MiasmaPuffView'
@@ -11,9 +11,13 @@ import { createEventBus, type EventBus } from './EventBus'
 import { InputSelectionSystem } from '../systems/InputSelectionSystem'
 import { MiasmaFieldSystem } from '../systems/MiasmaFieldSystem'
 import { AttractionFillSystem } from '../systems/AttractionFillSystem'
+import { DetonationSystem } from '../systems/DetonationSystem'
+import { ObstacleHealthSystem } from '../systems/ObstacleHealthSystem'
 import type { Id, Vec2 } from './types'
 import type { Rune } from '../model/Rune'
 import type { Obstacle } from '../model/Obstacle'
+
+type Animation = (dt: number) => boolean // return false when finished
 
 const OBSTACLE_MARGIN = 50
 
@@ -34,6 +38,7 @@ export class Game {
   private viewPositions = new Map<Id, Vec2>()
   private linkTargets = new Map<Id, Id>() // runeId -> obstacleId
   private linkGraphics = new Map<Id, Graphics>() // runeId -> line graphic
+  private animations: Animation[] = []
 
   async mount(container: HTMLElement): Promise<void> {
     await this.app.init({
@@ -56,8 +61,15 @@ export class Game {
     this.bus = createEventBus()
     this.inputSystem = new InputSelectionSystem(this.state, this.bus, (id) => this.viewPositions.get(id))
     this.attractionSystem = new AttractionFillSystem(this.state, this.bus, (id) => this.viewPositions.get(id))
+    // Both systems are purely event-driven (subscribe in their constructor) —
+    // the bus keeps them alive, no need to hold a reference on Game.
+    new DetonationSystem(this.state, this.bus, () => this.layout.miasmaField)
+    new ObstacleHealthSystem(this.state, this.bus)
     this.bus.on('rune:activated', ({ rune, obstacle }) => this.onRuneActivated(rune, obstacle))
     this.bus.on('node:filled', ({ rune, nodeIndex }) => this.onNodeFilled(rune, nodeIndex))
+    this.bus.on('obstacle:damaged', ({ obstacle }) => this.onObstacleDamaged(obstacle))
+    this.bus.on('obstacle:cleared', ({ obstacle }) => this.onObstacleCleared(obstacle))
+    this.bus.on('rune:detonated', ({ rune }) => this.onRuneDetonated(rune))
 
     this.drawBackground()
     this.buildObstacleViews()
@@ -133,6 +145,71 @@ export class Game {
     if (puffId) this.puffViews.get(puffId)?.hide()
   }
 
+  private onObstacleDamaged(obstacle: Obstacle): void {
+    this.obstacleViews.get(obstacle.id)?.updateHp(obstacle.hp)
+    const pos = this.viewPositions.get(obstacle.id)
+    if (pos) this.spawnBurst(pos, colorForSides(obstacle.shape.sides))
+  }
+
+  private onObstacleCleared(obstacle: Obstacle): void {
+    const view = this.obstacleViews.get(obstacle.id)
+    if (view) {
+      this.fadeOut(view.container, () => {
+        this.layers.obstacles.removeChild(view.container)
+        view.container.destroy({ children: true })
+      })
+    }
+    this.obstacleViews.delete(obstacle.id)
+    this.viewPositions.delete(obstacle.id)
+  }
+
+  private onRuneDetonated(rune: Rune): void {
+    this.runeViews.get(rune.id)?.setActive(false)
+    this.runeViews.get(rune.id)?.syncNodes()
+    this.linkTargets.delete(rune.id)
+    const line = this.linkGraphics.get(rune.id)
+    if (line) {
+      this.layers.effects.removeChild(line)
+      line.destroy()
+      this.linkGraphics.delete(rune.id)
+    }
+  }
+
+  private spawnBurst(position: Vec2, color: number): void {
+    const g = new Graphics()
+    this.layers.effects.addChild(g)
+    let elapsed = 0
+    const duration = 0.35
+    this.animations.push((dt) => {
+      elapsed += dt
+      const t = Math.min(1, elapsed / duration)
+      g.clear()
+      g.circle(position.x, position.y, 10 + t * 40).stroke({ color, width: 3, alpha: 1 - t })
+      if (t >= 1) {
+        this.layers.effects.removeChild(g)
+        g.destroy()
+        return false
+      }
+      return true
+    })
+  }
+
+  private fadeOut(container: Container, onDone: () => void): void {
+    let elapsed = 0
+    const duration = 0.3
+    this.animations.push((dt) => {
+      elapsed += dt
+      const t = Math.min(1, elapsed / duration)
+      container.alpha = 1 - t
+      container.scale.set(1 - t * 0.3)
+      if (t >= 1) {
+        onDone()
+        return false
+      }
+      return true
+    })
+  }
+
   private drawLinkLine(runeId: Id): void {
     const obstacleId = this.linkTargets.get(runeId)
     if (!obstacleId) return
@@ -185,6 +262,8 @@ export class Game {
       if (puff.state === 'consumed') continue
       this.puffViews.get(puff.id)?.sync(puff)
     }
+
+    this.animations = this.animations.filter((animate) => animate(dt))
   }
 
   private bindResize(): void {
