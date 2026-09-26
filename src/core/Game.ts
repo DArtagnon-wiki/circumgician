@@ -18,12 +18,14 @@ import { RuneSupplySystem } from '../systems/RuneSupplySystem'
 import { WinFailSystem } from '../systems/WinFailSystem'
 import { createStrategy } from '../supply'
 import { showHUD } from '../ui/HUD'
+import { Sfx } from '../audio/Sfx'
 import type { Id, ShapeSides, Vec2 } from './types'
 import { createRune } from '../model/Rune'
 import type { Rune } from '../model/Rune'
 import { radiusForSides } from '../model/Polygon'
 import type { Obstacle } from '../model/Obstacle'
 import { makeId } from './id'
+import { randRange } from '../utils/math'
 
 type Animation = (dt: number) => boolean // return false when finished
 
@@ -58,6 +60,8 @@ export class Game {
   private previewLine = new Graphics()
   private dragState: DragState | null = null
   private animations: Animation[] = []
+  private particlePool: Graphics[] = []
+  private sfx = new Sfx()
 
   async mount(container: HTMLElement): Promise<void> {
     await this.app.init({
@@ -102,8 +106,14 @@ export class Game {
       this.dragSystem,
       () => this.layout.miasmaField,
     )
-    this.bus.on('game:won', () => showHUD('won', () => window.location.reload()))
-    this.bus.on('game:lost', () => showHUD('lost', () => window.location.reload()))
+    this.bus.on('game:won', () => {
+      this.sfx.win()
+      showHUD('won', () => window.location.reload())
+    })
+    this.bus.on('game:lost', () => {
+      this.sfx.lose()
+      showHUD('lost', () => window.location.reload())
+    })
 
     this.drawBackground()
     this.buildObstacleViews()
@@ -186,6 +196,7 @@ export class Game {
 
   private beginDrag(rune: Rune, view: RuneView, e: FederatedPointerEvent): void {
     if (rune.state !== 'idle' || this.dragState) return
+    this.sfx.unlock() // must run synchronously inside a real gesture for iOS Safari
 
     // 'globalpointermove' fires regardless of hit-testing (unlike plain
     // 'pointermove', which only fires while the pointer is over the object) —
@@ -265,12 +276,14 @@ export class Game {
     if (rune.fieldPosition) this.viewPositions.set(rune.id, rune.fieldPosition)
     this.linkTargets.set(rune.id, obstacle.id)
     this.drawLinkLine(rune.id)
+    this.sfx.place()
   }
 
   private onNodeFilled(rune: Rune, nodeIndex: number): void {
     this.runeViews.get(rune.id)?.syncNodes()
     const puffId = rune.nodes[nodeIndex].puffId
     if (puffId) this.puffViews.get(puffId)?.hide()
+    this.sfx.nodeFilled()
   }
 
   private onObstacleDamaged(obstacle: Obstacle): void {
@@ -289,12 +302,14 @@ export class Game {
     }
     this.obstacleViews.delete(obstacle.id)
     this.viewPositions.delete(obstacle.id)
+    this.sfx.obstacleCleared()
   }
 
   // The rune is consumed on detonation (removed from its inventory slot by
   // DetonationSystem) — its view goes away with it. Whatever the supply
   // strategy adds to fill the vacated slot arrives as a separate 'rune:added'.
   private onRuneDetonated(rune: Rune): void {
+    this.sfx.detonate()
     this.linkTargets.delete(rune.id)
     const line = this.linkGraphics.get(rune.id)
     if (line) {
@@ -331,23 +346,57 @@ export class Game {
     this.bus.emit('rune:added', { rune: placed })
   }
 
+  private acquireParticle(): Graphics {
+    return this.particlePool.pop() ?? new Graphics()
+  }
+
+  private releaseParticle(g: Graphics): void {
+    g.clear()
+    this.layers.effects.removeChild(g)
+    this.particlePool.push(g)
+  }
+
   private spawnBurst(position: Vec2, color: number): void {
-    const g = new Graphics()
-    this.layers.effects.addChild(g)
+    const ring = new Graphics()
+    this.layers.effects.addChild(ring)
     let elapsed = 0
-    const duration = 0.35
+    const ringDuration = 0.35
     this.animations.push((dt) => {
       elapsed += dt
-      const t = Math.min(1, elapsed / duration)
-      g.clear()
-      g.circle(position.x, position.y, 10 + t * 40).stroke({ color, width: 3, alpha: 1 - t })
+      const t = Math.min(1, elapsed / ringDuration)
+      ring.clear()
+      ring.circle(position.x, position.y, 10 + t * 40).stroke({ color, width: 3, alpha: 1 - t })
       if (t >= 1) {
-        this.layers.effects.removeChild(g)
-        g.destroy()
+        this.layers.effects.removeChild(ring)
+        ring.destroy()
         return false
       }
       return true
     })
+
+    const particleCount = 10
+    for (let i = 0; i < particleCount; i++) {
+      const angle = (i / particleCount) * Math.PI * 2 + randRange(-0.2, 0.2)
+      const speed = randRange(70, 150)
+      const particle = this.acquireParticle()
+      this.layers.effects.addChild(particle)
+      let pElapsed = 0
+      const pDuration = 0.4
+      this.animations.push((dt) => {
+        pElapsed += dt
+        const t = Math.min(1, pElapsed / pDuration)
+        const dist = speed * t
+        const x = position.x + Math.cos(angle) * dist
+        const y = position.y + Math.sin(angle) * dist
+        particle.clear()
+        particle.circle(x, y, 3 * (1 - t)).fill({ color, alpha: 1 - t })
+        if (t >= 1) {
+          this.releaseParticle(particle)
+          return false
+        }
+        return true
+      })
+    }
   }
 
   private fadeOut(container: Container, onDone: () => void): void {

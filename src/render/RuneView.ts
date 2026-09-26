@@ -1,4 +1,5 @@
 import { Circle, Container, Graphics } from 'pixi.js'
+import { GlowFilter } from 'pixi-filters'
 import type { Rune } from '../model/Rune'
 import { verticesOf } from '../model/Polygon'
 import { colorForSides } from './Theme'
@@ -12,9 +13,16 @@ export class RuneView {
   private nodesGraphic = new Graphics()
   private rune: Rune
   private active = false
+  private glowFilter: GlowFilter
 
   constructor(rune: Rune) {
     this.rune = rune
+    this.glowFilter = new GlowFilter({
+      distance: 10,
+      outerStrength: 2.5,
+      color: colorForSides(rune.inner.sides),
+      quality: 0.3,
+    })
     this.container.addChild(this.glowGraphic, this.outerGraphic, this.innerGraphic, this.nodesGraphic)
     this.container.eventMode = 'static'
     this.container.cursor = 'pointer'
@@ -32,6 +40,8 @@ export class RuneView {
   }
 
   private redraw(): void {
+    this.container.filters = this.active ? [this.glowFilter] : []
+
     this.glowGraphic.clear()
     if (this.active) {
       this.glowGraphic.circle(0, 0, this.rune.outer.radius + 10).fill({ color: 0xffffff, alpha: 0.18 })
