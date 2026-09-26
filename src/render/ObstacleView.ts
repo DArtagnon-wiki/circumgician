@@ -1,5 +1,6 @@
 import { Container, Graphics, Text } from 'pixi.js'
 import type { Obstacle } from '../model/Obstacle'
+import type { PolygonSpec } from '../model/Polygon'
 import { colorForSides } from './Theme'
 import { drawPolygon } from './drawPolygon'
 
@@ -27,6 +28,17 @@ export class ObstacleView {
   updateHp(hp: number): void {
     this.obstacle.hp = hp
     this.hpText.text = String(hp)
+  }
+
+  // Called on layer promotion — the obstacle's active shape actually
+  // changes, not just its HP. Full "shell cracked" reveal treatment is M3's
+  // job; this keeps the view correct in the meantime.
+  updateLayer(shape: PolygonSpec, hp: number, maxHp: number): void {
+    this.obstacle.shape = shape
+    this.obstacle.hp = hp
+    this.obstacle.maxHp = maxHp
+    this.hpText.text = String(hp)
+    this.redraw()
   }
 
   private redraw(): void {

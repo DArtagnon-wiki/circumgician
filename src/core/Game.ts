@@ -14,15 +14,18 @@ import { MiasmaFieldSystem } from '../systems/MiasmaFieldSystem'
 import { AttractionFillSystem } from '../systems/AttractionFillSystem'
 import { DetonationSystem } from '../systems/DetonationSystem'
 import { ObstacleHealthSystem } from '../systems/ObstacleHealthSystem'
+import { ObstacleGrowthSystem } from '../systems/ObstacleGrowthSystem'
+import { RuneGrowthSystem } from '../systems/RuneGrowthSystem'
 import { RuneSupplySystem } from '../systems/RuneSupplySystem'
 import { WinFailSystem } from '../systems/WinFailSystem'
 import { createStrategy } from '../supply'
 import { showHUD } from '../ui/HUD'
 import { Sfx } from '../audio/Sfx'
 import type { Id, ShapeSides, Vec2 } from './types'
-import { createRune } from '../model/Rune'
+import { createRune, type RuneLayer } from '../model/Rune'
 import type { Rune } from '../model/Rune'
 import { radiusForSides } from '../model/Polygon'
+import { uniformNodeColors } from '../model/nodeColors'
 import type { Obstacle } from '../model/Obstacle'
 import { makeId } from './id'
 import { randRange } from '../utils/math'
@@ -49,6 +52,8 @@ export class Game {
   private attractionSystem!: AttractionFillSystem
   private supplySystem!: RuneSupplySystem
   private winFailSystem!: WinFailSystem
+  private obstacleGrowth = new ObstacleGrowthSystem()
+  private runeGrowth = new RuneGrowthSystem()
   private obstacleViews = new Map<Id, ObstacleView>()
   private runeViews = new Map<Id, RuneView>()
   private puffViews = new Map<Id, MiasmaPuffView>()
@@ -82,23 +87,32 @@ export class Game {
 
     const level = this.selectLevel()
     this.layout = computeLayout(this.app.screen.width, this.app.screen.height, this.safeAreaBottom())
-    this.state = loadLevel(level, this.layout.miasmaField)
+    this.state = loadLevel(level, this.layout.miasmaField, this.obstacleGrowth)
     this.bus = createEventBus()
     this.dragSystem = new DragPlacementSystem(this.state, this.bus, (id) => this.viewPositions.get(id))
     this.attractionSystem = new AttractionFillSystem(this.state, this.bus, (id) => this.viewPositions.get(id))
     // Both systems are purely event-driven (subscribe in their constructor) —
     // the bus keeps them alive, no need to hold a reference on Game.
-    new DetonationSystem(this.state, this.bus, () => this.layout.miasmaField)
-    new ObstacleHealthSystem(this.state, this.bus)
+    new DetonationSystem(
+      this.state,
+      this.bus,
+      () => this.layout.miasmaField,
+      this.runeGrowth,
+      (id) => this.viewPositions.get(id),
+    )
+    new ObstacleHealthSystem(this.state, this.bus, this.obstacleGrowth)
     this.bus.on('rune:activated', ({ rune, obstacle }) => this.onRuneActivated(rune, obstacle))
     this.bus.on('node:filled', ({ rune, nodeIndex }) => this.onNodeFilled(rune, nodeIndex))
     this.bus.on('obstacle:damaged', ({ obstacle }) => this.onObstacleDamaged(obstacle))
     this.bus.on('obstacle:cleared', ({ obstacle }) => this.onObstacleCleared(obstacle))
-    this.bus.on('rune:detonated', ({ rune }) => this.onRuneDetonated(rune))
+    this.bus.on('obstacle:layerPromoted', ({ obstacle }) => this.onObstacleLayerPromoted(obstacle))
+    this.bus.on('rune:detonated', () => this.sfx.detonate())
+    this.bus.on('rune:promoted', ({ rune }) => this.onRunePromoted(rune))
+    this.bus.on('rune:depleted', ({ rune }) => this.onRuneDepleted(rune))
     this.bus.on('rune:added', ({ rune }) => this.onRuneAdded(rune))
     // Populates the inventory via the level's configured strategy — must run
     // before buildRuneViews() so there's something to build views for.
-    this.supplySystem = new RuneSupplySystem(this.state, level, this.bus, createStrategy(level.supply))
+    this.supplySystem = new RuneSupplySystem(this.state, level, this.bus, createStrategy(level.supply), this.runeGrowth)
     this.winFailSystem = new WinFailSystem(
       this.state,
       this.bus,
@@ -305,11 +319,31 @@ export class Game {
     this.sfx.obstacleCleared()
   }
 
-  // The rune is consumed on detonation (removed from its inventory slot by
-  // DetonationSystem) — its view goes away with it. Whatever the supply
-  // strategy adds to fill the vacated slot arrives as a separate 'rune:added'.
-  private onRuneDetonated(rune: Rune): void {
-    this.sfx.detonate()
+  // Rune survived detonation (promoted in place: outer destroyed, middle
+  // became outer, center became middle plus a freshly-rolled center). Full
+  // 3-layer + indicator-spectrum re-rendering is M3's job — for now, refresh
+  // fill-state and re-sync the link line since relinking may have changed
+  // (or dropped) the target.
+  private onRunePromoted(rune: Rune): void {
+    this.runeViews.get(rune.id)?.redraw()
+    if (rune.linkedObstacleId) {
+      this.linkTargets.set(rune.id, rune.linkedObstacleId)
+      this.drawLinkLine(rune.id)
+    } else {
+      this.linkTargets.delete(rune.id)
+      const line = this.linkGraphics.get(rune.id)
+      if (line) {
+        this.layers.effects.removeChild(line)
+        line.destroy()
+        this.linkGraphics.delete(rune.id)
+      }
+    }
+  }
+
+  // Rune had no center to promote into a new middle — this is the only real
+  // vacancy case now. Whatever the supply strategy adds to fill the vacated
+  // slot arrives as a separate 'rune:added'.
+  private onRuneDepleted(rune: Rune): void {
     this.linkTargets.delete(rune.id)
     const line = this.linkGraphics.get(rune.id)
     if (line) {
@@ -327,6 +361,15 @@ export class Game {
     this.viewPositions.delete(rune.id)
   }
 
+  // Obstacle survived (layer collapsed but another was revealed) — full
+  // "shell cracked" reveal treatment is M3's job; for now just redraw the
+  // new shape/HP so the game stays visually correct.
+  private onObstacleLayerPromoted(obstacle: Obstacle): void {
+    this.obstacleViews.get(obstacle.id)?.updateLayer(obstacle.shape, obstacle.hp, obstacle.maxHp)
+    const pos = this.viewPositions.get(obstacle.id)
+    if (pos) this.spawnBurst(pos, colorForSides(obstacle.shape.sides))
+  }
+
   private onRuneAdded(rune: Rune): void {
     const view = new RuneView(rune)
     view.container.on('pointerdown', (e) => this.beginDrag(rune, view, e))
@@ -336,12 +379,12 @@ export class Game {
   }
 
   debugSpawnRune(inner: ShapeSides, outer: ShapeSides): void {
-    const outerRadius = radiusForSides(outer)
-    const rune = createRune(
-      makeId('rune'),
-      { sides: inner, radius: outerRadius * 0.5 },
-      { sides: outer, radius: outerRadius },
-    )
+    const id = makeId('rune')
+    this.runeGrowth.register(id, { type: 'none' }) // debug runes are single-use, no further evolution
+    const generic = { catch: 'generic' as const, release: 'generic' as const }
+    const outerLayer: RuneLayer = { shape: { sides: outer, radius: radiusForSides(outer) }, nodeColors: uniformNodeColors(outer, generic) }
+    const middleLayer: RuneLayer = { shape: { sides: inner, radius: radiusForSides(inner) }, nodeColors: uniformNodeColors(inner, generic) }
+    const rune = createRune(id, outerLayer, middleLayer, null, 'full')
     const placed = this.state.inventory.forceAddRune(rune)
     this.bus.emit('rune:added', { rune: placed })
   }

@@ -1,8 +1,8 @@
-import type { RuneSupplyStrategy, SupplyContext, RuneShapePair } from './RuneSupplyStrategy'
+import type { RuneSupplyStrategy, SupplyContext, RuneTemplate } from './RuneSupplyStrategy'
 import { availablePool, pickRandom } from './pool'
 
 export interface TimeDripParams {
-  pool: RuneShapePair[]
+  pool: RuneTemplate[]
   intervalSeconds: number
 }
 
@@ -25,8 +25,8 @@ export class TimeDripStrategy implements RuneSupplyStrategy {
     if (this.timer < this.params.intervalSeconds) return
     this.timer = 0
     if (ctx.state.inventory.isFull()) return
-    const pair = pickRandom(availablePool(this.params.pool, ctx.state), ctx.rng)
-    if (pair) ctx.addRune(pair)
+    const template = pickRandom(availablePool(this.params.pool, ctx.state), ctx.rng)
+    if (template) ctx.addRune(template)
   }
 
   canIntroduceRune(ctx: SupplyContext): boolean {

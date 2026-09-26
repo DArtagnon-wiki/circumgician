@@ -19,4 +19,4 @@ export function createStrategy(config: SupplyConfig): RuneSupplyStrategy {
   }
 }
 
-export type { RuneSupplyStrategy, SupplyContext, RuneShapePair } from './RuneSupplyStrategy'
+export type { RuneSupplyStrategy, SupplyContext, RuneTemplate } from './RuneSupplyStrategy'

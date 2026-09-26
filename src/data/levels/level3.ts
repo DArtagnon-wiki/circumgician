@@ -1,17 +1,26 @@
 import type { LevelConfig } from './level1'
+import type { RuneTemplate } from '../../supply/RuneSupplyStrategy'
+import { patternLayer, simpleLayer } from '../../model/nodeColors'
 
-// Exercises EventTriggeredUnlockStrategy's obstacleCleared trigger: only
-// triangle/square runes start available, so the pentagon and hexagon
-// obstacles are genuinely unreachable until their gating obstacle clears —
-// order of play is not just optimal here, it's required.
+// Exercises EventTriggeredUnlockStrategy's obstacleCleared trigger (only
+// triangle/square runes start available — pentagon/hexagon are genuinely
+// unreachable until their gating obstacle clears), scripted obstacle growth,
+// and one annihilating rune center (escalating attrition, fitting the name).
+// NOTE: numeric balance here is a first pass — M6 revisits with real
+// playtesting once rendering makes the mechanics visible.
 export const level3: LevelConfig = {
   id: 'level3',
   name: 'Chain Reaction',
   obstacles: [
-    { shape: 3, hp: 3, position: { x: 0.15, y: 0.3 } },
-    { shape: 4, hp: 4, position: { x: 0.4, y: 0.55 } },
-    { shape: 5, hp: 6, position: { x: 0.62, y: 0.2 } },
-    { shape: 6, hp: 8, position: { x: 0.85, y: 0.45 } },
+    {
+      shape: 3,
+      hp: 3,
+      position: { x: 0.15, y: 0.3 },
+      growth: { type: 'scripted', params: { sequence: [{ shape: { sides: 3, radius: 34 }, hp: 4 }] } },
+    },
+    { shape: 4, hp: 4, position: { x: 0.4, y: 0.55 }, growth: { type: 'none' } },
+    { shape: 5, hp: 6, position: { x: 0.62, y: 0.2 }, growth: { type: 'none' } },
+    { shape: 6, hp: 8, position: { x: 0.85, y: 0.45 }, growth: { type: 'none' } },
   ],
   miasma: { ambientCount: 20 },
   inventoryCapacity: 5,
@@ -19,13 +28,29 @@ export const level3: LevelConfig = {
     type: 'eventUnlock',
     params: {
       initial: [
-        { inner: 3, outer: 4 },
-        { inner: 4, outer: 4 },
-      ],
+        { outer: simpleLayer(4), middle: simpleLayer(3), centerGrowth: { type: 'none' } },
+        { outer: simpleLayer(4), middle: simpleLayer(4), centerGrowth: { type: 'none' } },
+      ] as RuneTemplate[],
       rules: [
-        { trigger: { type: 'obstacleCleared', shape: 3 }, unlocks: [{ inner: 5, outer: 6 }] },
-        { trigger: { type: 'obstacleCleared', shape: 4 }, unlocks: [{ inner: 6, outer: 7 }] },
+        {
+          trigger: { type: 'obstacleCleared', shape: 3 },
+          unlocks: [{ outer: simpleLayer(6), middle: simpleLayer(5), centerGrowth: { type: 'none' } }],
+        },
+        {
+          trigger: { type: 'obstacleCleared', shape: 4 },
+          unlocks: [
+            {
+              outer: simpleLayer(6),
+              middle: simpleLayer(6),
+              centerGrowth: {
+                type: 'scripted',
+                params: { sequence: [patternLayer(6, [{ catch: 'generic', release: 'annihilating' }])] },
+              },
+            },
+          ],
+        },
       ],
     },
   },
+  defaultInsightLevel: 'shape',
 }

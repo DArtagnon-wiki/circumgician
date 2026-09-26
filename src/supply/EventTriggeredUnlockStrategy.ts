@@ -1,19 +1,19 @@
 import type { ShapeSides } from '../core/types'
-import type { RuneSupplyStrategy, SupplyContext, RuneShapePair } from './RuneSupplyStrategy'
+import type { RuneSupplyStrategy, SupplyContext, RuneTemplate } from './RuneSupplyStrategy'
 import type { Rune } from '../model/Rune'
 import type { Obstacle } from '../model/Obstacle'
 
 export type UnlockTrigger =
   | { type: 'obstacleCleared'; shape: ShapeSides }
-  | { type: 'runeDetonated'; inner: ShapeSides; outer: ShapeSides }
+  | { type: 'runeDetonated'; middle: ShapeSides; outer: ShapeSides }
 
 export interface UnlockRule {
   trigger: UnlockTrigger
-  unlocks: RuneShapePair[]
+  unlocks: RuneTemplate[]
 }
 
 export interface EventTriggeredUnlockParams {
-  initial: RuneShapePair[]
+  initial: RuneTemplate[]
   rules: UnlockRule[]
 }
 
@@ -28,9 +28,9 @@ export class EventTriggeredUnlockStrategy implements RuneSupplyStrategy {
   }
 
   initialize(ctx: SupplyContext): void {
-    for (const pair of this.params.initial) {
+    for (const template of this.params.initial) {
       if (ctx.state.inventory.isFull()) break
-      ctx.addRune(pair)
+      ctx.addRune(template)
     }
   }
 
@@ -42,12 +42,15 @@ export class EventTriggeredUnlockStrategy implements RuneSupplyStrategy {
     }
   }
 
-  onRuneDetonated(rune: Rune, ctx: SupplyContext): void {
+  // Fires on every detonation cycle with the rune still in its
+  // pre-promotion state, so `middle`/`outer` here are exactly the pairing
+  // that just went off.
+  onRuneStepDetonated(rune: Rune, ctx: SupplyContext): void {
     for (const rule of this.params.rules) {
       if (
         rule.trigger.type === 'runeDetonated' &&
-        rule.trigger.inner === rune.inner.sides &&
-        rule.trigger.outer === rune.outer.sides
+        rule.trigger.middle === rune.middle.shape.sides &&
+        rule.trigger.outer === rune.outer.shape.sides
       ) {
         this.grant(rule.unlocks, ctx)
       }
@@ -58,10 +61,10 @@ export class EventTriggeredUnlockStrategy implements RuneSupplyStrategy {
     return !ctx.state.inventory.isFull()
   }
 
-  private grant(unlocks: RuneShapePair[], ctx: SupplyContext): void {
-    for (const pair of unlocks) {
+  private grant(unlocks: RuneTemplate[], ctx: SupplyContext): void {
+    for (const template of unlocks) {
       if (ctx.state.inventory.isFull()) break
-      ctx.addRune(pair)
+      ctx.addRune(template)
     }
   }
 }
