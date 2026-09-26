@@ -57,4 +57,11 @@ export class Sfx {
   lose(): void {
     ;[400, 320, 240].forEach((f, i) => this.tone(f, 0.4, 'sine', 0.12, i * 0.12))
   }
+
+  // Called when a scene owning this Sfx instance is torn down, so repeated
+  // level restarts don't accumulate suspended AudioContexts.
+  close(): void {
+    if (this.ctx && this.ctx.state !== 'closed') void this.ctx.close()
+    this.ctx = null
+  }
 }

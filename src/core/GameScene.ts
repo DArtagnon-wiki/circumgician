@@ -1,4 +1,4 @@
-import { Application, Graphics, type Container, type FederatedPointerEvent, type Renderer } from 'pixi.js'
+import { Graphics, type Application, type Container, type FederatedPointerEvent } from 'pixi.js'
 import { createLayers, type Layers } from '../render/Layers'
 import { colorForSides } from '../render/Theme'
 import { drawZoneBackground } from '../render/ZoneBackground'
@@ -8,7 +8,6 @@ import { MiasmaPuffView } from '../render/MiasmaPuffView'
 import { computeLayout, type FieldLayout } from './Layout'
 import { VIRTUAL_WIDTH, VIRTUAL_HEIGHT, computeFit } from './VirtualScreen'
 import { loadLevel, type GameState } from './GameState'
-import { LEVELS } from '../data/levels'
 import type { LevelConfig } from '../data/levels'
 import { createEventBus, type EventBus } from './EventBus'
 import { DragPlacementSystem } from '../systems/DragPlacementSystem'
@@ -21,7 +20,7 @@ import { RuneGrowthSystem } from '../systems/RuneGrowthSystem'
 import { RuneSupplySystem } from '../systems/RuneSupplySystem'
 import { WinFailSystem } from '../systems/WinFailSystem'
 import { createStrategy } from '../supply'
-import { showHUD } from '../ui/HUD'
+import { createDebugPanel, isDebugMode } from '../debug/DebugPanel'
 import { Sfx } from '../audio/Sfx'
 import type { Id, ShapeSides, Vec2 } from './types'
 import { createRune, type RuneLayer } from '../model/Rune'
@@ -44,9 +43,18 @@ interface DragState {
   onEnd: (e: FederatedPointerEvent) => void
 }
 
-export class Game {
-  app = new Application()
+export interface GameSceneCallbacks {
+  onWon: () => void
+  onLost: () => void
+}
+
+// One instance per level attempt — mount() on start, destroy() on
+// retry/next/level-select. Simpler than teardown-and-reset on every system,
+// and entirely appropriate for a 5-level game (AppShell owns the single
+// long-lived PIXI Application and ticker/resize wiring across scenes).
+export class GameScene {
   layers!: Layers
+  private app!: Application
   private layout!: FieldLayout
   private state!: GameState
   private bus!: EventBus
@@ -70,33 +78,22 @@ export class Game {
   private animations: Animation[] = []
   private particlePool: Graphics[] = []
   private sfx = new Sfx()
+  private debugPanel: HTMLElement | null = null
 
-  async mount(container: HTMLElement): Promise<void> {
-    await this.app.init({
-      resizeTo: window,
-      autoDensity: true,
-      resolution: Math.min(window.devicePixelRatio, 2),
-      backgroundAlpha: 0,
-      antialias: true,
-    })
-    container.appendChild(this.app.canvas)
-    // `resizeTo` applies on the next animation frame, not synchronously during init() —
-    // force the correct size now so the first layout isn't computed off a stale default canvas.
-    this.app.renderer.resize(window.innerWidth, window.innerHeight)
-
+  mount(app: Application, level: LevelConfig, callbacks: GameSceneCallbacks): void {
+    this.app = app
     this.layers = createLayers()
     this.app.stage.addChild(this.layers.root)
     this.layers.effects.addChild(this.previewLine)
     this.applyFit()
 
-    const level = this.selectLevel()
     this.layout = computeLayout(VIRTUAL_WIDTH, VIRTUAL_HEIGHT)
     this.state = loadLevel(level, this.layout.miasmaField, this.obstacleGrowth)
     this.bus = createEventBus()
     this.dragSystem = new DragPlacementSystem(this.state, this.bus, (id) => this.viewPositions.get(id))
     this.attractionSystem = new AttractionFillSystem(this.state, this.bus, (id) => this.viewPositions.get(id))
     // Both systems are purely event-driven (subscribe in their constructor) —
-    // the bus keeps them alive, no need to hold a reference on Game.
+    // the bus keeps them alive, no need to hold a reference on GameScene.
     new DetonationSystem(
       this.state,
       this.bus,
@@ -126,11 +123,11 @@ export class Game {
     )
     this.bus.on('game:won', () => {
       this.sfx.win()
-      showHUD('won', () => window.location.reload())
+      callbacks.onWon()
     })
     this.bus.on('game:lost', () => {
       this.sfx.lose()
-      showHUD('lost', () => window.location.reload())
+      callbacks.onLost()
     })
 
     this.buildObstacleViews()
@@ -138,16 +135,23 @@ export class Game {
     this.buildPuffViews()
     this.relayout()
 
-    this.app.ticker.add((ticker) => this.update(ticker.deltaMS / 1000))
-    this.bindResize()
+    if (isDebugMode()) {
+      this.debugPanel = createDebugPanel({
+        spawn: (inner, outer) => this.debugSpawnRune(inner, outer),
+        forceDamageObstacles: () => this.debugForceDamageObstacles(),
+        forceDetonateActive: () => this.debugForceDetonateActive(),
+      })
+    }
   }
 
-  // `?level=N` (1-indexed) is a minimal test/dev hook for picking a level
-  // ahead of a real level-select UI — not wired to any in-game menu yet.
-  private selectLevel(): LevelConfig {
-    const requested = Number(new URLSearchParams(window.location.search).get('level'))
-    const index = Number.isInteger(requested) && requested >= 1 && requested <= LEVELS.length ? requested - 1 : 0
-    return LEVELS[index]
+  // Tears down everything owned by this scene — the shared Application and
+  // its ticker/resize wiring (owned by AppShell) are left untouched.
+  destroy(): void {
+    this.debugPanel?.remove()
+    this.debugPanel = null
+    this.app.stage.removeChild(this.layers.root)
+    this.layers.root.destroy({ children: true })
+    this.sfx.close()
   }
 
   private safeAreaBottom(): number {
@@ -169,7 +173,7 @@ export class Game {
 
   // Redrawn from relayout() (not a renderer 'resize' listener) so it's
   // always in sync with the CURRENT `this.layout` — the renderer's resize
-  // event fires mid-way through bindResize's own resize call, before
+  // event fires mid-way through AppShell's own resize call, before
   // relayout() has a chance to recompute layout, which would otherwise draw
   // one frame behind on every resize.
   private redrawBackground(): void {
@@ -328,9 +332,8 @@ export class Game {
   }
 
   // Rune survived detonation (promoted in place: outer destroyed, middle
-  // became outer, center became middle plus a freshly-rolled center). Full
-  // 3-layer + indicator-spectrum re-rendering is M3's job — for now, refresh
-  // fill-state and re-sync the link line since relinking may have changed
+  // became outer, center became middle plus a freshly-rolled center) — full
+  // re-render, and re-sync the link line since relinking may have changed
   // (or dropped) the target.
   private onRunePromoted(rune: Rune): void {
     this.runeViews.get(rune.id)?.redraw()
@@ -369,9 +372,8 @@ export class Game {
     this.viewPositions.delete(rune.id)
   }
 
-  // Obstacle survived (layer collapsed but another was revealed) — full
-  // "shell cracked" reveal treatment is M3's job; for now just redraw the
-  // new shape/HP so the game stays visually correct.
+  // Obstacle survived (layer collapsed but another was revealed) — redraw
+  // the new shape/HP and reuse the damage burst for a "shell cracked" flash.
   private onObstacleLayerPromoted(obstacle: Obstacle): void {
     this.obstacleViews.get(obstacle.id)?.updateLayer(obstacle.shape, obstacle.hp, obstacle.maxHp)
     const pos = this.viewPositions.get(obstacle.id)
@@ -518,7 +520,7 @@ export class Game {
     line.moveTo(from.x, from.y).lineTo(to.x, to.y).stroke({ color, width: 3, alpha: 0.55 })
   }
 
-  private relayout(): void {
+  relayout(): void {
     this.applyFit()
     this.layout = computeLayout(VIRTUAL_WIDTH, VIRTUAL_HEIGHT)
     this.redrawBackground()
@@ -548,7 +550,7 @@ export class Game {
     }
   }
 
-  private update(dt: number): void {
+  update(dt: number): void {
     this.miasmaFieldSystem.update(this.state.miasmaPuffs, dt, this.layout.miasmaField)
     this.attractionSystem.update(dt)
     this.supplySystem.update(dt)
@@ -564,19 +566,5 @@ export class Game {
     }
 
     this.animations = this.animations.filter((animate) => animate(dt))
-  }
-
-  private bindResize(): void {
-    const relayout = () => {
-      this.app.renderer.resize(window.innerWidth, window.innerHeight)
-      this.relayout()
-    }
-    window.visualViewport?.addEventListener('resize', relayout)
-    window.visualViewport?.addEventListener('scroll', relayout)
-
-    const renderer = this.app.renderer as Renderer
-    const suppress = (e: TouchEvent) => e.preventDefault()
-    renderer.canvas.addEventListener('touchmove', suppress, { passive: false })
-    renderer.canvas.addEventListener('gesturestart', suppress as EventListener, { passive: false })
   }
 }

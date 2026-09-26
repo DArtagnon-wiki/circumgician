@@ -1,6 +1,12 @@
 export type HUDResult = 'won' | 'lost'
 
-export function showHUD(result: HUDResult, onRestart: () => void): void {
+export interface HUDActions {
+  onRetry: () => void
+  onNext?: () => void // omitted on the final level
+  onLevelSelect: () => void
+}
+
+export function showHUD(result: HUDResult, actions: HUDActions): HTMLElement {
   const overlay = document.createElement('div')
   overlay.style.cssText = `
     position: fixed; inset: 0; z-index: 2000;
@@ -22,14 +28,31 @@ export function showHUD(result: HUDResult, onRestart: () => void): void {
       ? 'Every obstacle has been cleared.'
       : 'No rune can be introduced or placed while obstacles remain.'
 
-  const button = document.createElement('button')
-  button.textContent = result === 'won' ? 'Play Again' : 'Try Again'
-  button.style.cssText = `
-    padding: 12px 24px; font-size: 16px; border-radius: 8px; border: none;
-    cursor: pointer; background: white; color: #140a24; font-weight: bold;
-  `
-  button.addEventListener('click', onRestart)
+  const buttonRow = document.createElement('div')
+  buttonRow.style.cssText = 'display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;'
 
-  overlay.append(title, subtitle, button)
+  function makeButton(label: string, onClick: () => void, primary: boolean): HTMLButtonElement {
+    const button = document.createElement('button')
+    button.textContent = label
+    button.style.cssText = `
+      padding: 12px 22px; font-size: 15px; border-radius: 8px; border: none;
+      cursor: pointer; font-weight: bold;
+      background: ${primary ? 'white' : 'rgba(255,255,255,0.15)'};
+      color: ${primary ? '#140a24' : 'white'};
+    `
+    button.addEventListener('click', onClick)
+    return button
+  }
+
+  if (result === 'won' && actions.onNext) {
+    buttonRow.append(makeButton('Next Level', actions.onNext, true))
+    buttonRow.append(makeButton('Retry', actions.onRetry, false))
+  } else {
+    buttonRow.append(makeButton(result === 'won' ? 'Play Again' : 'Try Again', actions.onRetry, true))
+  }
+  buttonRow.append(makeButton('Level Select', actions.onLevelSelect, false))
+
+  overlay.append(title, subtitle, buttonRow)
   document.body.appendChild(overlay)
+  return overlay
 }

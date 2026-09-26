@@ -14,7 +14,7 @@ export interface DebugPanelActions {
 // any inner/outer shape combo on demand, and force-trigger the layer-collapse
 // and detonation/promotion paths, to exercise them without grinding a real
 // level turn by turn.
-export function createDebugPanel(actions: DebugPanelActions): void {
+export function createDebugPanel(actions: DebugPanelActions): HTMLElement {
   const panel = document.createElement('div')
   panel.style.cssText = `
     position: fixed; top: 8px; left: 8px; z-index: 1000;
@@ -54,4 +54,5 @@ export function createDebugPanel(actions: DebugPanelActions): void {
 
   panel.append(innerSelect, outerSelect, spawnButton, damageButton, detonateButton)
   document.body.appendChild(panel)
+  return panel
 }
