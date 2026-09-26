@@ -14,7 +14,9 @@ import { AttractionFillSystem } from '../systems/AttractionFillSystem'
 import { DetonationSystem } from '../systems/DetonationSystem'
 import { ObstacleHealthSystem } from '../systems/ObstacleHealthSystem'
 import { RuneSupplySystem } from '../systems/RuneSupplySystem'
+import { WinFailSystem } from '../systems/WinFailSystem'
 import { createStrategy } from '../supply'
+import { showHUD } from '../ui/HUD'
 import type { Id, ShapeSides, Vec2 } from './types'
 import { createRune } from '../model/Rune'
 import type { Rune } from '../model/Rune'
@@ -43,6 +45,7 @@ export class Game {
   private miasmaFieldSystem = new MiasmaFieldSystem()
   private attractionSystem!: AttractionFillSystem
   private supplySystem!: RuneSupplySystem
+  private winFailSystem!: WinFailSystem
   private obstacleViews = new Map<Id, ObstacleView>()
   private runeViews = new Map<Id, RuneView>()
   private puffViews = new Map<Id, MiasmaPuffView>()
@@ -90,6 +93,15 @@ export class Game {
     // Populates the inventory via the level's configured strategy — must run
     // before buildRuneViews() so there's something to build views for.
     this.supplySystem = new RuneSupplySystem(this.state, LEVELS[0], this.bus, createStrategy(LEVELS[0].supply))
+    this.winFailSystem = new WinFailSystem(
+      this.state,
+      this.bus,
+      this.supplySystem,
+      this.dragSystem,
+      () => this.layout.miasmaField,
+    )
+    this.bus.on('game:won', () => showHUD('won', () => window.location.reload()))
+    this.bus.on('game:lost', () => showHUD('lost', () => window.location.reload()))
 
     this.drawBackground()
     this.buildObstacleViews()
@@ -395,6 +407,7 @@ export class Game {
     this.miasmaFieldSystem.update(this.state.miasmaPuffs, dt, this.layout.miasmaField)
     this.attractionSystem.update(dt)
     this.supplySystem.update(dt)
+    this.winFailSystem.update()
 
     for (const puff of this.state.miasmaPuffs) {
       if (puff.state === 'consumed') continue
