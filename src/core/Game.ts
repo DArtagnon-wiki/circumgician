@@ -1,4 +1,4 @@
-import { Application, Graphics, type Container, type Renderer } from 'pixi.js'
+import { Application, Graphics, type Container, type FederatedPointerEvent, type Renderer } from 'pixi.js'
 import { createLayers, type Layers } from '../render/Layers'
 import { BACKGROUND_BOTTOM, BACKGROUND_TOP, colorForSides } from '../render/Theme'
 import { ObstacleView } from '../render/ObstacleView'
@@ -8,7 +8,7 @@ import { computeLayout, type FieldLayout } from './Layout'
 import { loadLevel, type GameState } from './GameState'
 import { LEVELS } from '../data/levels'
 import { createEventBus, type EventBus } from './EventBus'
-import { InputSelectionSystem } from '../systems/InputSelectionSystem'
+import { DragPlacementSystem } from '../systems/DragPlacementSystem'
 import { MiasmaFieldSystem } from '../systems/MiasmaFieldSystem'
 import { AttractionFillSystem } from '../systems/AttractionFillSystem'
 import { DetonationSystem } from '../systems/DetonationSystem'
@@ -21,23 +21,32 @@ type Animation = (dt: number) => boolean // return false when finished
 
 const OBSTACLE_MARGIN = 50
 
+interface DragState {
+  rune: Rune
+  view: RuneView
+  onMove: (e: FederatedPointerEvent) => void
+  onEnd: (e: FederatedPointerEvent) => void
+}
+
 export class Game {
   app = new Application()
   layers!: Layers
   private layout!: FieldLayout
   private state!: GameState
   private bus!: EventBus
-  private inputSystem!: InputSelectionSystem
+  private dragSystem!: DragPlacementSystem
   private miasmaFieldSystem = new MiasmaFieldSystem()
   private attractionSystem!: AttractionFillSystem
   private obstacleViews = new Map<Id, ObstacleView>()
   private runeViews = new Map<Id, RuneView>()
   private puffViews = new Map<Id, MiasmaPuffView>()
-  // World-space (root layer) positions, refreshed every relayout — shared by
-  // systems that need to reason about distance (selection, later targeting).
+  // World-space (root layer) positions, refreshed whenever something moves —
+  // shared by systems that need to reason about distance (placement, targeting).
   private viewPositions = new Map<Id, Vec2>()
   private linkTargets = new Map<Id, Id>() // runeId -> obstacleId
-  private linkGraphics = new Map<Id, Graphics>() // runeId -> line graphic
+  private linkGraphics = new Map<Id, Graphics>() // runeId -> confirmed link line
+  private previewLine = new Graphics()
+  private dragState: DragState | null = null
   private animations: Animation[] = []
 
   async mount(container: HTMLElement): Promise<void> {
@@ -55,11 +64,12 @@ export class Game {
 
     this.layers = createLayers()
     this.app.stage.addChild(this.layers.root)
+    this.layers.effects.addChild(this.previewLine)
 
     this.layout = computeLayout(this.app.screen.width, this.app.screen.height, this.safeAreaBottom())
     this.state = loadLevel(LEVELS[0], this.layout.miasmaField)
     this.bus = createEventBus()
-    this.inputSystem = new InputSelectionSystem(this.state, this.bus, (id) => this.viewPositions.get(id))
+    this.dragSystem = new DragPlacementSystem(this.state, this.bus, (id) => this.viewPositions.get(id))
     this.attractionSystem = new AttractionFillSystem(this.state, this.bus, (id) => this.viewPositions.get(id))
     // Both systems are purely event-driven (subscribe in their constructor) —
     // the bus keeps them alive, no need to hold a reference on Game.
@@ -119,7 +129,7 @@ export class Game {
     for (const rune of this.state.inventory.slots) {
       if (!rune) continue
       const view = new RuneView(rune)
-      view.container.on('pointertap', () => this.inputSystem.trySelect(rune))
+      view.container.on('pointerdown', (e) => this.beginDrag(rune, view, e))
       this.layers.inventory.addChild(view.container)
       this.runeViews.set(rune.id, view)
     }
@@ -133,8 +143,94 @@ export class Game {
     }
   }
 
+  private inventorySlotPosition(slotIndex: number): Vec2 {
+    const { inventoryBar, inventoryContentHeight } = this.layout
+    const capacity = this.state.inventory.capacity
+    return {
+      x: inventoryBar.x + ((slotIndex + 0.5) / capacity) * inventoryBar.width,
+      y: inventoryBar.y + inventoryContentHeight / 2,
+    }
+  }
+
+  private beginDrag(rune: Rune, view: RuneView, e: FederatedPointerEvent): void {
+    if (rune.state !== 'idle' || this.dragState) return
+
+    // 'globalpointermove' fires regardless of hit-testing (unlike plain
+    // 'pointermove', which only fires while the pointer is over the object) —
+    // exactly what a drag needs since the pointer leaves the rune's own
+    // bounds immediately. 'pointerupoutside' likewise fires on this object
+    // even when the release happens elsewhere, so no stage-wide hit area or
+    // global listener hijacking is needed (that approach was tried and
+    // discovered to silently break ALL hit-testing into stage children —
+    // assigning `hitArea` on a container short-circuits its child hit-tests).
+    const onMove = (ev: FederatedPointerEvent) => this.onDragMove(ev)
+    const onEnd = (ev: FederatedPointerEvent) => this.onDragEnd(ev)
+    this.dragState = { rune, view, onMove, onEnd }
+    view.container.on('globalpointermove', onMove)
+    view.container.on('pointerup', onEnd)
+    view.container.on('pointerupoutside', onEnd)
+
+    this.layers.effects.addChild(view.container) // draw above everything while dragging
+    view.setPosition(e.global.x, e.global.y)
+  }
+
+  private onDragMove(e: FederatedPointerEvent): void {
+    if (!this.dragState) return
+    const { rune, view } = this.dragState
+    const pos = { x: e.global.x, y: e.global.y }
+    view.setPosition(pos.x, pos.y)
+
+    const target = this.dragSystem.findNearestMatch(rune, pos)
+    const fits = target ? this.dragSystem.fitsInField(rune, pos, this.layout.miasmaField) : false
+    this.drawPreviewLine(pos, target, fits)
+  }
+
+  private onDragEnd(e: FederatedPointerEvent): void {
+    if (!this.dragState) return
+    const { rune, view, onMove, onEnd } = this.dragState
+    view.container.off('globalpointermove', onMove)
+    view.container.off('pointerup', onEnd)
+    view.container.off('pointerupoutside', onEnd)
+
+    const pos = { x: e.global.x, y: e.global.y }
+    this.previewLine.clear()
+
+    const result = this.dragSystem.tryPlace(rune, pos, this.layout.miasmaField)
+    if (!result.ok) {
+      const slotPos = this.inventorySlotPosition(rune.slotIndex)
+      this.layers.inventory.addChild(view.container)
+      this.animateMove(view, pos, slotPos)
+    }
+    // On success, 'rune:activated' (emitted by tryPlace) drives the rest via onRuneActivated.
+
+    this.dragState = null
+  }
+
+  private drawPreviewLine(from: Vec2, obstacle: Obstacle | null, fits: boolean): void {
+    this.previewLine.clear()
+    if (!obstacle) return
+    const to = this.viewPositions.get(obstacle.id)
+    if (!to) return
+    this.previewLine
+      .moveTo(from.x, from.y)
+      .lineTo(to.x, to.y)
+      .stroke({ color: fits ? 0xffffff : 0xff5d5d, width: 2, alpha: 0.3 })
+  }
+
+  private animateMove(view: RuneView, from: Vec2, to: Vec2): void {
+    let elapsed = 0
+    const duration = 0.2
+    this.animations.push((dt) => {
+      elapsed += dt
+      const t = Math.min(1, elapsed / duration)
+      view.setPosition(from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t)
+      return t < 1
+    })
+  }
+
   private onRuneActivated(rune: Rune, obstacle: Obstacle): void {
     this.runeViews.get(rune.id)?.setActive(true)
+    if (rune.fieldPosition) this.viewPositions.set(rune.id, rune.fieldPosition)
     this.linkTargets.set(rune.id, obstacle.id)
     this.drawLinkLine(rune.id)
   }
@@ -164,14 +260,23 @@ export class Game {
   }
 
   private onRuneDetonated(rune: Rune): void {
-    this.runeViews.get(rune.id)?.setActive(false)
-    this.runeViews.get(rune.id)?.syncNodes()
+    const view = this.runeViews.get(rune.id)
+    view?.setActive(false)
+    view?.syncNodes()
     this.linkTargets.delete(rune.id)
     const line = this.linkGraphics.get(rune.id)
     if (line) {
       this.layers.effects.removeChild(line)
       line.destroy()
       this.linkGraphics.delete(rune.id)
+    }
+
+    rune.fieldPosition = undefined
+    if (view) {
+      this.layers.inventory.addChild(view.container)
+      const slotPos = this.inventorySlotPosition(rune.slotIndex)
+      view.setPosition(slotPos.x, slotPos.y)
+      this.viewPositions.set(rune.id, slotPos)
     }
   }
 
@@ -223,13 +328,15 @@ export class Game {
       this.layers.effects.addChild(line)
       this.linkGraphics.set(runeId, line)
     }
+    const obstacle = this.state.obstacles.find((o) => o.id === obstacleId)
+    const color = obstacle ? colorForSides(obstacle.shape.sides) : 0xffffff
     line.clear()
-    line.moveTo(from.x, from.y).lineTo(to.x, to.y).stroke({ color: 0xffffff, width: 2, alpha: 0.35 })
+    line.moveTo(from.x, from.y).lineTo(to.x, to.y).stroke({ color, width: 3, alpha: 0.55 })
   }
 
   private relayout(): void {
     this.layout = computeLayout(this.app.screen.width, this.app.screen.height, this.safeAreaBottom())
-    const { obstacleArea, inventoryBar, inventoryContentHeight } = this.layout
+    const { obstacleArea } = this.layout
 
     const usableW = Math.max(1, obstacleArea.width - OBSTACLE_MARGIN * 2)
     const usableH = Math.max(1, obstacleArea.height - OBSTACLE_MARGIN * 2)
@@ -240,13 +347,14 @@ export class Game {
       this.viewPositions.set(obstacle.id, { x, y })
     }
 
-    const capacity = this.state.inventory.capacity
+    // Idle runes live at their inventory slot; active/dragging runes keep
+    // whatever field position they were placed at (or their drag position).
     this.state.inventory.slots.forEach((rune, slotIndex) => {
-      if (!rune) return
-      const x = inventoryBar.x + ((slotIndex + 0.5) / capacity) * inventoryBar.width
-      const y = inventoryBar.y + inventoryContentHeight / 2
-      this.runeViews.get(rune.id)?.setPosition(x, y)
-      this.viewPositions.set(rune.id, { x, y })
+      if (!rune || rune.state !== 'idle') return
+      if (this.dragState?.rune.id === rune.id) return
+      const pos = this.inventorySlotPosition(slotIndex)
+      this.runeViews.get(rune.id)?.setPosition(pos.x, pos.y)
+      this.viewPositions.set(rune.id, pos)
     })
 
     for (const runeId of this.linkTargets.keys()) {

@@ -6,6 +6,12 @@ export interface PolygonSpec {
   rotation?: number
 }
 
+// Rune outer radius scales with side count so field packing actually costs
+// more for bigger runes (a 7-gon takes up visibly more room than a triangle).
+export function radiusForSides(sides: ShapeSides, base = 20, perSide = 4): number {
+  return base + sides * perSide
+}
+
 export function verticesOf(spec: PolygonSpec, center: Vec2): Vec2[] {
   const { sides, radius, rotation = -Math.PI / 2 } = spec
   const verts: Vec2[] = []

@@ -1,4 +1,4 @@
-import type { Id } from '../core/types'
+import type { Id, Vec2 } from '../core/types'
 import type { PolygonSpec } from './Polygon'
 
 export type RuneState = 'idle' | 'active' | 'detonating'
@@ -16,6 +16,9 @@ export interface Rune {
   state: RuneState
   linkedObstacleId: Id | null
   slotIndex: number
+  // World-space position once dropped into the field; unset while idle in
+  // inventory. Persists until the rune detonates (or is dragged back).
+  fieldPosition?: Vec2
 }
 
 const BASE_DAMAGE_PER_NODE = 1

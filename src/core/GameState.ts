@@ -2,6 +2,7 @@ import type { Obstacle } from '../model/Obstacle'
 import type { MiasmaPuff } from '../model/MiasmaPuff'
 import { Inventory } from '../model/Inventory'
 import { createRune } from '../model/Rune'
+import { radiusForSides } from '../model/Polygon'
 import type { LevelConfig } from '../data/levels/level1'
 import type { Rect } from './Layout'
 import { randRange } from '../utils/math'
@@ -31,7 +32,11 @@ export function loadLevel(level: LevelConfig, miasmaFieldRect: Rect): GameState 
 
   const inventory = new Inventory(Math.max(level.initialRunes.length, 5))
   for (const pair of level.initialRunes) {
-    inventory.tryAddRune(createRune(makeId('rune'), { sides: pair.inner, radius: 16 }, { sides: pair.outer, radius: 32 }))
+    const outerRadius = radiusForSides(pair.outer)
+    const innerRadius = outerRadius * 0.5
+    inventory.tryAddRune(
+      createRune(makeId('rune'), { sides: pair.inner, radius: innerRadius }, { sides: pair.outer, radius: outerRadius }),
+    )
   }
 
   const miasmaPuffs: MiasmaPuff[] = Array.from({ length: level.miasma.ambientCount }, () => ({
