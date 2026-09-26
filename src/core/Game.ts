@@ -8,6 +8,11 @@ import { clamp } from '../utils/math'
 import { computeLayout, type FieldLayout } from './Layout'
 import { loadLevel, type GameState } from './GameState'
 import { LEVELS } from '../data/levels'
+import { createEventBus, type EventBus } from './EventBus'
+import { InputSelectionSystem } from '../systems/InputSelectionSystem'
+import type { Id, Vec2 } from './types'
+import type { Rune } from '../model/Rune'
+import type { Obstacle } from '../model/Obstacle'
 
 const OBSTACLE_MARGIN = 50
 
@@ -16,9 +21,16 @@ export class Game {
   layers!: Layers
   private layout!: FieldLayout
   private state!: GameState
-  private obstacleViews: ObstacleView[] = []
-  private runeViews: RuneView[] = []
-  private puffViews = new Map<string, MiasmaPuffView>()
+  private bus!: EventBus
+  private inputSystem!: InputSelectionSystem
+  private obstacleViews = new Map<Id, ObstacleView>()
+  private runeViews = new Map<Id, RuneView>()
+  private puffViews = new Map<Id, MiasmaPuffView>()
+  // World-space (root layer) positions, refreshed every relayout — shared by
+  // systems that need to reason about distance (selection, later targeting).
+  private viewPositions = new Map<Id, Vec2>()
+  private linkTargets = new Map<Id, Id>() // runeId -> obstacleId
+  private linkGraphics = new Map<Id, Graphics>() // runeId -> line graphic
 
   async mount(container: HTMLElement): Promise<void> {
     await this.app.init({
@@ -38,6 +50,9 @@ export class Game {
 
     this.layout = computeLayout(this.app.screen.width, this.app.screen.height, this.safeAreaBottom())
     this.state = loadLevel(LEVELS[0], this.layout.miasmaField.width, this.layout.miasmaField.height)
+    this.bus = createEventBus()
+    this.inputSystem = new InputSelectionSystem(this.state, this.bus, (id) => this.viewPositions.get(id))
+    this.bus.on('rune:activated', ({ rune, obstacle }) => this.onRuneActivated(rune, obstacle))
 
     this.drawBackground()
     this.buildObstacleViews()
@@ -79,7 +94,7 @@ export class Game {
     for (const obstacle of this.state.obstacles) {
       const view = new ObstacleView(obstacle)
       this.layers.obstacles.addChild(view.container)
-      this.obstacleViews.push(view)
+      this.obstacleViews.set(obstacle.id, view)
     }
   }
 
@@ -87,8 +102,9 @@ export class Game {
     for (const rune of this.state.inventory.slots) {
       if (!rune) continue
       const view = new RuneView(rune)
+      view.container.on('pointertap', () => this.inputSystem.trySelect(rune))
       this.layers.inventory.addChild(view.container)
-      this.runeViews.push(view)
+      this.runeViews.set(rune.id, view)
     }
   }
 
@@ -100,6 +116,29 @@ export class Game {
     }
   }
 
+  private onRuneActivated(rune: Rune, obstacle: Obstacle): void {
+    this.runeViews.get(rune.id)?.setActive(true)
+    this.linkTargets.set(rune.id, obstacle.id)
+    this.drawLinkLine(rune.id)
+  }
+
+  private drawLinkLine(runeId: Id): void {
+    const obstacleId = this.linkTargets.get(runeId)
+    if (!obstacleId) return
+    const from = this.viewPositions.get(runeId)
+    const to = this.viewPositions.get(obstacleId)
+    if (!from || !to) return
+
+    let line = this.linkGraphics.get(runeId)
+    if (!line) {
+      line = new Graphics()
+      this.layers.effects.addChild(line)
+      this.linkGraphics.set(runeId, line)
+    }
+    line.clear()
+    line.moveTo(from.x, from.y).lineTo(to.x, to.y).stroke({ color: 0xffffff, width: 2, alpha: 0.35 })
+  }
+
   private relayout(): void {
     this.layout = computeLayout(this.app.screen.width, this.app.screen.height, this.safeAreaBottom())
     const { obstacleArea, miasmaField, inventoryBar, inventoryContentHeight } = this.layout
@@ -108,25 +147,25 @@ export class Game {
 
     const usableW = Math.max(1, obstacleArea.width - OBSTACLE_MARGIN * 2)
     const usableH = Math.max(1, obstacleArea.height - OBSTACLE_MARGIN * 2)
-    this.state.obstacles.forEach((obstacle, i) => {
-      const view = this.obstacleViews[i]
-      view.setPosition(
-        obstacleArea.x + OBSTACLE_MARGIN + obstacle.position.x * usableW,
-        obstacleArea.y + OBSTACLE_MARGIN + obstacle.position.y * usableH,
-      )
-    })
+    for (const obstacle of this.state.obstacles) {
+      const x = obstacleArea.x + OBSTACLE_MARGIN + obstacle.position.x * usableW
+      const y = obstacleArea.y + OBSTACLE_MARGIN + obstacle.position.y * usableH
+      this.obstacleViews.get(obstacle.id)?.setPosition(x, y)
+      this.viewPositions.set(obstacle.id, { x, y })
+    }
 
     const capacity = this.state.inventory.capacity
-    const filledSlots = this.state.inventory.slots
-      .map((rune, slotIndex) => ({ rune, slotIndex }))
-      .filter((s) => s.rune !== null)
-    filledSlots.forEach((slot, i) => {
-      const view = this.runeViews[i]
-      view.setPosition(
-        inventoryBar.x + ((slot.slotIndex + 0.5) / capacity) * inventoryBar.width,
-        inventoryBar.y + inventoryContentHeight / 2,
-      )
+    this.state.inventory.slots.forEach((rune, slotIndex) => {
+      if (!rune) return
+      const x = inventoryBar.x + ((slotIndex + 0.5) / capacity) * inventoryBar.width
+      const y = inventoryBar.y + inventoryContentHeight / 2
+      this.runeViews.get(rune.id)?.setPosition(x, y)
+      this.viewPositions.set(rune.id, { x, y })
     })
+
+    for (const runeId of this.linkTargets.keys()) {
+      this.drawLinkLine(runeId)
+    }
   }
 
   private update(dt: number): void {
