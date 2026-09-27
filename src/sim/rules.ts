@@ -87,11 +87,6 @@ export function detonateRune(state: SimState, bus: SimBus, rune: Rune, ensure?: 
     annihilated: [],
   }
 
-  // 1. Damage (no overflow into the next layer).
-  if (obstacle) {
-    obstacle.hp = Math.max(0, obstacle.hp - outer.sides)
-    bus.emit('obstacle:damaged', { obstacle, damage: outer.sides })
-  }
 
   // 2. Resolve each node's mote: annihilate, or recolor and burst outward.
   const annihilate = new Set<string>()
@@ -132,16 +127,23 @@ export function detonateRune(state: SimState, bus: SimBus, rune: Rune, ensure?: 
   bus.emit('rune:detonated', { rune, info })
   if (rune.state === 'spent') bus.emit('rune:spent', { rune })
 
-  // 4. Obstacle collapse, then relink everything still on the field.
-  if (obstacle && obstacle.hp === 0) {
-    const previous = obstacle.layers[obstacle.index]
-    obstacle.index++
-    ensure?.(state)
-    const next = obstacle.layers[obstacle.index]
-    if (next) obstacle.hp = next.hp
-    else obstacle.cleared = true
-    state.score += previous.hp
-    bus.emit('obstacle:collapsed', { obstacle, previous, cleared: obstacle.cleared })
-  }
+  // 4. Damage the obstacle (after the rune has left, so relinking sees the
+  //    freed field), then relink everything still on the field.
+  if (obstacle) damageObstacle(state, bus, obstacle, outer.sides, ensure)
   relinkAll(state, bus)
+}
+
+// Damage never overflows into the next layer. Does not relink; callers do.
+export function damageObstacle(state: SimState, bus: SimBus, obstacle: Obstacle, amount: number, ensure?: EnsureLayers): void {
+  obstacle.hp = Math.max(0, obstacle.hp - amount)
+  bus.emit('obstacle:damaged', { obstacle, damage: amount })
+  if (obstacle.hp > 0) return
+  const previous = obstacle.layers[obstacle.index]
+  obstacle.index++
+  ensure?.(state)
+  const next = obstacle.layers[obstacle.index]
+  if (next) obstacle.hp = next.hp
+  else obstacle.cleared = true
+  state.score += previous.hp
+  bus.emit('obstacle:collapsed', { obstacle, previous, cleared: obstacle.cleared })
 }

@@ -2,7 +2,7 @@ import { createSimBus, type SimBus } from './events'
 import { loadLevel } from './loadLevel'
 import { updateCatching, updateMotion } from './motion'
 import { isCertainLoss, isWon } from './progress'
-import { canPlace, detonateRune, findLink, placeRune, type EnsureLayers } from './rules'
+import { canPlace, damageObstacle, detonateRune, findLink, placeRune, relinkAll, type EnsureLayers } from './rules'
 import type { LevelData, Obstacle, Rune, SimState, Vec2 } from './types'
 
 const LOSS_CHECK_INTERVAL = 0.25
@@ -79,13 +79,26 @@ export class Sim {
     if (rune.state !== 'full' && !(force && rune.state === 'charging')) return false
     this.snapshot()
     detonateRune(this.state, this.bus, rune, this.opts.ensureLayers)
+    this.afterAction()
+    return true
+  }
+
+  private afterAction(): void {
     if (isWon(this.state)) {
       this.state.status = 'won'
       this.bus.emit('sim:won')
     } else {
       this.checkLoss()
     }
-    return true
+  }
+
+  // Debug: collapse the current layer of every obstacle.
+  debugCollapseAll(): void {
+    if (this.state.status !== 'playing') return
+    this.snapshot()
+    for (const o of this.state.obstacles) if (!o.cleared) damageObstacle(this.state, this.bus, o, o.hp, this.opts.ensureLayers)
+    relinkAll(this.state, this.bus)
+    this.afterAction()
   }
 
   // Restores the board exactly as it was before the last action, but keeps

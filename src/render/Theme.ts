@@ -42,7 +42,12 @@ export function colorForRelease(color: string): number {
 // continuous gradient.
 export const ZONE_COLORS = {
   obstacleArea: 0x1f1240,
-  miasmaField: 0x120a26,
+  miasmaField: 0x170d33,
+  outsideField: 0x0b0617,
   inventoryBar: 0x0d0718,
   divider: 0x3a2b66,
+  fieldEdge: 0x9b7bff,
+  blocker: 0x06030d,
 }
+
+export const INVALID_TINT = 0xff5d6c

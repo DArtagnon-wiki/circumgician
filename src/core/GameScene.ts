@@ -1,666 +1,505 @@
-import { Graphics, type Application, type Container, type FederatedPointerEvent } from 'pixi.js'
+import { Graphics, type Application, type FederatedPointerEvent } from 'pixi.js'
 import { createLayers, type Layers } from '../render/Layers'
-import { ACCENT_COLOR, OBSTACLE_COLOR, RUNE_BODY_COLOR } from '../render/Theme'
+import { ACCENT_COLOR, HUE_COLORS, INVALID_TINT, RUNE_BODY_COLOR, colorForMote } from '../render/Theme'
 import { drawZoneBackground } from '../render/ZoneBackground'
 import { ObstacleView } from '../render/ObstacleView'
-import { RuneView } from '../render/RuneView'
-import { MiasmaPuffView } from '../render/MiasmaPuffView'
-import { computeLayout, type FieldLayout } from './Layout'
+import { MIDDLE_SCALE, RuneView } from '../render/RuneView'
+import { MoteView } from '../render/MoteView'
+import { Effects } from '../render/Effects'
 import { VIRTUAL_WIDTH, VIRTUAL_HEIGHT, computeFit } from './VirtualScreen'
-import { loadLevel, type GameState } from './GameState'
-import type { LevelConfig } from '../data/levels'
-import { createEventBus, type EventBus } from './EventBus'
-import { DragPlacementSystem } from '../systems/DragPlacementSystem'
-import { MiasmaFieldSystem } from '../systems/MiasmaFieldSystem'
-import { AttractionFillSystem } from '../systems/AttractionFillSystem'
-import { DetonationSystem } from '../systems/DetonationSystem'
-import { ObstacleHealthSystem } from '../systems/ObstacleHealthSystem'
-import { ObstacleGrowthSystem } from '../systems/ObstacleGrowthSystem'
-import { RuneGrowthSystem } from '../systems/RuneGrowthSystem'
-import { RuneSupplySystem } from '../systems/RuneSupplySystem'
-import { WinFailSystem } from '../systems/WinFailSystem'
-import { createStrategy } from '../supply'
+import { Sim } from '../sim/Sim'
+import { INVENTORY_ZONE, REACH } from '../sim/constants'
+import { middleAngle, outerAngle, outerLayer } from '../sim/geometry'
+import type { LevelData, Mote, Vec2 } from '../sim/types'
+import type { DetonationInfo } from '../sim/events'
 import { createDebugPanel, isDebugMode } from '../debug/DebugPanel'
+import { createGameHud, type GameHud } from '../ui/GameHud'
 import { Sfx } from '../audio/Sfx'
-import type { Id, ShapeSides, Vec2 } from './types'
-import { createRune, type RuneLayer } from '../model/Rune'
-import type { Rune } from '../model/Rune'
-import { radiusForSides, verticesOf, type PolygonSpec } from '../model/Polygon'
-import { uniformNodeColors } from '../model/nodeColors'
-import type { Obstacle } from '../model/Obstacle'
-import type { MiasmaPuff } from '../model/MiasmaPuff'
-import { makeId } from './id'
-import { randRange } from '../utils/math'
 
-type Animation = (dt: number) => boolean // return false when finished
-
-// Exported so HeadlessSim.ts can reproduce the exact same obstacle-area
-// layout geometry without duplicating (and risking drift from) this value.
-export const OBSTACLE_MARGIN = 50
+export interface GameSceneCallbacks {
+  onWon: () => void
+  onLost: () => void
+  onMenu: () => void
+}
 
 interface DragState {
-  rune: Rune
+  runeId: string
   view: RuneView
+  pos: Vec2
+  liftY: number // touch drags hover the rune above the finger
   onMove: (e: FederatedPointerEvent) => void
   onEnd: (e: FederatedPointerEvent) => void
   onCancel: () => void
 }
 
-export interface GameSceneCallbacks {
-  onWon: () => void
-  onLost: () => void
+interface Flight {
+  from: Vec2
+  fromScale: number
+  t: number
 }
 
-// One instance per level attempt — mount() on start, destroy() on
-// retry/next/level-select. Simpler than teardown-and-reset on every system,
-// and entirely appropriate for a 5-level game (AppShell owns the single
-// long-lived PIXI Application and ticker/resize wiring across scenes).
+const FLY_HOME_TIME = 0.5
+const RESULT_DELAY = 1.5
+const REST_ANGLE = -Math.PI / 2
+const TOUCH_LIFT = 56
+
+// One instance per level attempt. The Sim owns all rules; this class only
+// renders its state, turns input into sim actions and adds juice.
 export class GameScene {
   layers!: Layers
+  sim!: Sim
   private app!: Application
-  private layout!: FieldLayout
-  private state!: GameState
-  private bus!: EventBus
-  private dragSystem!: DragPlacementSystem
-  private miasmaFieldSystem = new MiasmaFieldSystem()
-  private attractionSystem!: AttractionFillSystem
-  private supplySystem!: RuneSupplySystem
-  private winFailSystem!: WinFailSystem
-  private obstacleGrowth = new ObstacleGrowthSystem()
-  private runeGrowth = new RuneGrowthSystem()
-  private obstacleViews = new Map<Id, ObstacleView>()
-  private runeViews = new Map<Id, RuneView>()
-  private puffViews = new Map<Id, MiasmaPuffView>()
-  // World-space (root layer) positions, refreshed whenever something moves —
-  // shared by systems that need to reason about distance (placement, targeting).
-  private viewPositions = new Map<Id, Vec2>()
-  private linkTargets = new Map<Id, Id>() // runeId -> obstacleId
-  private linkGraphics = new Map<Id, Graphics>() // runeId -> confirmed link line
-  private previewLine = new Graphics()
-  private dragState: DragState | null = null
-  private animations: Animation[] = []
-  private particlePool: Graphics[] = []
+  private callbacks!: GameSceneCallbacks
+  private runeViews = new Map<string, RuneView>()
+  private obstacleViews = new Map<string, ObstacleView>()
+  private moteViews = new Map<string, MoteView>()
+  private lastMotePos = new Map<string, { pos: Vec2; color: string }>()
+  private flights = new Map<string, Flight>()
+  private pops = new Map<string, number>()
+  private linkG = new Graphics()
+  private effects!: Effects
+  private drag: DragState | null = null
+  private pendingResult: { kind: 'won' | 'lost'; wait: number } | null = null
+  private mood = 1 // 1 = normal, drops toward 0.35 during the loss animation
+  private showRings = false
   private sfx = new Sfx()
+  private hud: GameHud | null = null
   private debugPanel: HTMLElement | null = null
 
-  mount(app: Application, level: LevelConfig, callbacks: GameSceneCallbacks): void {
+  mount(app: Application, level: LevelData, callbacks: GameSceneCallbacks, seed = (Math.random() * 2 ** 32) >>> 0): void {
     this.app = app
+    this.callbacks = callbacks
     this.layers = createLayers()
     this.app.stage.addChild(this.layers.root)
-    this.layers.effects.addChild(this.previewLine)
+    this.layers.links.addChild(this.linkG)
+    this.effects = new Effects(this.layers.effects)
     this.applyFit()
 
-    this.layout = computeLayout(VIRTUAL_WIDTH, VIRTUAL_HEIGHT)
-    this.state = loadLevel(level, this.layout.miasmaField, this.obstacleGrowth)
-    this.bus = createEventBus()
-    this.dragSystem = new DragPlacementSystem(this.state, this.bus, (id) => this.viewPositions.get(id))
-    this.attractionSystem = new AttractionFillSystem(this.state, this.bus, (id) => this.viewPositions.get(id))
-    // Both systems are purely event-driven (subscribe in their constructor) —
-    // the bus keeps them alive, no need to hold a reference on GameScene.
-    new DetonationSystem(
-      this.state,
-      this.bus,
-      () => this.layout.miasmaField,
-      this.runeGrowth,
-      (id) => this.viewPositions.get(id),
-    )
-    new ObstacleHealthSystem(this.state, this.bus, this.obstacleGrowth, (id) => this.viewPositions.get(id))
-    this.bus.on('rune:activated', ({ rune, obstacle }) => this.onRuneActivated(rune, obstacle))
-    this.bus.on('node:filled', ({ rune, nodeIndex }) => this.onNodeFilled(rune, nodeIndex))
-    this.bus.on('obstacle:damaged', ({ obstacle }) => this.onObstacleDamaged(obstacle))
-    this.bus.on('obstacle:cleared', ({ obstacle }) => this.onObstacleCleared(obstacle))
-    this.bus.on('obstacle:layerPromoted', ({ obstacle, previousShape }) => this.onObstacleLayerPromoted(obstacle, previousShape))
-    this.bus.on('rune:detonated', ({ rune }) => this.onRuneDetonated(rune))
-    this.bus.on('rune:promoted', ({ rune }) => this.onRunePromoted(rune))
-    this.bus.on('rune:depleted', ({ rune }) => this.onRuneDepleted(rune))
-    // Registered before the supply strategy runs below — onRuneAdded is the
-    // ONLY place a RuneView gets created, for both the strategy's initial
-    // hand (fired synchronously during RuneSupplySystem's constructor) and
-    // any later mid-level addition (debug spawn, TimeDrip, unlocks). A
-    // separate eager "build views for whatever's already in the inventory"
-    // pass used to also run after this, double-creating a view for every
-    // initially-supplied rune (visible live as runes rendering doubled/
-    // overlapping in the inventory row) — removed; this event is sufficient.
-    this.bus.on('rune:added', ({ rune }) => this.onRuneAdded(rune))
-    this.supplySystem = new RuneSupplySystem(this.state, level, this.bus, createStrategy(level.supply), this.runeGrowth)
-    this.winFailSystem = new WinFailSystem(
-      this.state,
-      this.bus,
-      this.supplySystem,
-      this.dragSystem,
-      () => this.layout.miasmaField,
-    )
-    this.bus.on('game:won', () => {
-      this.sfx.win()
-      callbacks.onWon()
-    })
-    this.bus.on('game:lost', () => {
-      this.sfx.lose()
-      callbacks.onLost()
-    })
+    this.sim = new Sim(level, { seed })
+    this.layers.background.addChild(drawZoneBackground(level.field, level.blockers))
+    this.bindSimEvents()
+    this.rebuildViews()
 
-    this.buildObstacleViews()
-    this.buildPuffViews()
-    this.relayout()
+    this.hud = createGameHud({
+      onUndo: () => this.undo(),
+      onRestart: () => this.restart(),
+      onMenu: () => callbacks.onMenu(),
+    })
 
     if (isDebugMode()) {
       this.debugPanel = createDebugPanel({
-        spawn: (inner, outer) => this.debugSpawnRune(inner, outer),
-        forceDamageObstacles: () => this.debugForceDamageObstacles(),
-        forceDetonateActive: () => this.debugForceDetonateActive(),
+        forceDetonate: () => {
+          for (const r of this.sim.state.runes) if (r.state === 'charging' || r.state === 'full') this.sim.detonate(r.id, true)
+        },
+        collapseObstacles: () => this.sim.debugCollapseAll(),
+        toggleRings: () => (this.showRings = !this.showRings),
       })
     }
   }
 
-  // Tears down everything owned by this scene — the shared Application and
-  // its ticker/resize wiring (owned by AppShell) are left untouched.
   destroy(): void {
+    this.cancelDrag()
     this.debugPanel?.remove()
-    this.debugPanel = null
+    this.hud?.remove()
+    this.sim.bus.all.clear()
     this.app.stage.removeChild(this.layers.root)
     this.layers.root.destroy({ children: true })
     this.sfx.close()
   }
 
-  private safeAreaBottom(): number {
-    const raw = getComputedStyle(document.documentElement).getPropertyValue('--safe-area-bottom')
-    return parseFloat(raw) || 0
+  undo(): void {
+    this.sfx.unlock()
+    if (this.sim.undo()) this.sfx.undo()
   }
 
-  // Uniform scale + centered offset applied to `layers.root` so the fixed
-  // VIRTUAL_WIDTH x VIRTUAL_HEIGHT canvas fits any real screen size,
-  // preserving aspect ratio (letterboxed on a mismatched device). Everything
-  // inside layers.root (background, obstacles, runes, puffs, effects) is
-  // scaled/positioned together as one unit — game logic never has to know
-  // the real screen size at all, only VIRTUAL_WIDTH/VIRTUAL_HEIGHT.
-  private applyFit(): void {
-    const fit = computeFit(window.innerWidth, window.innerHeight, this.safeAreaBottom())
-    this.layers.root.scale.set(fit.scale)
-    this.layers.root.position.set(fit.offsetX, fit.offsetY)
-  }
-
-  // Redrawn from relayout() (not a renderer 'resize' listener) so it's
-  // always in sync with the CURRENT `this.layout` — the renderer's resize
-  // event fires mid-way through AppShell's own resize call, before
-  // relayout() has a chance to recompute layout, which would otherwise draw
-  // one frame behind on every resize.
-  private redrawBackground(): void {
-    this.layers.background.removeChildren()
-    this.layers.background.addChild(drawZoneBackground(VIRTUAL_WIDTH, this.layout))
-  }
-
-  private buildObstacleViews(): void {
-    for (const obstacle of this.state.obstacles) {
-      const view = new ObstacleView(obstacle)
-      this.layers.obstacles.addChild(view.container)
-      this.obstacleViews.set(obstacle.id, view)
-    }
-  }
-
-  private buildPuffViews(): void {
-    for (const puff of this.state.miasmaPuffs) {
-      const view = new MiasmaPuffView()
-      this.layers.miasmaField.addChild(view.graphic)
-      this.puffViews.set(puff.id, view)
-    }
-  }
-
-  private inventorySlotPosition(slotIndex: number): Vec2 {
-    const { inventoryBar } = this.layout
-    const capacity = this.state.inventory.capacity
-    return {
-      x: inventoryBar.x + ((slotIndex + 0.5) / capacity) * inventoryBar.width,
-      y: inventoryBar.y + inventoryBar.height / 2,
-    }
-  }
-
-  private beginDrag(rune: Rune, view: RuneView, e: FederatedPointerEvent): void {
-    if (rune.state !== 'idle' || this.dragState) return
-    this.sfx.unlock() // must run synchronously inside a real gesture for iOS Safari
-
-    // 'globalpointermove' fires regardless of hit-testing (unlike plain
-    // 'pointermove', which only fires while the pointer is over the object) —
-    // exactly what a drag needs since the pointer leaves the rune's own
-    // bounds immediately. 'pointerupoutside' likewise fires on this object
-    // even when the release happens elsewhere, so no stage-wide hit area or
-    // global listener hijacking is needed (that approach was tried and
-    // discovered to silently break ALL hit-testing into stage children —
-    // assigning `hitArea` on a container short-circuits its child hit-tests).
-    const onMove = (ev: FederatedPointerEvent) => this.onDragMove(ev)
-    const onEnd = (ev: FederatedPointerEvent) => this.onDragEnd(ev)
-    // A real touch drag can be interrupted by the OS (incoming call, app
-    // switch, a multi-touch gesture stealing the pointer) without ever
-    // firing pointerup/pointerupoutside — 'pointercancel' is the spec's
-    // signal for exactly that. Without handling it, dragState would never
-    // clear, and beginDrag's `|| this.dragState` guard would silently block
-    // every future drag for the rest of the session.
-    const onCancel = () => this.cancelDrag()
-    this.dragState = { rune, view, onMove, onEnd, onCancel }
-    view.container.on('globalpointermove', onMove)
-    view.container.on('pointerup', onEnd)
-    view.container.on('pointerupoutside', onEnd)
-    view.container.on('pointercancel', onCancel)
-
-    this.layers.effects.addChild(view.container) // draw above everything while dragging
-    const pos = this.layers.root.toLocal(e.global)
-    view.setPosition(pos.x, pos.y)
-  }
-
-  private onDragMove(e: FederatedPointerEvent): void {
-    if (!this.dragState) return
-    const { rune, view } = this.dragState
-    const pos = this.layers.root.toLocal(e.global)
-    view.setPosition(pos.x, pos.y)
-
-    const target = this.dragSystem.findNearestMatch(rune, pos)
-    const fits = target ? this.dragSystem.fitsInField(rune, pos, this.layout.miasmaField) : false
-    this.drawPreviewLine(pos, target, fits)
-  }
-
-  private onDragEnd(e: FederatedPointerEvent): void {
-    if (!this.dragState) return
-    const { rune, view } = this.dragState
-    this.detachDragListeners()
-
-    const pos = this.layers.root.toLocal(e.global)
-    this.previewLine.clear()
-
-    const result = this.dragSystem.tryPlace(rune, pos, this.layout.miasmaField)
-    if (!result.ok) {
-      const slotPos = this.inventorySlotPosition(rune.slotIndex)
-      this.layers.inventory.addChild(view.container)
-      this.animateMove(view, pos, slotPos)
-    }
-    // On success, 'rune:activated' (emitted by tryPlace) drives the rest via onRuneActivated.
-
-    this.dragState = null
-  }
-
-  // The pointer's own release never resolved to a placement attempt — always
-  // snap back to the inventory slot rather than trying tryPlace() against
-  // whatever stale/undefined position a cancel event carries.
-  private cancelDrag(): void {
-    if (!this.dragState) return
-    const { rune, view } = this.dragState
-    this.detachDragListeners()
-    this.previewLine.clear()
-
-    const slotPos = this.inventorySlotPosition(rune.slotIndex)
-    this.layers.inventory.addChild(view.container)
-    this.animateMove(view, { x: view.container.x, y: view.container.y }, slotPos)
-
-    this.dragState = null
-  }
-
-  private detachDragListeners(): void {
-    if (!this.dragState) return
-    const { view, onMove, onEnd, onCancel } = this.dragState
-    view.container.off('globalpointermove', onMove)
-    view.container.off('pointerup', onEnd)
-    view.container.off('pointerupoutside', onEnd)
-    view.container.off('pointercancel', onCancel)
-  }
-
-  private drawPreviewLine(from: Vec2, obstacle: Obstacle | null, fits: boolean): void {
-    this.previewLine.clear()
-    if (!obstacle) return
-    const to = this.viewPositions.get(obstacle.id)
-    if (!to) return
-    this.previewLine
-      .moveTo(from.x, from.y)
-      .lineTo(to.x, to.y)
-      .stroke({ color: fits ? 0xffffff : 0xff5d5d, width: 2, alpha: 0.3 })
-  }
-
-  private animateMove(view: RuneView, from: Vec2, to: Vec2): void {
-    let elapsed = 0
-    const duration = 0.2
-    this.animations.push((dt) => {
-      elapsed += dt
-      const t = Math.min(1, elapsed / duration)
-      view.setPosition(from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t)
-      return t < 1
-    })
-  }
-
-  private onRuneActivated(rune: Rune, obstacle: Obstacle | undefined): void {
-    this.runeViews.get(rune.id)?.setActive(true)
-    if (rune.fieldPosition) this.viewPositions.set(rune.id, rune.fieldPosition)
-    if (obstacle) {
-      this.linkTargets.set(rune.id, obstacle.id)
-      this.drawLinkLine(rune.id)
-    }
-    this.sfx.place()
-  }
-
-  private onNodeFilled(rune: Rune, nodeIndex: number): void {
-    const puffId = rune.nodes[nodeIndex].puffId
-    const puff = puffId ? this.state.miasmaPuffs.find((p) => p.id === puffId) : undefined
-    const view = this.runeViews.get(rune.id)
-    if (view && puff) view.setNodeCaughtColor(nodeIndex, puff.color)
-    else view?.syncNodes()
-    if (puffId) this.puffViews.get(puffId)?.hide()
-    this.sfx.nodeFilled()
-  }
-
-  private onObstacleDamaged(obstacle: Obstacle): void {
-    this.obstacleViews.get(obstacle.id)?.updateHp(obstacle.hp)
-    const pos = this.viewPositions.get(obstacle.id)
-    if (pos) this.spawnBurst(pos, ACCENT_COLOR)
-  }
-
-  private onObstacleCleared(obstacle: Obstacle): void {
-    const view = this.obstacleViews.get(obstacle.id)
-    if (view) {
-      this.fadeOut(view.container, () => {
-        this.layers.obstacles.removeChild(view.container)
-        view.container.destroy({ children: true })
-      })
-    }
-    const pos = this.viewPositions.get(obstacle.id)
-    if (pos) this.spawnShapeBurst(pos, obstacle.shape, OBSTACLE_COLOR)
-    this.obstacleViews.delete(obstacle.id)
-    this.viewPositions.delete(obstacle.id)
-    this.sfx.obstacleCleared()
-    // The obstacle set just changed — ObstacleHealthSystem.refreshLinks()
-    // may have dropped or acquired links on any active rune; re-sync every
-    // link line's rendering to match the model's current state.
-    this.syncAllLinkLines()
-  }
-
-  // Re-syncs every active rune's link-line rendering against the model's
-  // current linkedObstacleId — used both right after a single rune's own
-  // promotion and whenever the obstacle set changes underneath potentially
-  // many runes at once (ObstacleHealthSystem.refreshLinks).
-  private syncAllLinkLines(): void {
-    for (const rune of this.state.inventory.slots) {
-      if (rune && rune.state === 'active') this.syncLinkLine(rune)
-    }
-  }
-
-  private syncLinkLine(rune: Rune): void {
-    if (rune.linkedObstacleId) {
-      this.linkTargets.set(rune.id, rune.linkedObstacleId)
-      this.drawLinkLine(rune.id)
-    } else {
-      this.linkTargets.delete(rune.id)
-      const line = this.linkGraphics.get(rune.id)
-      if (line) {
-        this.layers.effects.removeChild(line)
-        line.destroy()
-        this.linkGraphics.delete(rune.id)
-      }
-    }
-  }
-
-  // Fires on every detonation cycle, rune still in its pre-promotion state —
-  // the outer shape about to be destroyed flies apart into fragments here,
-  // before promote() (called right after this event) mutates it away.
-  private onRuneDetonated(rune: Rune): void {
-    this.sfx.detonate()
-    if (rune.fieldPosition) this.spawnShapeBurst(rune.fieldPosition, rune.outer.shape, RUNE_BODY_COLOR)
-  }
-
-  // Rune survived detonation (promoted in place: outer destroyed, middle
-  // became outer, center became middle plus a freshly-rolled center) — full
-  // re-render, and re-sync the link line since relinking may have changed
-  // (or dropped) the target.
-  private onRunePromoted(rune: Rune): void {
-    this.runeViews.get(rune.id)?.redraw()
-    this.syncLinkLine(rune)
-  }
-
-  // Rune had no center to promote into a new middle — this is the only real
-  // vacancy case now. Whatever the supply strategy adds to fill the vacated
-  // slot arrives as a separate 'rune:added'.
-  private onRuneDepleted(rune: Rune): void {
-    this.linkTargets.delete(rune.id)
-    const line = this.linkGraphics.get(rune.id)
-    if (line) {
-      this.layers.effects.removeChild(line)
-      line.destroy()
-      this.linkGraphics.delete(rune.id)
-    }
-
-    const view = this.runeViews.get(rune.id)
-    if (view) {
-      view.container.parent?.removeChild(view.container)
-      view.container.destroy({ children: true })
-    }
-    this.runeViews.delete(rune.id)
-    this.viewPositions.delete(rune.id)
-  }
-
-  // Obstacle survived (layer collapsed but another was revealed) — redraw
-  // the new shape/HP and fly the just-collapsed layer's shape apart.
-  private onObstacleLayerPromoted(obstacle: Obstacle, previousShape: PolygonSpec): void {
-    this.obstacleViews.get(obstacle.id)?.updateLayer(obstacle.shape, obstacle.hp, obstacle.maxHp)
-    const pos = this.viewPositions.get(obstacle.id)
-    if (pos) this.spawnShapeBurst(pos, previousShape, OBSTACLE_COLOR)
-    this.syncAllLinkLines()
-  }
-
-  private onRuneAdded(rune: Rune): void {
-    const view = new RuneView(rune)
-    view.container.on('pointerdown', (e) => this.beginDrag(rune, view, e))
-    this.layers.inventory.addChild(view.container)
-    this.runeViews.set(rune.id, view)
-    this.relayout() // capacity may have grown (debug force-add), reflow slots
-  }
-
-  debugSpawnRune(inner: ShapeSides, outer: ShapeSides): void {
-    const id = makeId('rune')
-    this.runeGrowth.register(id, { type: 'none' }) // debug runes are single-use, no further evolution
-    const debugSpec = { catch: 'red' as const, release: 'generic' as const }
-    const outerLayer: RuneLayer = { shape: { sides: outer, radius: radiusForSides(outer) }, nodeColors: uniformNodeColors(outer, debugSpec) }
-    const middleLayer: RuneLayer = { shape: { sides: inner, radius: radiusForSides(inner) }, nodeColors: uniformNodeColors(inner, debugSpec) }
-    const rune = createRune(id, outerLayer, middleLayer, null, 'full')
-    const placed = this.state.inventory.forceAddRune(rune)
-    this.bus.emit('rune:added', { rune: placed })
-  }
-
-  // Drops every obstacle's current layer to 0 HP, exercising the
-  // layer-promotion/clear path without needing to actually fill runes.
-  debugForceDamageObstacles(): void {
-    for (const obstacle of [...this.state.obstacles]) {
-      obstacle.hp = 0
-      this.bus.emit('obstacle:damaged', { obstacle, damage: obstacle.maxHp })
-    }
-  }
-
-  // Instantly fills every remaining node on every active rune with a
-  // matching-color consumed puff and fires 'rune:ready', exercising
-  // detonation/promotion/annihilation without waiting on real attraction.
-  debugForceDetonateActive(): void {
-    for (const rune of this.state.inventory.slots) {
-      if (!rune || rune.state !== 'active' || !rune.fieldPosition) continue
-      rune.nodes.forEach((node, i) => {
-        if (node.filled) return
-        const catchColor = rune.outer.nodeColors[i].catch
-        const puff: MiasmaPuff = {
-          id: makeId('puff'),
-          position: { x: rune.fieldPosition!.x, y: rune.fieldPosition!.y },
-          velocity: { x: 0, y: 0 },
-          state: 'consumed',
-          color: catchColor,
-        }
-        this.state.miasmaPuffs.push(puff)
-        node.filled = true
-        node.puffId = puff.id
-      })
-      this.bus.emit('rune:ready', { rune })
-    }
-  }
-
-  private acquireParticle(): Graphics {
-    return this.particlePool.pop() ?? new Graphics()
-  }
-
-  private releaseParticle(g: Graphics): void {
-    g.clear()
-    this.layers.effects.removeChild(g)
-    this.particlePool.push(g)
-  }
-
-  private spawnBurst(position: Vec2, color: number): void {
-    const ring = new Graphics()
-    this.layers.effects.addChild(ring)
-    let elapsed = 0
-    const ringDuration = 0.35
-    this.animations.push((dt) => {
-      elapsed += dt
-      const t = Math.min(1, elapsed / ringDuration)
-      ring.clear()
-      ring.circle(position.x, position.y, 10 + t * 40).stroke({ color, width: 3, alpha: 1 - t })
-      if (t >= 1) {
-        this.layers.effects.removeChild(ring)
-        ring.destroy()
-        return false
-      }
-      return true
-    })
-
-    const particleCount = 10
-    for (let i = 0; i < particleCount; i++) {
-      const angle = (i / particleCount) * Math.PI * 2 + randRange(-0.2, 0.2)
-      const speed = randRange(70, 150)
-      const particle = this.acquireParticle()
-      this.layers.effects.addChild(particle)
-      let pElapsed = 0
-      const pDuration = 0.4
-      this.animations.push((dt) => {
-        pElapsed += dt
-        const t = Math.min(1, pElapsed / pDuration)
-        const dist = speed * t
-        const x = position.x + Math.cos(angle) * dist
-        const y = position.y + Math.sin(angle) * dist
-        particle.clear()
-        particle.circle(x, y, 3 * (1 - t)).fill({ color, alpha: 1 - t })
-        if (t >= 1) {
-          this.releaseParticle(particle)
-          return false
-        }
-        return true
-      })
-    }
-  }
-
-  // "Fly apart" — a layer (rune outer, or an obstacle's collapsing shell)
-  // actually breaking, not just a damage tick. One fragment per vertex of
-  // the given shape, flying outward along that vertex's own direction from
-  // center, plus the existing ring-flash for impact feel. Uses a neutral
-  // color (never shape-hue) — the debris isn't a gameplay signal, only
-  // node/mote colors are.
-  private spawnShapeBurst(position: Vec2, shape: PolygonSpec, color: number): void {
-    const verts = verticesOf(shape, { x: 0, y: 0 })
-    verts.forEach((v) => {
-      const angle = Math.atan2(v.y, v.x)
-      const speed = randRange(90, 170)
-      const spin = randRange(-6, 6)
-      const particle = this.acquireParticle()
-      this.layers.effects.addChild(particle)
-      let elapsed = 0
-      const duration = 0.5
-      this.animations.push((dt) => {
-        elapsed += dt
-        const t = Math.min(1, elapsed / duration)
-        const dist = speed * t
-        const x = position.x + v.x * 0.3 + Math.cos(angle) * dist
-        const y = position.y + v.y * 0.3 + Math.sin(angle) * dist
-        particle.clear()
-        particle.rotation = spin * t
-        particle.poly([-4, -4, 4, -4, 0, 6]).fill({ color, alpha: 1 - t })
-        particle.position.set(x, y)
-        if (t >= 1) {
-          particle.position.set(0, 0)
-          particle.rotation = 0
-          this.releaseParticle(particle)
-          return false
-        }
-        return true
-      })
-    })
-    this.spawnBurst(position, color)
-  }
-
-  private fadeOut(container: Container, onDone: () => void): void {
-    let elapsed = 0
-    const duration = 0.3
-    this.animations.push((dt) => {
-      elapsed += dt
-      const t = Math.min(1, elapsed / duration)
-      container.alpha = 1 - t
-      container.scale.set(1 - t * 0.3)
-      if (t >= 1) {
-        onDone()
-        return false
-      }
-      return true
-    })
-  }
-
-  private drawLinkLine(runeId: Id): void {
-    const obstacleId = this.linkTargets.get(runeId)
-    if (!obstacleId) return
-    const from = this.viewPositions.get(runeId)
-    const to = this.viewPositions.get(obstacleId)
-    if (!from || !to) return
-
-    let line = this.linkGraphics.get(runeId)
-    if (!line) {
-      line = new Graphics()
-      this.layers.effects.addChild(line)
-      this.linkGraphics.set(runeId, line)
-    }
-    line.clear()
-    line.moveTo(from.x, from.y).lineTo(to.x, to.y).stroke({ color: ACCENT_COLOR, width: 3, alpha: 0.55 })
+  restart(): void {
+    this.sfx.unlock()
+    this.sim.restart((Math.random() * 2 ** 32) >>> 0)
+    this.sfx.undo()
   }
 
   relayout(): void {
     this.applyFit()
-    this.layout = computeLayout(VIRTUAL_WIDTH, VIRTUAL_HEIGHT)
-    this.redrawBackground()
-    const { obstacleArea } = this.layout
+  }
 
-    const usableW = Math.max(1, obstacleArea.width - OBSTACLE_MARGIN * 2)
-    const usableH = Math.max(1, obstacleArea.height - OBSTACLE_MARGIN * 2)
-    for (const obstacle of this.state.obstacles) {
-      const x = obstacleArea.x + OBSTACLE_MARGIN + obstacle.position.x * usableW
-      const y = obstacleArea.y + OBSTACLE_MARGIN + obstacle.position.y * usableH
-      this.obstacleViews.get(obstacle.id)?.setPosition(x, y)
-      this.viewPositions.set(obstacle.id, { x, y })
+  // ---------------------------------------------------------------------
+  // Frame
+  // ---------------------------------------------------------------------
+
+  update(dt: number): void {
+    dt = Math.min(dt, 1 / 20) // no giant steps after a background tab
+    this.sim.step(dt)
+    const s = this.sim.state
+
+    if (this.pendingResult) {
+      this.pendingResult.wait -= dt
+      if (this.pendingResult.wait <= 0) {
+        const kind = this.pendingResult.kind
+        this.pendingResult = null
+        if (kind === 'won') this.callbacks.onWon()
+        else this.callbacks.onLost()
+      }
     }
+    const targetMood = s.status === 'lost' ? 0.35 : 1
+    this.mood += (targetMood - this.mood) * Math.min(1, dt * 3)
+    this.layers.runes.alpha = this.mood
+    this.layers.obstacles.alpha = 0.4 + 0.6 * this.mood
+    this.layers.motes.alpha = 0.3 + 0.7 * this.mood
 
-    // Idle runes live at their inventory slot; active/dragging runes keep
-    // whatever field position they were placed at (or their drag position).
-    this.state.inventory.slots.forEach((rune, slotIndex) => {
-      if (!rune || rune.state !== 'idle') return
-      if (this.dragState?.rune.id === rune.id) return
-      const pos = this.inventorySlotPosition(slotIndex)
-      this.runeViews.get(rune.id)?.setPosition(pos.x, pos.y)
-      this.viewPositions.set(rune.id, pos)
-    })
+    this.syncMotes(s.motes, s.time)
+    for (const o of s.obstacles) this.obstacleViews.get(o.id)?.sync(o, dt, s.time)
+    this.syncRunes(dt)
+    this.drawLinks()
+    this.effects.update(dt)
+    this.applyFit()
+    this.hud?.setUndoEnabled(this.sim.canUndo)
+  }
 
-    for (const runeId of this.linkTargets.keys()) {
-      this.drawLinkLine(runeId)
+  private syncMotes(motes: Mote[], time: number): void {
+    const alive = new Set<string>()
+    for (const m of motes) {
+      alive.add(m.id)
+      let view = this.moteViews.get(m.id)
+      if (!view) {
+        view = new MoteView()
+        this.moteViews.set(m.id, view)
+        this.layers.motes.addChild(view.graphic)
+      }
+      view.sync(m, time)
+      this.lastMotePos.set(m.id, { pos: { ...m.pos }, color: m.color })
+    }
+    for (const [id, view] of this.moteViews) {
+      if (alive.has(id)) continue
+      view.graphic.destroy()
+      this.moteViews.delete(id)
     }
   }
 
-  update(dt: number): void {
-    this.miasmaFieldSystem.update(this.state.miasmaPuffs, dt, this.layout.miasmaField)
-    this.attractionSystem.update(dt)
-    this.supplySystem.update(dt)
-    this.winFailSystem.update()
+  private slotPosition(slot: number): Vec2 {
+    const n = Math.max(1, this.sim.state.runes.length)
+    return { x: ((slot + 0.5) / n) * VIRTUAL_WIDTH, y: INVENTORY_ZONE.y + INVENTORY_ZONE.h / 2 - 4 }
+  }
 
-    for (const puff of this.state.miasmaPuffs) {
-      if (puff.state === 'consumed') continue
-      this.puffViews.get(puff.id)?.sync(puff)
+  private iconScale(radius: number): number {
+    const n = Math.max(1, this.sim.state.runes.length)
+    const room = Math.min(44, VIRTUAL_WIDTH / n / 2 - 10)
+    return Math.min(1, room / radius)
+  }
+
+  private syncRunes(dt: number): void {
+    const s = this.sim.state
+    const motes = new Map(s.motes.map((m) => [m.id, m]))
+    for (const rune of s.runes) {
+      const view = this.runeViews.get(rune.id)
+      if (!view) continue
+      const outer = outerLayer(rune)
+      if (rune.state === 'spent' || !outer) {
+        if (!this.flights.has(rune.id)) this.removeRuneView(rune.id)
+        continue
+      }
+
+      let pos: Vec2
+      let scale: number
+      let oRot = REST_ANGLE
+      let mRot = REST_ANGLE
+      view.container.tint = 0xffffff
+
+      if (this.drag?.runeId === rune.id) {
+        pos = this.drag.pos
+        scale = 1
+        view.container.tint = this.sim.canPlace(rune.id, pos) ? 0xffffff : INVALID_TINT
+      } else if (rune.pos && (rune.state === 'charging' || rune.state === 'full')) {
+        pos = rune.pos
+        oRot = outerAngle(rune, s.time)
+        mRot = middleAngle(rune, s.time)
+        let pop = this.pops.get(rune.id)
+        if (pop !== undefined) {
+          pop += dt / 0.3
+          if (pop >= 1) this.pops.delete(rune.id)
+          else this.pops.set(rune.id, pop)
+        }
+        scale = pop !== undefined && pop < 1 ? 1 + Math.sin(pop * Math.PI) * 0.12 : 1
+        if (view.container.parent !== this.layers.runes) this.layers.runes.addChild(view.container)
+      } else {
+        const slot = this.slotPosition(rune.slot)
+        const icon = this.iconScale(outer.radius)
+        const flight = this.flights.get(rune.id)
+        if (flight) {
+          flight.t = Math.min(1, flight.t + dt / FLY_HOME_TIME)
+          const e = 1 - Math.pow(1 - flight.t, 3)
+          const arc = Math.sin(flight.t * Math.PI) * -40
+          pos = { x: flight.from.x + (slot.x - flight.from.x) * e, y: flight.from.y + (slot.y - flight.from.y) * e + arc }
+          // The middle "expands into the new outer" on the way home.
+          const grow = Math.min(1, flight.t * 2.2)
+          const peak = flight.fromScale + (1 - flight.fromScale) * grow
+          scale = flight.t < 0.45 ? peak : peak + (icon - peak) * ((flight.t - 0.45) / 0.55)
+          if (flight.t >= 1) this.flights.delete(rune.id)
+        } else {
+          pos = slot
+          scale = icon
+        }
+      }
+      view.container.position.set(pos.x, pos.y)
+      view.body.scale.set(scale)
+      view.sync(rune, oRot, mRot, s.time, motes)
     }
+  }
 
-    for (const view of this.runeViews.values()) {
-      view.update(dt)
+  private drawLinks(): void {
+    const g = this.linkG
+    g.clear()
+    const s = this.sim.state
+    const obstacles = new Map(s.obstacles.map((o) => [o.id, o]))
+    for (const rune of s.runes) {
+      if (!rune.pos || !rune.linkedObstacleId) continue
+      const o = obstacles.get(rune.linkedObstacleId)
+      if (!o) continue
+      const full = rune.state === 'full'
+      const pulse = full ? 0.5 + 0.5 * Math.sin(s.time * 6) : 0
+      g.moveTo(rune.pos.x, rune.pos.y).lineTo(o.pos.x, o.pos.y).stroke({ color: ACCENT_COLOR, width: full ? 3 + pulse * 2 : 2, alpha: full ? 0.45 + pulse * 0.3 : 0.28 })
     }
+    if (this.drag) {
+      const target = this.sim.previewLink(this.drag.runeId, this.drag.pos)
+      const ok = this.sim.canPlace(this.drag.runeId, this.drag.pos)
+      if (target) g.moveTo(this.drag.pos.x, this.drag.pos.y).lineTo(target.pos.x, target.pos.y).stroke({ color: ok ? ACCENT_COLOR : INVALID_TINT, width: 2, alpha: 0.5 })
+    }
+    if (this.showRings) {
+      for (const rune of s.runes) {
+        const outer = outerLayer(rune)
+        if (!rune.pos || !outer) continue
+        g.circle(rune.pos.x, rune.pos.y, outer.radius + REACH).stroke({ color: 0x7cffb2, width: 1, alpha: 0.5 })
+        g.circle(rune.pos.x, rune.pos.y, Math.max(1, outer.radius - REACH)).stroke({ color: 0x7cffb2, width: 1, alpha: 0.5 })
+      }
+    }
+  }
 
-    this.animations = this.animations.filter((animate) => animate(dt))
+  // ---------------------------------------------------------------------
+  // Views
+  // ---------------------------------------------------------------------
+
+  private rebuildViews(): void {
+    this.cancelDrag()
+    for (const id of [...this.runeViews.keys()]) this.removeRuneView(id)
+    for (const v of this.obstacleViews.values()) v.container.destroy({ children: true })
+    for (const v of this.moteViews.values()) v.graphic.destroy()
+    this.obstacleViews.clear()
+    this.moteViews.clear()
+    this.flights.clear()
+    this.pops.clear()
+    this.effects.clear()
+    this.pendingResult = null
+
+    const s = this.sim.state
+    for (const o of s.obstacles) {
+      const view = new ObstacleView(o)
+      this.obstacleViews.set(o.id, view)
+      this.layers.obstacles.addChild(view.container)
+    }
+    for (const r of s.runes) {
+      if (r.state === 'spent') continue
+      const view = new RuneView(r)
+      view.container.on('pointerdown', (e) => this.onRunePointerDown(r.id, e))
+      this.runeViews.set(r.id, view)
+      this.layers.runes.addChild(view.container)
+    }
+  }
+
+  private removeRuneView(id: string): void {
+    const view = this.runeViews.get(id)
+    if (!view) return
+    view.container.destroy({ children: true })
+    this.runeViews.delete(id)
+  }
+
+  // ---------------------------------------------------------------------
+  // Sim events -> juice
+  // ---------------------------------------------------------------------
+
+  private bindSimEvents(): void {
+    const bus = this.sim.bus
+    bus.on('rune:placed', ({ rune }) => {
+      this.pops.set(rune.id, 0)
+      this.effects.ring(rune.pos!, RUNE_BODY_COLOR, 20, outerLayer(rune)!.radius + 20, 0.35, 2)
+      this.sfx.place()
+    })
+    bus.on('mote:held', () => this.sfx.nodeFilled())
+    bus.on('rune:full', ({ rune }) => {
+      this.effects.ring(rune.pos!, ACCENT_COLOR, outerLayer(rune)!.radius, outerLayer(rune)!.radius + 26, 0.45, 2)
+      this.sfx.ready()
+    })
+    bus.on('rune:detonated', ({ rune, info }) => this.onDetonated(rune.id, rune.state === 'spent', info))
+    bus.on('obstacle:damaged', ({ obstacle }) => this.obstacleViews.get(obstacle.id)?.hit())
+    bus.on('obstacle:collapsed', ({ obstacle, previous, cleared }) => {
+      this.effects.shatter(obstacle.pos, previous.sides, previous.radius, -Math.PI / 2, 0xffffff, 3)
+      this.effects.sparks(obstacle.pos, 0xd8c8ff, cleared ? 22 : 12, cleared ? 220 : 140)
+      this.effects.ring(obstacle.pos, 0xffffff, previous.radius, previous.radius + (cleared ? 90 : 50), 0.5, 4)
+      this.effects.addShake(cleared ? 10 : 7)
+      this.sfx.obstacleCleared(cleared)
+    })
+    bus.on('sim:won', () => {
+      this.pendingResult = { kind: 'won', wait: RESULT_DELAY }
+      const hues = Object.values(HUE_COLORS)
+      hues.forEach((c, i) => this.effects.ring({ x: 200, y: 450 }, c, 20 + i * 8, 260 + i * 30, 1.2, 3))
+      this.effects.addShake(6)
+      this.sfx.win()
+    })
+    bus.on('sim:lost', () => {
+      this.pendingResult = { kind: 'lost', wait: RESULT_DELAY }
+      this.effects.flash(0x8a0f2a, 0.35, 1.4, { x: 0, y: 0, w: VIRTUAL_WIDTH, h: VIRTUAL_HEIGHT })
+      for (const r of this.sim.state.runes) {
+        const outer = outerLayer(r)
+        if (r.pos && outer) this.effects.ring(r.pos, 0x6d6480, outer.radius, outer.radius * 0.4, 1.2, 3)
+      }
+      this.sfx.lose()
+    })
+    bus.on('sim:restored', () => {
+      this.mood = Math.max(this.mood, 0.6)
+      this.rebuildViews()
+    })
+  }
+
+  private onDetonated(runeId: string, spent: boolean, info: DetonationInfo): void {
+    const { pos, outer } = info
+    this.effects.shatter(pos, outer.sides, outer.radius, info.outerAngle, RUNE_BODY_COLOR, 3.5)
+    this.effects.ring(pos, 0xffffff, outer.radius * 0.5, outer.radius + 50, 0.45, 4)
+    for (const id of info.annihilated) {
+      const last = this.lastMotePos.get(id)
+      if (!last) continue
+      this.effects.ring(last.pos, 0xff2266, 16, 2, 0.4, 3)
+      this.effects.sparks(last.pos, 0x3a0014, 6, 60)
+    }
+    for (const id of info.released) {
+      const m = this.sim.state.motes.find((mm) => mm.id === id)
+      if (m) this.effects.sparks(m.pos, colorForMote(m.color), 3, 90)
+    }
+    if (info.obstacleId) {
+      const o = this.sim.state.obstacles.find((oo) => oo.id === info.obstacleId)
+      if (o) this.bolt(pos, o.pos)
+      this.effects.addShake(5 + info.damage)
+    } else {
+      this.effects.addShake(3)
+    }
+    if (spent) {
+      if (info.middle === undefined) this.effects.sparks(pos, 0x6d6480, 10, 80)
+    } else {
+      const rune = this.sim.rune(runeId)!
+      const newOuter = outerLayer(rune)!
+      this.flights.set(runeId, { from: { ...pos }, fromScale: (MIDDLE_SCALE * outer.radius) / newOuter.radius, t: 0 })
+    }
+    this.sfx.detonate(info.damage > 0)
+  }
+
+  // A jagged arc of light from the rune to the obstacle it hits.
+  private bolt(from: Vec2, to: Vec2): void {
+    const segs = 9
+    const pts: Vec2[] = []
+    for (let i = 0; i <= segs; i++) {
+      const t = i / segs
+      const j = i === 0 || i === segs ? 0 : (Math.random() - 0.5) * 22
+      const nx = -(to.y - from.y)
+      const ny = to.x - from.x
+      const len = Math.hypot(nx, ny) || 1
+      pts.push({ x: from.x + (to.x - from.x) * t + (nx / len) * j, y: from.y + (to.y - from.y) * t + (ny / len) * j })
+    }
+    let life = 0
+    const g = new Graphics()
+    this.layers.effects.addChild(g)
+    this.effects.add((dt) => {
+      life += dt / 0.3
+      g.clear()
+      if (life >= 1) {
+        g.destroy()
+        return false
+      }
+      g.poly(pts.flatMap((p) => [p.x, p.y]), false).stroke({ color: 0xffffff, width: 4 * (1 - life), alpha: 1 - life })
+      g.poly(pts.flatMap((p) => [p.x, p.y]), false).stroke({ color: 0xb89cff, width: 10 * (1 - life), alpha: 0.3 * (1 - life) })
+      return true
+    })
+  }
+
+  // ---------------------------------------------------------------------
+  // Input
+  // ---------------------------------------------------------------------
+
+  private onRunePointerDown(runeId: string, e: FederatedPointerEvent): void {
+    this.sfx.unlock() // must run inside a real gesture for iOS Safari
+    const rune = this.sim.rune(runeId)
+    if (!rune || this.sim.state.status !== 'playing') return
+    if (rune.state === 'full') {
+      this.sim.detonate(runeId)
+    } else if (rune.state === 'idle' && !this.drag && !this.flights.has(runeId)) {
+      this.beginDrag(runeId, e)
+    } else if (rune.state === 'charging') {
+      this.sfx.notReady()
+    }
+  }
+
+  private beginDrag(runeId: string, e: FederatedPointerEvent): void {
+    const view = this.runeViews.get(runeId)
+    if (!view) return
+    const liftY = e.pointerType === 'touch' ? TOUCH_LIFT : 0
+    const onMove = (ev: FederatedPointerEvent) => {
+      if (this.drag) this.drag.pos = this.pointerPos(ev, liftY)
+    }
+    const onEnd = (ev: FederatedPointerEvent) => this.endDrag(ev)
+    const onCancel = () => this.cancelDrag()
+    this.drag = { runeId, view, pos: this.pointerPos(e, liftY), liftY, onMove, onEnd, onCancel }
+    // globalpointermove fires regardless of hit-testing; pointerupoutside
+    // catches releases elsewhere; pointercancel covers OS interruptions.
+    view.container.on('globalpointermove', onMove)
+    view.container.on('pointerup', onEnd)
+    view.container.on('pointerupoutside', onEnd)
+    view.container.on('pointercancel', onCancel)
+    this.layers.drag.addChild(view.container)
+    this.sfx.pickUp()
+  }
+
+  private pointerPos(e: FederatedPointerEvent, liftY: number): Vec2 {
+    const p = this.layers.root.toLocal(e.global)
+    return { x: p.x, y: p.y - liftY }
+  }
+
+  private endDrag(e: FederatedPointerEvent): void {
+    const drag = this.drag
+    if (!drag) return
+    const pos = this.pointerPos(e, drag.liftY)
+    this.detachDrag()
+    if (!this.sim.place(drag.runeId, pos)) {
+      this.flights.set(drag.runeId, { from: pos, fromScale: 1, t: 0.3 })
+      this.layers.runes.addChild(drag.view.container)
+      this.sfx.notReady()
+    }
+  }
+
+  private cancelDrag(): void {
+    const drag = this.drag
+    if (!drag) return
+    this.detachDrag()
+    this.flights.set(drag.runeId, { from: drag.pos, fromScale: 1, t: 0.3 })
+    this.layers.runes.addChild(drag.view.container)
+  }
+
+  private detachDrag(): void {
+    if (!this.drag) return
+    const { view, onMove, onEnd, onCancel } = this.drag
+    view.container.off('globalpointermove', onMove)
+    view.container.off('pointerup', onEnd)
+    view.container.off('pointerupoutside', onEnd)
+    view.container.off('pointercancel', onCancel)
+    if (!view.container.destroyed && view.container.parent === this.layers.drag) this.layers.runes.addChild(view.container)
+    this.drag = null
+  }
+
+  // ---------------------------------------------------------------------
+  // Fit
+  // ---------------------------------------------------------------------
+
+  private applyFit(): void {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue('--safe-area-bottom')
+    const fit = computeFit(window.innerWidth, window.innerHeight, parseFloat(raw) || 0)
+    const sx = this.effects?.shake ? (Math.random() - 0.5) * this.effects.shake : 0
+    const sy = this.effects?.shake ? (Math.random() - 0.5) * this.effects.shake : 0
+    this.layers.root.scale.set(fit.scale)
+    this.layers.root.position.set(fit.offsetX + sx * fit.scale, fit.offsetY + sy * fit.scale)
   }
 }

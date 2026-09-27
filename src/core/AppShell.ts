@@ -1,6 +1,7 @@
 import { Application, type Renderer } from 'pixi.js'
 import { GameScene } from './GameScene'
-import { LEVELS, DEBUG_LEVELS, type LevelConfig } from '../data/levels'
+import { PACK, DEBUG_PACK } from '../data/levels/pack'
+import type { LevelData } from '../sim/types'
 import { showMenu } from '../ui/Menu'
 import { showLevelSelect } from '../ui/LevelSelect'
 import { showHUD } from '../ui/HUD'
@@ -13,7 +14,6 @@ import { isDebugMode } from '../debug/DebugPanel'
 export class AppShell {
   private app = new Application()
   private scene: GameScene | null = null
-  private currentLevelIndex = 0
   private overlay: HTMLElement | null = null
 
   async mount(container: HTMLElement): Promise<void> {
@@ -25,8 +25,7 @@ export class AppShell {
       antialias: true,
     })
     container.appendChild(this.app.canvas)
-    // `resizeTo` applies on the next animation frame, not synchronously during init() —
-    // force the correct size now so the first layout isn't computed off a stale default canvas.
+    // `resizeTo` applies on the next animation frame — force the size now.
     this.app.renderer.resize(window.innerWidth, window.innerHeight)
 
     this.app.ticker.add((ticker) => this.scene?.update(ticker.deltaMS / 1000))
@@ -45,59 +44,47 @@ export class AppShell {
     this.teardownScene()
     this.clearOverlay()
     this.overlay = showLevelSelect({
-      levels: LEVELS,
+      levels: PACK,
       isCompleted: isLevelCompleted,
-      onSelect: (index) => this.startLevel(index),
+      onSelect: (index) => this.startLevel(PACK, index),
       onBack: () => this.showMenu(),
-      debugLevels: isDebugMode() ? DEBUG_LEVELS : undefined,
-      onSelectDebug: (level) => this.startDebugLevel(level),
+      debugLevels: isDebugMode() ? DEBUG_PACK : undefined,
+      onSelectDebug: (index) => this.startLevel(DEBUG_PACK, index),
     })
   }
 
-  startLevel(index: number): void {
+  // Debug fixtures run through the same path but never mark completion.
+  startLevel(pack: LevelData[], index: number): void {
     this.teardownScene()
     this.clearOverlay()
-    this.currentLevelIndex = index
+    const level = pack[index]
+    const isReal = pack === PACK
     const scene = new GameScene()
-    scene.mount(this.app, LEVELS[index], {
-      onWon: () => this.showResult('won'),
-      onLost: () => this.showResult('lost'),
+    scene.mount(this.app, level, {
+      onWon: () => {
+        if (isReal) markLevelCompleted(level.id)
+        this.showResult('won', pack, index)
+      },
+      onLost: () => this.showResult('lost', pack, index),
+      onMenu: () => this.showLevelSelect(),
     })
     this.scene = scene
   }
 
-  // Guaranteed-fail fixtures (src/data/levels/failTest*.ts) for manually
-  // verifying the loss condition — mounted straight from a config, bypassing
-  // the LEVELS array entirely. No completion-marking, no "Next Level": these
-  // aren't part of the real 5-level pack.
-  startDebugLevel(config: LevelConfig): void {
-    this.teardownScene()
-    this.clearOverlay()
-    const scene = new GameScene()
-    scene.mount(this.app, config, {
-      onWon: () => this.showDebugResult(config, 'won'),
-      onLost: () => this.showDebugResult(config, 'lost'),
-    })
-    this.scene = scene
-  }
-
-  private showDebugResult(config: LevelConfig, result: 'won' | 'lost'): void {
+  // The result overlays the frozen board; Undo on a loss drops back into it.
+  private showResult(result: 'won' | 'lost', pack: LevelData[], index: number): void {
+    const hasNext = pack === PACK && index < pack.length - 1
     this.clearOverlay()
     this.overlay = showHUD(result, {
-      onRetry: () => this.startDebugLevel(config),
-      onLevelSelect: () => this.showLevelSelect(),
-    })
-  }
-
-  // Result HUD overlays the frozen final board rather than tearing the scene
-  // down immediately — Retry/Next/Level Select each start fresh from there.
-  private showResult(result: 'won' | 'lost'): void {
-    if (result === 'won') markLevelCompleted(LEVELS[this.currentLevelIndex].id)
-    const hasNext = this.currentLevelIndex < LEVELS.length - 1
-    this.clearOverlay()
-    this.overlay = showHUD(result, {
-      onRetry: () => this.startLevel(this.currentLevelIndex),
-      onNext: hasNext ? () => this.startLevel(this.currentLevelIndex + 1) : undefined,
+      onRetry: () => this.startLevel(pack, index),
+      onNext: hasNext ? () => this.startLevel(pack, index + 1) : undefined,
+      onUndo:
+        result === 'lost' && this.scene?.sim.canUndo
+          ? () => {
+              this.clearOverlay()
+              this.scene?.undo()
+            }
+          : undefined,
       onLevelSelect: () => this.showLevelSelect(),
     })
   }

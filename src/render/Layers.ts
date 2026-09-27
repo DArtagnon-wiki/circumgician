@@ -3,24 +3,26 @@ import { Container } from 'pixi.js'
 export interface Layers {
   root: Container
   background: Container
-  miasmaField: Container
+  links: Container
+  motes: Container
   obstacles: Container
-  inventory: Container
+  runes: Container
   effects: Container
-  debugUI: Container
+  drag: Container
 }
 
 export function createLayers(): Layers {
   const root = new Container()
   const background = new Container()
-  const miasmaField = new Container()
+  const links = new Container()
+  const motes = new Container()
   const obstacles = new Container()
-  const inventory = new Container()
+  const runes = new Container()
   const effects = new Container()
-  const debugUI = new Container()
+  const drag = new Container()
 
   // Draw/interaction order, back to front.
-  root.addChild(background, miasmaField, obstacles, inventory, effects, debugUI)
+  root.addChild(background, links, obstacles, runes, motes, effects, drag)
 
-  return { root, background, miasmaField, obstacles, inventory, effects, debugUI }
+  return { root, background, links, motes, obstacles, runes, effects, drag }
 }
