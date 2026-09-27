@@ -1,6 +1,6 @@
 import { Graphics } from 'pixi.js'
 import type { Mote } from '../sim/types'
-import { colorForMote } from './Theme'
+import { colorForMote, HUE_COLORS } from './Theme'
 
 // Cheap glow: a large low-alpha circle behind a crisp small one (no filters
 // per mote, for iPhone GPU headroom). Held motes are drawn by their rune's
@@ -40,15 +40,29 @@ export class MoteView {
       }
       g.circle(x, y, 22).fill({ color, alpha: 0.25 })
     } else {
+      const speed = mote.vel ? Math.hypot(mote.vel.x, mote.vel.y) : 0
+      if (speed > 15 && mote.vel) {
+        // Coasting after a kick or a rune's push: a short streak behind it.
+        const tail = Math.min(24, speed * 0.12)
+        g.moveTo(x, y)
+          .lineTo(x - (mote.vel.x / speed) * tail, y - (mote.vel.y / speed) * tail)
+          .stroke({ color, width: 4, alpha: 0.4 })
+      }
       const breathe = 0.12 + Math.sin(time * 2.2 + this.phase) * 0.04
       g.circle(x, y, 16).fill({ color, alpha: breathe })
     }
     if (mote.color === 'generic') {
-      // Wildcards shimmer with a thin rotating prism ring.
-      const a = time * 2 + this.phase
-      g.arc(x, y, 9, a, a + Math.PI * 1.3).stroke({ color: 0xffffff, width: 1.5, alpha: 0.7 })
+      // Wildcard: a white core with three tiny hue sparks orbiting it.
+      // Deliberately unlike a rune's center glyph.
+      const sparks = [HUE_COLORS.red, HUE_COLORS.teal, HUE_COLORS.gold]
+      sparks.forEach((c, k) => {
+        const a = time * 2.4 + this.phase + (k * Math.PI * 2) / 3
+        g.circle(x + Math.cos(a) * 9, y + Math.sin(a) * 9, 1.8).fill({ color: c })
+      })
+      g.circle(x, y, 5.5).fill({ color: 0xffffff, alpha: 0.95 })
+    } else {
+      g.circle(x, y, 5.5).fill({ color, alpha: 0.95 })
     }
-    g.circle(x, y, 5.5).fill({ color, alpha: 0.95 })
     g.circle(x - 1.5, y - 1.5, 2).fill({ color: 0xffffff, alpha: 0.55 })
   }
 }

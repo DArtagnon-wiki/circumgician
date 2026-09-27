@@ -51,6 +51,12 @@ export class Sfx {
 
   private lastFill = 0
 
+  // A soft glassy flick for kicking a mote.
+  kick(): void {
+    this.tone(1046.5 + Math.random() * 200, 0.07, 'sine', 0.05)
+    this.noise(0.06, 0.05, 5000)
+  }
+
   pickUp(): void {
     this.tone(392, 0.08, 'triangle', 0.06)
   }

@@ -33,9 +33,20 @@ describe('catch ring', () => {
     const [onRing, center, beyond, blue] = sim.state.motes
     expect(onRing.state).toBe('held')
     expect(onRing.runeId).toBe(id)
-    expect(center.state).toBe('free')
+    expect(center.state).toBe('held') // pushed out of the body, through the ring
     expect(beyond.state).toBe('free')
     expect(blue.state).toBe('free')
+  })
+
+  it('pushes uncaptured motes out of the rune body, where they settle', () => {
+    const sim = mk(testLevel({ hand: level.hand, motes: [mote('blue', C.x + 5, C.y + 3), mote('blue', C.x - 20, C.y)] }))
+    placeSlot(sim, 0)
+    stepFor(sim, 10)
+    for (const m of sim.state.motes) {
+      expect(m.state).toBe('free')
+      expect(m.vel).toBeUndefined()
+      expect(dist(m.home, C)).toBeGreaterThanOrEqual(40 - REACH / 2)
+    }
   })
 
   it('generic motes satisfy any catch color', () => {
@@ -43,6 +54,34 @@ describe('catch ring', () => {
     placeSlot(sim, 0)
     stepFor(sim, 8)
     expect(sim.state.motes[0].state).toBe('held')
+  })
+})
+
+describe('kick', () => {
+  it('sends a free mote coasting a short way, then it re-homes where it stops', () => {
+    const sim = mk(testLevel({ hand: [{ layers: [layer(4, 40, 'red')] }], motes: [mote('red', 200, 500)] }), { seed: 7 })
+    const m = sim.state.motes[0]
+    expect(sim.kick(m.id)).toBe(true)
+    stepFor(sim, 5)
+    expect(m.vel).toBeUndefined()
+    const moved = dist(m.home, { x: 200, y: 500 })
+    expect(moved).toBeGreaterThan(30)
+    expect(moved).toBeLessThan(90)
+    expect(m.pos).toEqual(m.home)
+  })
+
+  it('bounces off the field edge instead of leaving it', () => {
+    const field = { x: 100, y: 400, w: 60, h: 60 }
+    const sim = mk(testLevel({ field, hand: [{ layers: [layer(4, 20, 'red')] }], motes: [mote('red', 130, 430)] }))
+    const m = sim.state.motes[0]
+    for (let i = 0; i < 5; i++) {
+      sim.kick(m.id)
+      stepFor(sim, 3)
+    }
+    expect(m.home.x).toBeGreaterThanOrEqual(field.x)
+    expect(m.home.x).toBeLessThanOrEqual(field.x + field.w)
+    expect(m.home.y).toBeGreaterThanOrEqual(field.y)
+    expect(m.home.y).toBeLessThanOrEqual(field.y + field.h)
   })
 })
 
@@ -252,13 +291,23 @@ describe('loss check', () => {
     expect(sim.state.status).toBe('lost')
   })
 
-  it('declares a loss when a placed rune can never fill and nothing else can move', () => {
+  it('a rune placed away from its motes is not a loss: motes can be kicked to it', () => {
     const level = testLevel({
       obstacles: [obstacle(200, 150, [3, 4])],
       hand: [{ layers: [layer(4, 40, 'red'), layer(3, 30, 'red')] }],
       motes: ring('red', C.x, C.y, 40, 4),
     })
     const res = runScript(level, [{ place: 0, at: { x: 330, y: 650 } }], { settle: 5 })
+    expect(res.status).toBe('playing')
+  })
+
+  it('declares a loss when no rune can ever fill from the remaining colors', () => {
+    const level = testLevel({
+      obstacles: [obstacle(200, 150, [3, 4])],
+      hand: [{ layers: [layer(4, 40, 'red'), layer(3, 30, 'red')] }],
+      motes: [...ring('red', C.x, C.y, 40, 3), mote('blue', 80, 400)],
+    })
+    const res = runScript(level, [{ place: 0, at: C }], { settle: 5 })
     expect(res.status).toBe('lost')
   })
 })

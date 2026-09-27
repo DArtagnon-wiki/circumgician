@@ -1,4 +1,4 @@
-import { DRIFT_SPEED, EJECT_TIME, REACH, TRAVEL_TIME } from './constants'
+import { DRIFT_SPEED, EJECT_TIME, KICK_SPEED, MOTE_FRICTION, PUSH_BASE, PUSH_DEPTH, PUSH_INSET, REACH, SETTLE_SPEED, TRAVEL_TIME } from './constants'
 import { dist, nodePositions, outerLayer } from './geometry'
 import { nextRandom } from './rng'
 import type { SimBus } from './events'
@@ -14,6 +14,69 @@ function pickWander(state: SimState, mote: Mote): Vec2 {
   return { x: mote.home.x + Math.cos(a) * r, y: mote.home.y + Math.sin(a) * r }
 }
 
+// Rune bodies push uncaptured motes outward; kicked or pushed motes coast
+// with friction, bounce off the field edge, and adopt their resting spot as
+// home. Returns true when this mote is coasting (skip tether drift).
+function applyPushAndCoast(state: SimState, mote: Mote, pushers: Rune[], dt: number): boolean {
+  let ax = 0
+  let ay = 0
+  for (const rune of pushers) {
+    const limit = outerLayer(rune)!.radius - PUSH_INSET
+    const dx = mote.pos.x - rune.pos!.x
+    const dy = mote.pos.y - rune.pos!.y
+    const d = Math.hypot(dx, dy)
+    if (d >= limit) continue
+    let ux = dx / d
+    let uy = dy / d
+    if (!(d > 0.01)) {
+      const a = nextRandom(state) * Math.PI * 2
+      ux = Math.cos(a)
+      uy = Math.sin(a)
+    }
+    const strength = PUSH_BASE + PUSH_DEPTH * (1 - d / limit)
+    ax += ux * strength
+    ay += uy * strength
+  }
+  const pushed = ax !== 0 || ay !== 0
+  if (pushed) {
+    const v = mote.vel ?? { x: 0, y: 0 }
+    mote.vel = { x: v.x + ax * dt, y: v.y + ay * dt }
+  }
+  const v = mote.vel
+  if (!v) return false
+
+  let x = mote.pos.x + v.x * dt
+  let y = mote.pos.y + v.y * dt
+  const f = state.field
+  if (x < f.x || x > f.x + f.w) {
+    v.x = -v.x
+    x = Math.max(f.x, Math.min(f.x + f.w, x))
+  }
+  if (y < f.y || y > f.y + f.h) {
+    v.y = -v.y
+    y = Math.max(f.y, Math.min(f.y + f.h, y))
+  }
+  mote.pos = { x, y }
+  const decay = Math.exp(-MOTE_FRICTION * dt)
+  v.x *= decay
+  v.y *= decay
+  if (!pushed && Math.hypot(v.x, v.y) < SETTLE_SPEED) {
+    delete mote.vel
+    mote.home = { ...mote.pos }
+    mote.wander = { ...mote.pos }
+  }
+  return true
+}
+
+// Give a free mote a nudge in a random direction (the player's tap).
+export function kickMote(state: SimState, mote: Mote): boolean {
+  if (mote.state !== 'free') return false
+  const a = nextRandom(state) * Math.PI * 2
+  const v = mote.vel ?? { x: 0, y: 0 }
+  mote.vel = { x: v.x + Math.cos(a) * KICK_SPEED, y: v.y + Math.sin(a) * KICK_SPEED }
+  return true
+}
+
 // Tethered drift, claimed-mote travel, held-mote tracking and burst settling.
 export function updateMotion(state: SimState, bus: SimBus, dt: number): void {
   const runes = new Map(state.runes.map((r) => [r.id, r]))
@@ -24,9 +87,12 @@ export function updateMotion(state: SimState, bus: SimBus, dt: number): void {
     return n
   }
 
+  const pushers = state.runes.filter((r) => r.pos && (r.state === 'charging' || r.state === 'full'))
+
   for (const mote of state.motes) {
     switch (mote.state) {
       case 'free': {
+        if (applyPushAndCoast(state, mote, pushers, dt)) break
         const d = dist(mote.pos, mote.wander)
         const step = DRIFT_SPEED * dt
         if (d <= step) {
@@ -109,6 +175,7 @@ export function updateCatching(state: SimState, bus: SimBus): void {
     mote.node = best.node
     mote.travelFrom = { ...mote.pos }
     mote.t = 0
+    delete mote.vel
     bus.emit('mote:claimed', { mote, rune: best.rune, node: best.node })
   }
 }

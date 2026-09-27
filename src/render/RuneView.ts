@@ -80,8 +80,12 @@ export class RuneView {
     } else if (!center) {
       this.centerG.circle(0, 0, cr * 0.45).fill({ color: 0x2a2238, alpha: 0.9 })
     } else if (rune.insight === 'none') {
-      this.centerG.arc(0, 0, cr, 0, Math.PI * 1.2).stroke({ color: 0x2a1d4f, width: 2, alpha: 0.8 })
-      this.centerG.arc(0, 0, cr * 0.55, Math.PI, Math.PI * 2.4).stroke({ color: 0x2a1d4f, width: 2, alpha: 0.6 })
+      // moveTo first: a bare arc() starts with a line from the current point.
+      this.centerG.moveTo(cr, 0).arc(0, 0, cr, 0, Math.PI * 1.2).stroke({ color: 0x2a1d4f, width: 2, alpha: 0.8 })
+      this.centerG
+        .moveTo(-cr * 0.55, 0)
+        .arc(0, 0, cr * 0.55, Math.PI, Math.PI * 2.4)
+        .stroke({ color: 0x2a1d4f, width: 2, alpha: 0.6 })
     } else {
       drawPolygon(this.centerG, center.sides, cr, { fillColor: 0x2a1d4f, fillAlpha: 0.9, strokeColor: 0xffffff, strokeWidth: 1, strokeAlpha: 0.5 })
       if (rune.insight === 'full') {

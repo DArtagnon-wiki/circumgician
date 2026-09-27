@@ -49,6 +49,8 @@ const FLY_HOME_TIME = 0.5
 const RESULT_DELAY = 1.5
 const REST_ANGLE = -Math.PI / 2
 const TOUCH_LIFT = 56
+const KICK_TOUCH_RADIUS = 26 // fingers are blunt
+const KICK_MOUSE_RADIUS = 16
 
 // One instance per level attempt. The Sim owns all rules; this class only
 // renders its state, turns input into sim actions and adds juice.
@@ -87,6 +89,14 @@ export class GameScene {
     this.layers.background.addChild(drawZoneBackground(level.field, level.blockers))
     this.bindSimEvents()
     this.rebuildViews()
+
+    // Taps that miss every rune land on this invisible backdrop and kick the
+    // nearest free mote. (A hitArea on the root container would short-circuit
+    // hit-testing of the runes inside it, so the backdrop is a sibling.)
+    const backdrop = new Graphics().rect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT).fill({ color: 0x000000, alpha: 0.001 })
+    backdrop.eventMode = 'static'
+    backdrop.on('pointerdown', (e) => this.onBoardPointerDown(e))
+    this.layers.background.addChildAt(backdrop, 0)
 
     this.hud = createGameHud({
       onUndo: opts.endless ? undefined : () => this.undo(),
@@ -429,6 +439,26 @@ export class GameScene {
   // ---------------------------------------------------------------------
   // Input
   // ---------------------------------------------------------------------
+
+  private onBoardPointerDown(e: FederatedPointerEvent): void {
+    this.sfx.unlock()
+    if (this.drag || this.sim.state.status !== 'playing') return
+    const p = this.layers.root.toLocal(e.global)
+    let best: Mote | null = null
+    let bestD = e.pointerType === 'touch' ? KICK_TOUCH_RADIUS : KICK_MOUSE_RADIUS
+    for (const m of this.sim.state.motes) {
+      if (m.state !== 'free') continue
+      const d = Math.hypot(m.pos.x - p.x, m.pos.y - p.y)
+      if (d < bestD) {
+        bestD = d
+        best = m
+      }
+    }
+    if (best && this.sim.kick(best.id)) {
+      this.effects.ring(best.pos, colorForMote(best.color), 6, 22, 0.25, 2)
+      this.sfx.kick()
+    }
+  }
 
   private onRunePointerDown(runeId: string, e: FederatedPointerEvent): void {
     this.sfx.unlock() // must run inside a real gesture for iOS Safari

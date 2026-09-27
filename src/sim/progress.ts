@@ -1,5 +1,5 @@
 import { canPlace } from './rules'
-import { footprintRadius, homeCanReachRing, outerLayer } from './geometry'
+import { footprintRadius, outerLayer } from './geometry'
 import type { SimState } from './types'
 
 const SCAN_STEP = 6
@@ -63,29 +63,25 @@ export function anyIdlePlacement(state: SimState): boolean {
   return false
 }
 
+// Motes can be kicked anywhere, so a charging rune can still fill whenever
+// the free motes' colors cover its empty nodes, wherever those motes sit.
 function chargingRuneCanFill(state: SimState): boolean {
   for (const rune of state.runes) {
     if (rune.state !== 'charging' || !rune.pos) continue
     const layer = outerLayer(rune)!
-    const ok = rune.held.every((id, i) => {
-      if (id !== null) return true
-      const want = layer.nodes[i].catch
-      return state.motes.some(
-        (m) => m.state === 'free' && (m.color === 'generic' || m.color === want) && homeCanReachRing(m.home, m.tether + 0.5, rune.pos!, layer.radius),
-      )
-    })
-    if (ok) return true
+    const missing = layer.nodes.filter((_, i) => rune.held[i] === null).map((n) => n.catch)
+    if (colorsCanCover(state, missing)) return true
   }
   return false
 }
 
 // Conservative: true only when no sequence of actions can ever win. Anything
 // uncertain (pending motion, a tappable rune, a legal placement) is treated
-// as "still playable" — undo and restart cover the rest.
+// as "still playable"; undo and restart cover the rest.
 export function isCertainLoss(state: SimState): boolean {
   if (state.status !== 'playing' || isWon(state)) return false
   if (!damageCanSuffice(state)) return true
-  if (state.motes.some((m) => m.state === 'traveling' || m.state === 'ejecting')) return false
+  if (state.motes.some((m) => m.state === 'traveling' || m.state === 'ejecting' || m.vel)) return false
   if (state.runes.some((r) => r.state === 'full')) return false
   if (anyIdlePlacement(state)) return false
   if (chargingRuneCanFill(state)) return false

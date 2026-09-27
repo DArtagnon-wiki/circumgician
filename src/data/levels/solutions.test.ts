@@ -19,7 +19,8 @@ const tap = (slot: number): ScriptStep => ({ tap: slot })
 const LINES: Record<string, Line[]> = {
   'first-threads': [
     { name: 'intended', expect: 'won', steps: [place(0, at(120, 470)), tap(0), place(1, at(280, 590)), tap(1)] },
-    { name: 'both runes off their motes', expect: 'lost', steps: [place(0, at(300, 420)), place(1, at(110, 630))] },
+    // Recoverable by kicking motes into the rings, so only "not won" untouched.
+    { name: 'both runes off their motes', expect: 'not-won', steps: [place(0, at(300, 420)), place(1, at(110, 630))] },
   ],
   'changing-colors': [
     { name: 'intended', expect: 'won', steps: [place(0, at(130, 480)), place(1, at(280, 560)), tap(0), tap(1), place(0, at(130, 480)), tap(0)] },

@@ -1,6 +1,6 @@
 import { createSimBus, type SimBus } from './events'
 import { loadLevel } from './loadLevel'
-import { updateCatching, updateMotion } from './motion'
+import { kickMote, updateCatching, updateMotion } from './motion'
 import { isCertainLoss, isWon } from './progress'
 import { canPlace, damageObstacle, detonateRune, findLink, placeRune, relinkAll, type EnsureLayers } from './rules'
 import type { LevelData, Obstacle, Rune, SimState, Vec2 } from './types'
@@ -90,6 +90,14 @@ export class Sim {
     } else {
       this.checkLoss()
     }
+  }
+
+  // The player's tap on a mote: a small shove in a random direction. Not an
+  // undo step (it only moves a mote, and undo restores whole boards anyway).
+  kick(moteId: string): boolean {
+    if (this.state.status !== 'playing') return false
+    const mote = this.state.motes.find((m) => m.id === moteId)
+    return !!mote && kickMote(this.state, mote)
   }
 
   // Debug: collapse the current layer of every obstacle.

@@ -116,6 +116,19 @@ export function runCompetent(level: LevelData, seed: number, maxSeconds = 600, o
       // Nothing better to do: gamble on the best partial spot, as a person would.
       sim.place(partial.id, partial.at)
       idleWait = 0
+    } else {
+      // Nudge a mote a charging rune still needs (kicks go in random directions).
+      for (const rune of s().runes) {
+        if (rune.state !== 'charging' || !rune.pos) continue
+        const layer = rune.layers[rune.index]
+        const want = new Set(layer.nodes.filter((_, i) => rune.held[i] === null).map((n) => n.catch as string))
+        const band = (m: { home: Vec2 }) => Math.abs(Math.hypot(m.home.x - rune.pos!.x, m.home.y - rune.pos!.y) - layer.radius)
+        const candidates = s().motes.filter((m) => m.state === 'free' && !m.vel && (want.has(m.color) || m.color === 'generic') && band(m) > 10)
+        if (!candidates.length) continue
+        candidates.sort((a, b) => band(a) - band(b))
+        sim.kick(candidates[0].id)
+        break
+      }
     }
   }
   return { status: s().status, time: s().time, sim }
