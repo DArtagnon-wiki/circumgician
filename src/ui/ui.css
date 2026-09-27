@@ -1,0 +1,143 @@
+/* In-game glyph buttons */
+.game-hud {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 10px);
+  right: 10px;
+  z-index: 1500;
+  display: flex;
+  gap: 8px;
+}
+.game-hud button {
+  width: 40px;
+  height: 40px;
+  padding: 9px;
+  border-radius: 50%;
+  border: 1px solid rgba(190, 160, 255, 0.35);
+  background: rgba(20, 10, 36, 0.7);
+  color: #e6dcff;
+  cursor: pointer;
+  transition: transform 0.08s, opacity 0.2s;
+}
+.game-hud button:active {
+  transform: scale(0.9);
+}
+.game-hud button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.game-hud svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Sound control */
+.audio-control {
+  position: relative;
+  display: flex;
+}
+.audio-control.corner {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 10px);
+  right: 10px;
+}
+.audio-button {
+  width: 40px;
+  height: 40px;
+  padding: 9px;
+  border-radius: 50%;
+  border: 1px solid rgba(190, 160, 255, 0.35);
+  background: rgba(20, 10, 36, 0.7);
+  color: #e6dcff;
+  cursor: pointer;
+}
+.audio-button svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.audio-control .cross,
+.audio-control.muted .waves {
+  display: none;
+}
+.audio-control.muted .cross {
+  display: inline;
+}
+.audio-panel {
+  display: none;
+  position: absolute;
+  top: 48px;
+  right: 0;
+  padding: 10px 12px;
+  gap: 10px;
+  align-items: center;
+  border-radius: 12px;
+  background: rgba(20, 10, 36, 0.92);
+  border: 1px solid rgba(190, 160, 255, 0.35);
+}
+.audio-control.open .audio-panel {
+  display: flex;
+}
+.audio-panel input[type='range'] {
+  width: 120px;
+  accent-color: #b89cff;
+}
+.btn.small {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+/* Result screens */
+.result-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  color: white;
+  font-family: Georgia, 'Times New Roman', serif;
+  animation: result-in 0.6s ease-out both;
+}
+.result-overlay.won {
+  background: radial-gradient(circle at 50% 45%, rgba(80, 50, 150, 0.7), rgba(10, 5, 20, 0.9) 70%);
+}
+.result-overlay.lost {
+  background: radial-gradient(circle at 50% 45%, rgba(60, 10, 30, 0.6), rgba(5, 2, 10, 0.92) 70%);
+}
+.result-title {
+  font-size: 44px;
+  font-style: italic;
+  letter-spacing: 1px;
+  text-shadow: 0 0 24px rgba(190, 160, 255, 0.8);
+}
+.result-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.btn {
+  padding: 12px 24px;
+  font: bold 15px Georgia, serif;
+  border-radius: 999px;
+  border: 1px solid rgba(190, 160, 255, 0.4);
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  cursor: pointer;
+}
+.btn.primary {
+  background: #efe8ff;
+  color: #140a24;
+  border-color: transparent;
+}
+@keyframes result-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

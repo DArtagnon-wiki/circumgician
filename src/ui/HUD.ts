@@ -1,3 +1,5 @@
+import './ui.css'
+
 export type HUDResult = 'won' | 'lost'
 
 export interface HUDActions {

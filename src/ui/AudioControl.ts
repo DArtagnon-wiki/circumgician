@@ -1,3 +1,4 @@
+import './ui.css'
 import { audio } from '../audio/engine'
 
 const SPEAKER =

@@ -1,3 +1,4 @@
+import './ui.css'
 import { createAudioControl } from './AudioControl'
 
 export interface GameHudActions {
