@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "id": "fail-no-motes",
+  "name": "Fail Test: No Motes",
+  "field": {
+    "x": 30,
+    "y": 340,
+    "w": 340,
+    "h": 330
+  },
+  "blockers": [],
+  "motes": [
+    {
+      "color": "blue",
+      "x": 218,
+      "y": 500
+    },
+    {
+      "color": "blue",
+      "x": 182,
+      "y": 500
+    }
+  ],
+  "obstacles": [
+    {
+      "x": 200,
+      "y": 150,
+      "layers": [
+        {
+          "sides": 3,
+          "radius": 34,
+          "hp": 5
+        }
+      ]
+    }
+  ],
+  "hand": [
+    {
+      "layers": [
+        {
+          "sides": 4,
+          "radius": 40,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            }
+          ]
+        },
+        {
+          "sides": 3,
+          "radius": 30,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "goal": {
+    "type": "clearAll"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "levels": [
+    "first-threads",
+    "changing-colors",
+    "the-hungry-circle",
+    "crowded-circle",
+    "circumgician"
+  ],
+  "debug": [
+    "fail-no-match",
+    "fail-no-motes"
+  ]
+}

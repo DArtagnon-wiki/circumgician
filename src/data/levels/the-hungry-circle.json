@@ -1,0 +1,275 @@
+{
+  "version": 1,
+  "id": "the-hungry-circle",
+  "name": "The Hungry Circle",
+  "field": {
+    "x": 40,
+    "y": 350,
+    "w": 320,
+    "h": 310
+  },
+  "blockers": [
+    {
+      "x": 180,
+      "y": 470,
+      "w": 40,
+      "h": 80
+    }
+  ],
+  "motes": [
+    {
+      "color": "teal",
+      "x": 128,
+      "y": 430
+    },
+    {
+      "color": "teal",
+      "x": 110,
+      "y": 448
+    },
+    {
+      "color": "teal",
+      "x": 92,
+      "y": 430
+    },
+    {
+      "color": "teal",
+      "x": 110,
+      "y": 412
+    },
+    {
+      "color": "violet",
+      "x": 308,
+      "y": 590
+    },
+    {
+      "color": "violet",
+      "x": 281,
+      "y": 606
+    },
+    {
+      "color": "violet",
+      "x": 281,
+      "y": 574
+    },
+    {
+      "color": "generic",
+      "x": 200,
+      "y": 630
+    }
+  ],
+  "obstacles": [
+    {
+      "x": 110,
+      "y": 140,
+      "layers": [
+        {
+          "sides": 3,
+          "radius": 34,
+          "hp": 7
+        },
+        {
+          "sides": 5,
+          "radius": 34,
+          "hp": 8
+        }
+      ]
+    },
+    {
+      "x": 290,
+      "y": 140,
+      "layers": [
+        {
+          "sides": 4,
+          "radius": 34,
+          "hp": 9
+        }
+      ]
+    }
+  ],
+  "hand": [
+    {
+      "layers": [
+        {
+          "sides": 4,
+          "radius": 42,
+          "nodes": [
+            {
+              "catch": "teal",
+              "release": "violet"
+            },
+            {
+              "catch": "teal",
+              "release": "violet"
+            },
+            {
+              "catch": "teal",
+              "release": "violet"
+            },
+            {
+              "catch": "teal",
+              "release": "violet"
+            }
+          ]
+        },
+        {
+          "sides": 3,
+          "radius": 30,
+          "nodes": [
+            {
+              "catch": "violet",
+              "release": "violet"
+            },
+            {
+              "catch": "violet",
+              "release": "violet"
+            },
+            {
+              "catch": "violet",
+              "release": "violet"
+            }
+          ]
+        },
+        {
+          "sides": 5,
+          "radius": 40,
+          "nodes": [
+            {
+              "catch": "violet",
+              "release": "violet"
+            },
+            {
+              "catch": "violet",
+              "release": "violet"
+            },
+            {
+              "catch": "violet",
+              "release": "violet"
+            },
+            {
+              "catch": "violet",
+              "release": "violet"
+            },
+            {
+              "catch": "violet",
+              "release": "violet"
+            }
+          ]
+        },
+        {
+          "sides": 4,
+          "radius": 34,
+          "nodes": [
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "layers": [
+        {
+          "sides": 3,
+          "radius": 36,
+          "nodes": [
+            {
+              "catch": "violet",
+              "release": "teal"
+            },
+            {
+              "catch": "violet",
+              "release": "teal"
+            },
+            {
+              "catch": "violet",
+              "release": "annihilating"
+            }
+          ]
+        },
+        {
+          "sides": 4,
+          "radius": 36,
+          "nodes": [
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            }
+          ]
+        },
+        {
+          "sides": 5,
+          "radius": 44,
+          "nodes": [
+            {
+              "catch": "teal",
+              "release": "violet"
+            },
+            {
+              "catch": "teal",
+              "release": "violet"
+            },
+            {
+              "catch": "teal",
+              "release": "violet"
+            },
+            {
+              "catch": "teal",
+              "release": "violet"
+            },
+            {
+              "catch": "teal",
+              "release": "violet"
+            }
+          ]
+        },
+        {
+          "sides": 3,
+          "radius": 30,
+          "nodes": [
+            {
+              "catch": "violet",
+              "release": "violet"
+            },
+            {
+              "catch": "violet",
+              "release": "violet"
+            },
+            {
+              "catch": "violet",
+              "release": "violet"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "goal": {
+    "type": "clearAll"
+  }
+}
