@@ -12,53 +12,48 @@
   "motes": [
     {
       "color": "red",
-      "x": 160,
-      "y": 470
+      "x": 148.3,
+      "y": 498.3
     },
     {
       "color": "red",
-      "x": 132,
-      "y": 508
+      "x": 91.7,
+      "y": 498.3
     },
     {
       "color": "red",
-      "x": 88,
-      "y": 494
+      "x": 91.7,
+      "y": 441.7
     },
     {
       "color": "red",
-      "x": 88,
-      "y": 446
-    },
-    {
-      "color": "red",
-      "x": 132,
-      "y": 432
+      "x": 148.3,
+      "y": 441.7
     },
     {
       "color": "blue",
-      "x": 324,
-      "y": 600
+      "x": 322,
+      "y": 603
     },
     {
       "color": "blue",
-      "x": 294,
-      "y": 642
+      "x": 280.6,
+      "y": 634
     },
     {
       "color": "blue",
-      "x": 244,
-      "y": 626
+      "x": 238.4,
+      "y": 604.2
     },
     {
       "color": "blue",
-      "x": 244,
-      "y": 574
+      "x": 253.6,
+      "y": 554.8
     },
     {
       "color": "blue",
-      "x": 294,
-      "y": 558
+      "x": 305.4,
+      "y": 554
     }
   ],
   "obstacles": [
@@ -68,8 +63,8 @@
       "layers": [
         {
           "sides": 3,
-          "radius": 34,
-          "hp": 6
+          "radius": 30,
+          "hp": 3
         }
       ]
     },
@@ -79,8 +74,8 @@
       "layers": [
         {
           "sides": 4,
-          "radius": 34,
-          "hp": 5
+          "radius": 30,
+          "hp": 3
         }
       ]
     }
@@ -112,7 +107,7 @@
         },
         {
           "sides": 3,
-          "radius": 30,
+          "radius": 66,
           "nodes": [
             {
               "catch": "red",
@@ -181,9 +176,13 @@
           ]
         },
         {
-          "sides": 3,
-          "radius": 30,
+          "sides": 4,
+          "radius": 70,
           "nodes": [
+            {
+              "catch": "blue",
+              "release": "blue"
+            },
             {
               "catch": "blue",
               "release": "blue"
@@ -199,13 +198,9 @@
           ]
         },
         {
-          "sides": 4,
+          "sides": 3,
           "radius": 36,
           "nodes": [
-            {
-              "catch": "blue",
-              "release": "blue"
-            },
             {
               "catch": "blue",
               "release": "blue"

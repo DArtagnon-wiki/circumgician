@@ -2,7 +2,7 @@ import { defineConfig, type Plugin } from 'vite'
 import { readFile, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
-const LEVEL_DIR = resolve(__dirname, 'src/data/levels')
+const LEVEL_DIR = resolve(import.meta.dirname, 'src/data/levels')
 const SLUG = /^(debug\/)?[a-z0-9-]+$/
 
 // Dev-server-only API the level editor uses to read and write level JSON in

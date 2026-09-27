@@ -8,12 +8,19 @@ import {
   footprintRadius,
   middleAngle,
   middleLayer,
-  nodePositions,
   outerAngle,
   outerLayer,
   placedRunes,
 } from './geometry'
 import type { Obstacle, Rune, SimState, Vec2 } from './types'
+
+// Where node i's released mote settles: along that node's REST direction
+// (vertex 0 pointing up), BURST_GAP outside the outer radius. Independent
+// of spin, so designers can author exactly where bursts land.
+export function landingPoint(center: Vec2, sides: number, radius: number, i: number): Vec2 {
+  const a = -Math.PI / 2 + (i * 2 * Math.PI) / sides
+  return { x: center.x + Math.cos(a) * (radius + BURST_GAP), y: center.y + Math.sin(a) * (radius + BURST_GAP) }
+}
 
 export function canPlace(state: SimState, rune: Rune, pos: Vec2): boolean {
   if (rune.state !== 'idle') return false
@@ -73,7 +80,6 @@ export type EnsureLayers = (state: SimState) => void
 export function detonateRune(state: SimState, bus: SimBus, rune: Rune, ensure?: EnsureLayers): void {
   const outer = outerLayer(rune)!
   const pos = rune.pos!
-  const nodes = nodePositions(rune, state.time)
   const obstacle = state.obstacles.find((o) => o.id === rune.linkedObstacleId && !o.cleared) ?? null
   const info: DetonationInfo = {
     pos: { ...pos },
@@ -101,11 +107,7 @@ export function detonateRune(state: SimState, bus: SimBus, rune: Rune, ensure?: 
       return
     }
     mote.color = release
-    const dx = nodes[i].x - pos.x
-    const dy = nodes[i].y - pos.y
-    const len = Math.hypot(dx, dy) || 1
-    const landing = { x: pos.x + (dx / len) * (outer.radius + BURST_GAP), y: pos.y + (dy / len) * (outer.radius + BURST_GAP) }
-    mote.home = clampToRect(landing, state.field, Math.min(mote.tether + 2, state.field.w / 2, state.field.h / 2))
+    mote.home = clampToRect(landingPoint(pos, outer.sides, outer.radius, i), state.field, Math.min(mote.tether + 2, state.field.w / 2, state.field.h / 2))
     mote.state = 'ejecting'
     mote.ejectFrom = { ...mote.pos }
     mote.t = 0
