@@ -86,10 +86,11 @@ describe('DetonationSystem promotion/depletion/annihilation', () => {
     expect(stillThere!.middle.shape.sides).toBe(5) // old center promoted to middle
     expect(stillThere!.nodes.every((n) => !n.filled)).toBe(true) // fresh nodes
 
-    // 3 non-annihilating puffs freed back to the field, 1 destroyed.
+    // 3 non-annihilating puffs released back to the field (launched outward
+    // as 'ejecting', not immediately 'free' — see MiasmaFieldSystem), 1 destroyed.
     expect(annihilatedIds).toHaveLength(1)
-    const freed = state.miasmaPuffs.filter((p) => p.state === 'free')
-    expect(freed).toHaveLength(3)
+    const released = state.miasmaPuffs.filter((p) => p.state === 'ejecting')
+    expect(released).toHaveLength(3)
     expect(state.miasmaPuffs.find((p) => annihilatedIds.includes(p.id))).toBeUndefined()
   })
 

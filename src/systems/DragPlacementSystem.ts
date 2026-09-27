@@ -61,10 +61,13 @@ export class DragPlacementSystem {
   }
 
   // Whether ANY currently-idle rune could fit ANYWHERE in the field right
-  // now — used by the fail check, not by an actual drop attempt.
+  // now — used by the fail check, not by an actual drop attempt. Returns
+  // false (not true) when there's nothing idle: "nothing waiting to place"
+  // is NOT evidence the player isn't stuck — WinFailSystem.canStillProgress
+  // separately checks supply and active-rune viability before calling a loss.
   hasRoomForSomeIdleRune(bounds: Rect, sampleStep = 24): boolean {
     const idleRunes = this.state.inventory.slots.filter((r): r is Rune => !!r && r.state === 'idle')
-    if (idleRunes.length === 0) return true // nothing waiting to place isn't a lockout
+    if (idleRunes.length === 0) return false
 
     const smallest = idleRunes.reduce((a, b) => (effectiveFootprintRadius(a) <= effectiveFootprintRadius(b) ? a : b))
     const r = effectiveFootprintRadius(smallest)

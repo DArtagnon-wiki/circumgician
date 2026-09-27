@@ -19,7 +19,7 @@ const randomObstacleGrowth = {
     maxLayers: 3,
     generate: (ctx: { layerIndex: number; rng: () => number }): ObstacleLayerSpec => {
       const sides = RANDOM_OBSTACLE_SHAPES[Math.floor(ctx.rng() * RANDOM_OBSTACLE_SHAPES.length)]
-      return { shape: { sides, radius: 34 }, hp: 4 + ctx.layerIndex * 2 }
+      return { shape: { sides, radius: 34 }, hp: 16 + ctx.layerIndex * 8 }
     },
   },
 }
@@ -41,10 +41,10 @@ export const level4: LevelConfig = {
   id: 'level4',
   name: 'Unstable Echoes',
   obstacles: [
-    { shape: 3, hp: 4, position: { x: 0.15, y: 0.25 }, growth: randomObstacleGrowth },
-    { shape: 4, hp: 5, position: { x: 0.4, y: 0.5 }, growth: randomObstacleGrowth },
-    { shape: 5, hp: 6, position: { x: 0.62, y: 0.22 }, growth: { type: 'none' } },
-    { shape: 6, hp: 10, position: { x: 0.85, y: 0.42 }, growth: { type: 'none' } },
+    { shape: 3, hp: 16, position: { x: 0.15, y: 0.25 }, growth: randomObstacleGrowth },
+    { shape: 4, hp: 20, position: { x: 0.4, y: 0.5 }, growth: randomObstacleGrowth },
+    { shape: 5, hp: 24, position: { x: 0.62, y: 0.22 }, growth: { type: 'none' } },
+    { shape: 6, hp: 40, position: { x: 0.85, y: 0.42 }, growth: { type: 'none' } },
   ],
   miasma: { ambientCount: 20 },
   inventoryCapacity: 5,

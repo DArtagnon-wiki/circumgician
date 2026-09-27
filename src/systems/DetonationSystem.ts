@@ -8,6 +8,8 @@ import { randRange } from '../utils/math'
 import type { RuneGrowthSystem } from './RuneGrowthSystem'
 import { findNearestObstacleByShape } from './matching'
 
+const EJECT_SPEED = 150 // px/s — real outward launch speed; MiasmaFieldSystem decays this back to ambient
+
 // Consumes 'rune:ready': resolves damage against the linked obstacle,
 // resolves each node's catch independently (recolor-and-release, or destroy
 // if that node's release is 'annihilating'), then promotes the rune in place
@@ -71,19 +73,23 @@ export class DetonationSystem {
       }
 
       puff.color = release
-      puff.state = 'free'
       puff.targetRuneId = undefined
       puff.targetNodeIndex = undefined
       puff.travelStartPos = undefined
       puff.travelElapsed = undefined
       // Originates at the collapsing rune's own position, not a random spot
       // anywhere in the field — a released mote should read as coming FROM
-      // the rune that just gave it up.
+      // the rune that just gave it up, and launches outward at real speed
+      // (MiasmaFieldSystem's 'ejecting' branch decays it back to normal
+      // ambient drift) rather than just appearing there.
       const origin = rune.fieldPosition ?? { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
       puff.position.x = origin.x + randRange(-12, 12)
       puff.position.y = origin.y + randRange(-12, 12)
-      puff.velocity.x = randRange(-12, 12)
-      puff.velocity.y = randRange(-12, 12)
+      const ejectAngle = randRange(0, Math.PI * 2)
+      puff.velocity.x = Math.cos(ejectAngle) * EJECT_SPEED
+      puff.velocity.y = Math.sin(ejectAngle) * EJECT_SPEED
+      puff.state = 'ejecting'
+      puff.ejectElapsed = 0
     })
 
     if (annihilated.length > 0) this.bus.emit('miasma:annihilated', { puffIds: annihilated })

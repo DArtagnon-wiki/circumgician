@@ -12,13 +12,13 @@ export const level3: LevelConfig = {
   obstacles: [
     {
       shape: 3,
-      hp: 3,
+      hp: 12,
       position: { x: 0.15, y: 0.3 },
-      growth: { type: 'scripted', params: { sequence: [{ shape: { sides: 3, radius: 34 }, hp: 4 }] } },
+      growth: { type: 'scripted', params: { sequence: [{ shape: { sides: 3, radius: 34 }, hp: 16 }] } },
     },
-    { shape: 4, hp: 4, position: { x: 0.4, y: 0.55 }, growth: { type: 'none' } },
-    { shape: 5, hp: 6, position: { x: 0.62, y: 0.2 }, growth: { type: 'none' } },
-    { shape: 6, hp: 8, position: { x: 0.85, y: 0.45 }, growth: { type: 'none' } },
+    { shape: 4, hp: 16, position: { x: 0.4, y: 0.55 }, growth: { type: 'none' } },
+    { shape: 5, hp: 24, position: { x: 0.62, y: 0.2 }, growth: { type: 'none' } },
+    { shape: 6, hp: 32, position: { x: 0.85, y: 0.45 }, growth: { type: 'none' } },
   ],
   miasma: { ambientCount: 20 },
   inventoryCapacity: 5,

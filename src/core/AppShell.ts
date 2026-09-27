@@ -1,10 +1,11 @@
 import { Application, type Renderer } from 'pixi.js'
 import { GameScene } from './GameScene'
-import { LEVELS } from '../data/levels'
+import { LEVELS, DEBUG_LEVELS, type LevelConfig } from '../data/levels'
 import { showMenu } from '../ui/Menu'
 import { showLevelSelect } from '../ui/LevelSelect'
 import { showHUD } from '../ui/HUD'
 import { isLevelCompleted, markLevelCompleted } from '../ui/progress'
+import { isDebugMode } from '../debug/DebugPanel'
 
 // Owns the single PIXI Application for the whole session (menu -> level ->
 // menu round-trips reuse it, avoiding WebGL context churn) and the one
@@ -48,6 +49,8 @@ export class AppShell {
       isCompleted: isLevelCompleted,
       onSelect: (index) => this.startLevel(index),
       onBack: () => this.showMenu(),
+      debugLevels: isDebugMode() ? DEBUG_LEVELS : undefined,
+      onSelectDebug: (level) => this.startDebugLevel(level),
     })
   }
 
@@ -61,6 +64,29 @@ export class AppShell {
       onLost: () => this.showResult('lost'),
     })
     this.scene = scene
+  }
+
+  // Guaranteed-fail fixtures (src/data/levels/failTest*.ts) for manually
+  // verifying the loss condition — mounted straight from a config, bypassing
+  // the LEVELS array entirely. No completion-marking, no "Next Level": these
+  // aren't part of the real 5-level pack.
+  startDebugLevel(config: LevelConfig): void {
+    this.teardownScene()
+    this.clearOverlay()
+    const scene = new GameScene()
+    scene.mount(this.app, config, {
+      onWon: () => this.showDebugResult(config, 'won'),
+      onLost: () => this.showDebugResult(config, 'lost'),
+    })
+    this.scene = scene
+  }
+
+  private showDebugResult(config: LevelConfig, result: 'won' | 'lost'): void {
+    this.clearOverlay()
+    this.overlay = showHUD(result, {
+      onRetry: () => this.startDebugLevel(config),
+      onLevelSelect: () => this.showLevelSelect(),
+    })
   }
 
   // Result HUD overlays the frozen final board rather than tearing the scene

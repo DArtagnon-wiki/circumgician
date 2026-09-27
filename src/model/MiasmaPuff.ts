@@ -1,7 +1,7 @@
 import type { Id, Vec2 } from '../core/types'
 import type { MoteColor } from './Color'
 
-export type PuffState = 'free' | 'traveling' | 'consumed'
+export type PuffState = 'free' | 'ejecting' | 'traveling' | 'consumed'
 
 export interface MiasmaPuff {
   id: Id
@@ -17,4 +17,8 @@ export interface MiasmaPuff {
   // can orbit a stationary target indefinitely without ever converging.
   travelStartPos?: Vec2
   travelElapsed?: number
+  // Set when a detonation releases this puff — tracks how long it's been
+  // flying outward from the rune at speed (see MiasmaFieldSystem's
+  // 'ejecting' branch) before decaying back to normal ambient drift.
+  ejectElapsed?: number
 }

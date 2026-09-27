@@ -44,9 +44,9 @@ export const level1: LevelConfig = {
   id: 'level1',
   name: 'First Threads',
   obstacles: [
-    { shape: 3, hp: 3, position: { x: 0.22, y: 0.3 }, growth: { type: 'none' } },
-    { shape: 4, hp: 4, position: { x: 0.5, y: 0.18 }, growth: { type: 'none' } },
-    { shape: 5, hp: 5, position: { x: 0.78, y: 0.32 }, growth: { type: 'none' } },
+    { shape: 3, hp: 9, position: { x: 0.22, y: 0.3 }, growth: { type: 'none' } },
+    { shape: 4, hp: 12, position: { x: 0.5, y: 0.18 }, growth: { type: 'none' } },
+    { shape: 5, hp: 15, position: { x: 0.78, y: 0.32 }, growth: { type: 'none' } },
   ],
   miasma: { ambientCount: 18 },
   inventoryCapacity: 5,

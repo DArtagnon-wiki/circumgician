@@ -6,11 +6,13 @@ import type { DragPlacementSystem } from './DragPlacementSystem'
 
 export type GameOutcome = 'playing' | 'won' | 'lost'
 
-// Win: no obstacles remain. Fail: obstacles remain AND the player cannot
-// act — the supply strategy has nothing useful left to introduce AND the
-// field has no room to place even the smallest currently-held idle rune.
-// Both paths matter per design: overcommitting a large-outer-shape rune to
-// an easy kill can strand both field space and miasma needed for what's left.
+// Win: no obstacles remain. Fail: obstacles remain AND the player has no
+// possible way to still make progress — see canStillProgress(). This must
+// check every path, not just "is anything idle waiting": an inventory full
+// of active-but-unmatched runes (or completely empty, mid-refill) has zero
+// idle runes, which used to be misread as "not stuck" (see git history —
+// a real screenshot of a permanently stuck board that never triggered a
+// loss led to this rewrite).
 export class WinFailSystem {
   private state: GameState
   private bus: EventBus
@@ -42,11 +44,26 @@ export class WinFailSystem {
       return
     }
 
-    const noSupply = !this.supplySystem.canIntroduceRune()
-    const noFieldRoom = !this.dragSystem.hasRoomForSomeIdleRune(this.fieldBounds())
-    if (noSupply && noFieldRoom) {
-      this.outcome = 'lost'
-      this.bus.emit('game:lost', undefined)
+    if (this.canStillProgress()) return
+
+    this.outcome = 'lost'
+    this.bus.emit('game:lost', undefined)
+  }
+
+  // True if there is ANY remaining path to progress: more supply might
+  // arrive, an idle rune could still be placed, or an active rune could
+  // still eventually damage something (already linked, or unlinked but its
+  // middle shape matches a remaining obstacle and could still pick up a
+  // link — see ObstacleHealthSystem.refreshLinks / DetonationSystem.relink).
+  private canStillProgress(): boolean {
+    if (this.supplySystem.canIntroduceRune()) return true
+    if (this.dragSystem.hasRoomForSomeIdleRune(this.fieldBounds())) return true
+
+    for (const rune of this.state.inventory.slots) {
+      if (!rune || rune.state !== 'active') continue
+      if (rune.linkedObstacleId && this.state.obstacles.some((o) => o.id === rune.linkedObstacleId)) return true
+      if (this.state.obstacles.some((o) => o.shape.sides === rune.middle.shape.sides)) return true
     }
+    return false
   }
 }

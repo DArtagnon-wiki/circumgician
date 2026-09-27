@@ -16,7 +16,7 @@ const chaosGrowth = {
     maxLayers: 2,
     generate: (ctx: { layerIndex: number; rng: () => number }): ObstacleLayerSpec => {
       const sides = CHAOS_SHAPES[Math.floor(ctx.rng() * CHAOS_SHAPES.length)]
-      return { shape: { sides, radius: 34 }, hp: 6 + ctx.layerIndex * 3 }
+      return { shape: { sides, radius: 34 }, hp: 70 + ctx.layerIndex * 35 }
     },
   },
 }
@@ -51,14 +51,14 @@ export const level5: LevelConfig = {
   id: 'level5',
   name: 'The Reckoning',
   obstacles: [
-    { shape: 3, hp: 6, position: { x: 0.1, y: 0.3 }, growth: { type: 'scripted', params: { sequence: [{ shape: { sides: 6, radius: 34 }, hp: 8 }] } } },
-    { shape: 4, hp: 8, position: { x: 0.3, y: 0.12 }, growth: chaosGrowth },
-    { shape: 5, hp: 10, position: { x: 0.5, y: 0.42 }, growth: { type: 'none' } },
-    { shape: 6, hp: 12, position: { x: 0.7, y: 0.18 }, growth: chaosGrowth },
-    { shape: 7, hp: 14, position: { x: 0.9, y: 0.45 }, growth: { type: 'none' } },
+    { shape: 3, hp: 70, position: { x: 0.1, y: 0.3 }, growth: { type: 'scripted', params: { sequence: [{ shape: { sides: 6, radius: 34 }, hp: 90 }] } } },
+    { shape: 4, hp: 90, position: { x: 0.3, y: 0.12 }, growth: chaosGrowth },
+    { shape: 5, hp: 110, position: { x: 0.5, y: 0.42 }, growth: { type: 'none' } },
+    { shape: 6, hp: 130, position: { x: 0.7, y: 0.18 }, growth: chaosGrowth },
+    { shape: 7, hp: 150, position: { x: 0.9, y: 0.45 }, growth: { type: 'none' } },
   ],
   miasma: { ambientCount: 26, colorWeights: { generic: 2, red: 1, blue: 1 } },
-  inventoryCapacity: 5,
+  inventoryCapacity: 3,
   supply: { type: 'fixedHand', params: { pool } },
   defaultInsightLevel: 'shape',
 }

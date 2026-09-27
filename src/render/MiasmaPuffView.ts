@@ -27,6 +27,22 @@ export class MiasmaPuffView {
           .stroke({ color, width: 3, alpha: 0.35 })
       }
       this.graphic.circle(puff.position.x, puff.position.y, 22).fill({ color, alpha: 0.18 })
+    } else if (puff.state === 'ejecting') {
+      // Just launched outward from a detonating rune — a motion-blur streak
+      // trailing opposite its current velocity, plus a brighter/larger glow,
+      // fading in intensity as MiasmaFieldSystem's friction decay brings it
+      // back down to ambient speed.
+      const speed = Math.hypot(puff.velocity.x, puff.velocity.y)
+      if (speed > 1) {
+        const tailLength = Math.min(26, speed * 0.15)
+        const tailX = puff.position.x - (puff.velocity.x / speed) * tailLength
+        const tailY = puff.position.y - (puff.velocity.y / speed) * tailLength
+        this.graphic
+          .moveTo(puff.position.x, puff.position.y)
+          .lineTo(tailX, tailY)
+          .stroke({ color, width: 4, alpha: 0.4 })
+      }
+      this.graphic.circle(puff.position.x, puff.position.y, 24).fill({ color, alpha: 0.2 })
     } else {
       this.graphic.circle(puff.position.x, puff.position.y, 18).fill({ color, alpha: 0.12 })
     }

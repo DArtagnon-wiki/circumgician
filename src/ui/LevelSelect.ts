@@ -5,6 +5,11 @@ export interface LevelSelectActions {
   isCompleted: (id: string) => boolean
   onSelect: (index: number) => void
   onBack: () => void
+  // Guaranteed-fail fixtures for manually verifying the loss condition —
+  // only passed (non-empty) when ?debug=1 is active; renders as a small
+  // separate section, invisible in the normal player experience.
+  debugLevels?: LevelConfig[]
+  onSelectDebug?: (level: LevelConfig) => void
 }
 
 // All levels are unlocked from the start (curated gift pack, not a
@@ -44,6 +49,29 @@ export function showLevelSelect(actions: LevelSelectActions): HTMLElement {
     grid.appendChild(button)
   })
 
+  const debugSection = document.createElement('div')
+  if (actions.debugLevels && actions.debugLevels.length > 0 && actions.onSelectDebug) {
+    const debugTitle = document.createElement('div')
+    debugTitle.style.cssText = 'font-size: 13px; opacity: 0.6; margin-top: 12px;'
+    debugTitle.textContent = 'Debug: Fail Tests'
+
+    const debugGrid = document.createElement('div')
+    debugGrid.style.cssText = 'display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 320px; margin-top: 6px;'
+
+    actions.debugLevels.forEach((level) => {
+      const button = document.createElement('button')
+      button.textContent = level.name
+      button.style.cssText = `
+        padding: 10px 16px; font-size: 14px; border-radius: 8px; border: 1px dashed rgba(255,255,255,0.3);
+        cursor: pointer; background: rgba(255,80,80,0.08); color: white; text-align: left;
+      `
+      button.addEventListener('click', () => actions.onSelectDebug?.(level))
+      debugGrid.appendChild(button)
+    })
+
+    debugSection.append(debugTitle, debugGrid)
+  }
+
   const backButton = document.createElement('button')
   backButton.textContent = 'Back'
   backButton.style.cssText = `
@@ -52,7 +80,7 @@ export function showLevelSelect(actions: LevelSelectActions): HTMLElement {
   `
   backButton.addEventListener('click', actions.onBack)
 
-  overlay.append(title, grid, backButton)
+  overlay.append(title, grid, debugSection, backButton)
   document.body.appendChild(overlay)
   return overlay
 }

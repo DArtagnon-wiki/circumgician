@@ -1,6 +1,6 @@
 import { Graphics, type Application, type Container, type FederatedPointerEvent } from 'pixi.js'
 import { createLayers, type Layers } from '../render/Layers'
-import { ACCENT_COLOR } from '../render/Theme'
+import { ACCENT_COLOR, OBSTACLE_COLOR, RUNE_BODY_COLOR } from '../render/Theme'
 import { drawZoneBackground } from '../render/ZoneBackground'
 import { ObstacleView } from '../render/ObstacleView'
 import { RuneView } from '../render/RuneView'
@@ -25,7 +25,7 @@ import { Sfx } from '../audio/Sfx'
 import type { Id, ShapeSides, Vec2 } from './types'
 import { createRune, type RuneLayer } from '../model/Rune'
 import type { Rune } from '../model/Rune'
-import { radiusForSides } from '../model/Polygon'
+import { radiusForSides, verticesOf, type PolygonSpec } from '../model/Polygon'
 import { uniformNodeColors } from '../model/nodeColors'
 import type { Obstacle } from '../model/Obstacle'
 import type { MiasmaPuff } from '../model/MiasmaPuff'
@@ -34,7 +34,9 @@ import { randRange } from '../utils/math'
 
 type Animation = (dt: number) => boolean // return false when finished
 
-const OBSTACLE_MARGIN = 50
+// Exported so HeadlessSim.ts can reproduce the exact same obstacle-area
+// layout geometry without duplicating (and risking drift from) this value.
+export const OBSTACLE_MARGIN = 50
 
 interface DragState {
   rune: Rune
@@ -107,13 +109,19 @@ export class GameScene {
     this.bus.on('node:filled', ({ rune, nodeIndex }) => this.onNodeFilled(rune, nodeIndex))
     this.bus.on('obstacle:damaged', ({ obstacle }) => this.onObstacleDamaged(obstacle))
     this.bus.on('obstacle:cleared', ({ obstacle }) => this.onObstacleCleared(obstacle))
-    this.bus.on('obstacle:layerPromoted', ({ obstacle }) => this.onObstacleLayerPromoted(obstacle))
-    this.bus.on('rune:detonated', () => this.sfx.detonate())
+    this.bus.on('obstacle:layerPromoted', ({ obstacle, previousShape }) => this.onObstacleLayerPromoted(obstacle, previousShape))
+    this.bus.on('rune:detonated', ({ rune }) => this.onRuneDetonated(rune))
     this.bus.on('rune:promoted', ({ rune }) => this.onRunePromoted(rune))
     this.bus.on('rune:depleted', ({ rune }) => this.onRuneDepleted(rune))
+    // Registered before the supply strategy runs below — onRuneAdded is the
+    // ONLY place a RuneView gets created, for both the strategy's initial
+    // hand (fired synchronously during RuneSupplySystem's constructor) and
+    // any later mid-level addition (debug spawn, TimeDrip, unlocks). A
+    // separate eager "build views for whatever's already in the inventory"
+    // pass used to also run after this, double-creating a view for every
+    // initially-supplied rune (visible live as runes rendering doubled/
+    // overlapping in the inventory row) — removed; this event is sufficient.
     this.bus.on('rune:added', ({ rune }) => this.onRuneAdded(rune))
-    // Populates the inventory via the level's configured strategy — must run
-    // before buildRuneViews() so there's something to build views for.
     this.supplySystem = new RuneSupplySystem(this.state, level, this.bus, createStrategy(level.supply), this.runeGrowth)
     this.winFailSystem = new WinFailSystem(
       this.state,
@@ -132,7 +140,6 @@ export class GameScene {
     })
 
     this.buildObstacleViews()
-    this.buildRuneViews()
     this.buildPuffViews()
     this.relayout()
 
@@ -187,16 +194,6 @@ export class GameScene {
       const view = new ObstacleView(obstacle)
       this.layers.obstacles.addChild(view.container)
       this.obstacleViews.set(obstacle.id, view)
-    }
-  }
-
-  private buildRuneViews(): void {
-    for (const rune of this.state.inventory.slots) {
-      if (!rune) continue
-      const view = new RuneView(rune)
-      view.container.on('pointerdown', (e) => this.beginDrag(rune, view, e))
-      this.layers.inventory.addChild(view.container)
-      this.runeViews.set(rune.id, view)
     }
   }
 
@@ -360,6 +357,8 @@ export class GameScene {
         view.container.destroy({ children: true })
       })
     }
+    const pos = this.viewPositions.get(obstacle.id)
+    if (pos) this.spawnShapeBurst(pos, obstacle.shape, OBSTACLE_COLOR)
     this.obstacleViews.delete(obstacle.id)
     this.viewPositions.delete(obstacle.id)
     this.sfx.obstacleCleared()
@@ -394,6 +393,14 @@ export class GameScene {
     }
   }
 
+  // Fires on every detonation cycle, rune still in its pre-promotion state —
+  // the outer shape about to be destroyed flies apart into fragments here,
+  // before promote() (called right after this event) mutates it away.
+  private onRuneDetonated(rune: Rune): void {
+    this.sfx.detonate()
+    if (rune.fieldPosition) this.spawnShapeBurst(rune.fieldPosition, rune.outer.shape, RUNE_BODY_COLOR)
+  }
+
   // Rune survived detonation (promoted in place: outer destroyed, middle
   // became outer, center became middle plus a freshly-rolled center) — full
   // re-render, and re-sync the link line since relinking may have changed
@@ -425,11 +432,11 @@ export class GameScene {
   }
 
   // Obstacle survived (layer collapsed but another was revealed) — redraw
-  // the new shape/HP and reuse the damage burst for a "shell cracked" flash.
-  private onObstacleLayerPromoted(obstacle: Obstacle): void {
+  // the new shape/HP and fly the just-collapsed layer's shape apart.
+  private onObstacleLayerPromoted(obstacle: Obstacle, previousShape: PolygonSpec): void {
     this.obstacleViews.get(obstacle.id)?.updateLayer(obstacle.shape, obstacle.hp, obstacle.maxHp)
     const pos = this.viewPositions.get(obstacle.id)
-    if (pos) this.spawnBurst(pos, ACCENT_COLOR)
+    if (pos) this.spawnShapeBurst(pos, previousShape, OBSTACLE_COLOR)
     this.syncAllLinkLines()
   }
 
@@ -536,6 +543,44 @@ export class GameScene {
         return true
       })
     }
+  }
+
+  // "Fly apart" — a layer (rune outer, or an obstacle's collapsing shell)
+  // actually breaking, not just a damage tick. One fragment per vertex of
+  // the given shape, flying outward along that vertex's own direction from
+  // center, plus the existing ring-flash for impact feel. Uses a neutral
+  // color (never shape-hue) — the debris isn't a gameplay signal, only
+  // node/mote colors are.
+  private spawnShapeBurst(position: Vec2, shape: PolygonSpec, color: number): void {
+    const verts = verticesOf(shape, { x: 0, y: 0 })
+    verts.forEach((v) => {
+      const angle = Math.atan2(v.y, v.x)
+      const speed = randRange(90, 170)
+      const spin = randRange(-6, 6)
+      const particle = this.acquireParticle()
+      this.layers.effects.addChild(particle)
+      let elapsed = 0
+      const duration = 0.5
+      this.animations.push((dt) => {
+        elapsed += dt
+        const t = Math.min(1, elapsed / duration)
+        const dist = speed * t
+        const x = position.x + v.x * 0.3 + Math.cos(angle) * dist
+        const y = position.y + v.y * 0.3 + Math.sin(angle) * dist
+        particle.clear()
+        particle.rotation = spin * t
+        particle.poly([-4, -4, 4, -4, 0, 6]).fill({ color, alpha: 1 - t })
+        particle.position.set(x, y)
+        if (t >= 1) {
+          particle.position.set(0, 0)
+          particle.rotation = 0
+          this.releaseParticle(particle)
+          return false
+        }
+        return true
+      })
+    })
+    this.spawnBurst(position, color)
   }
 
   private fadeOut(container: Container, onDone: () => void): void {
