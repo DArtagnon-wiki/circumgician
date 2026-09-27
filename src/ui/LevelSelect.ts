@@ -12,7 +12,7 @@ export interface LevelSelectActions {
   onSelectDebug?: (index: number) => void
 }
 
-// All levels are unlocked from the start (curated gift pack, not a
+// All levels are unlocked from the start (curated pack, not a
 // progression game); the checkmark is pure feedback, never a gate.
 export function showLevelSelect(actions: LevelSelectActions): HTMLElement {
   const overlay = document.createElement('div')
