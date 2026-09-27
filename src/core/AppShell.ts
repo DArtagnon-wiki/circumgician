@@ -4,8 +4,9 @@ import { PACK, DEBUG_PACK } from '../data/levels/pack'
 import type { LevelData } from '../sim/types'
 import { showMenu } from '../ui/Menu'
 import { showLevelSelect } from '../ui/LevelSelect'
-import { showHUD } from '../ui/HUD'
-import { isLevelCompleted, markLevelCompleted } from '../ui/progress'
+import { showHUD, showRunOver } from '../ui/HUD'
+import { endlessBest, isLevelCompleted, markLevelCompleted, recordEndlessRun } from '../ui/progress'
+import { endlessLevel } from '../sim/endless'
 import { isDebugMode } from '../debug/DebugPanel'
 
 // Owns the single PIXI Application for the whole session (menu -> level ->
@@ -37,7 +38,35 @@ export class AppShell {
   showMenu(): void {
     this.teardownScene()
     this.clearOverlay()
-    this.overlay = showMenu({ onPlay: () => this.showLevelSelect() })
+    this.overlay = showMenu({ onPlay: () => this.showLevelSelect(), onEndless: () => this.startEndless() })
+  }
+
+  startEndless(): void {
+    this.teardownScene()
+    this.clearOverlay()
+    const seed = (Math.random() * 2 ** 31) >>> 0
+    const scene = new GameScene()
+    scene.mount(
+      this.app,
+      endlessLevel(seed),
+      {
+        onWon: () => {},
+        onLost: () => {
+          const { score, broken } = scene.sim.state
+          const improved = recordEndlessRun(score, broken)
+          const best = endlessBest()
+          this.clearOverlay()
+          this.overlay = showRunOver(
+            { score, depth: broken, bestScore: best.score, bestDepth: best.depth, improved },
+            { onAgain: () => this.startEndless(), onMenu: () => this.showMenu() },
+          )
+        },
+        onMenu: () => this.showMenu(),
+        onRestart: () => this.startEndless(),
+      },
+      { endless: true },
+    )
+    this.scene = scene
   }
 
   showLevelSelect(): void {

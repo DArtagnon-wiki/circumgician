@@ -34,7 +34,7 @@ export class RuneView {
   sync(rune: Rune, outerRot: number, middleRot: number, time: number, motes: Map<string, Mote>): void {
     const outer = outerLayer(rune)
     if (!outer) return
-    const key = `${rune.index}`
+    const key = `${rune.index}:${rune.insight}`
     if (key !== this.drawnKey) this.redrawLayers(rune, outer)
 
     const base = Math.PI / 2
@@ -56,7 +56,7 @@ export class RuneView {
   }
 
   private redrawLayers(rune: Rune, outer: RuneLayerSpec): void {
-    this.drawnKey = `${rune.index}`
+    this.drawnKey = `${rune.index}:${rune.insight}`
     this.container.hitArea = new Circle(0, 0, outer.radius + 10)
 
     this.outerG.clear()

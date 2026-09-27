@@ -87,6 +87,32 @@
   font-size: 12px;
 }
 
+/* Endless score */
+.endless-score {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 16px);
+  left: 14px;
+  z-index: 1500;
+  color: #efe8ff;
+  font: italic 20px Georgia, serif;
+  text-shadow: 0 0 12px rgba(190, 160, 255, 0.8);
+  pointer-events: none;
+}
+.endless-score.bump {
+  animation: score-bump 0.35s ease-out;
+}
+@keyframes score-bump {
+  30% {
+    transform: scale(1.25);
+  }
+}
+.result-stats {
+  font: 18px Georgia, serif;
+  opacity: 0.85;
+  text-align: center;
+  line-height: 1.6;
+}
+
 /* Result screens */
 .result-overlay {
   position: fixed;

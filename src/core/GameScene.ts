@@ -8,6 +8,7 @@ import { MoteView } from '../render/MoteView'
 import { Effects } from '../render/Effects'
 import { VIRTUAL_WIDTH, VIRTUAL_HEIGHT, computeFit } from './VirtualScreen'
 import { Sim } from '../sim/Sim'
+import { ensureEndlessLayers } from '../sim/endless'
 import { INVENTORY_ZONE, REACH } from '../sim/constants'
 import { middleAngle, outerAngle, outerLayer } from '../sim/geometry'
 import type { LevelData, Mote, Vec2 } from '../sim/types'
@@ -20,6 +21,12 @@ export interface GameSceneCallbacks {
   onWon: () => void
   onLost: () => void
   onMenu: () => void
+  onRestart?: () => void // endless: a fresh run instead of a board reset
+}
+
+export interface GameSceneOptions {
+  seed?: number
+  endless?: boolean // one life: no undo, stacks generated forever, score shown
 }
 
 interface DragState {
@@ -66,7 +73,7 @@ export class GameScene {
   private hud: GameHud | null = null
   private debugPanel: HTMLElement | null = null
 
-  mount(app: Application, level: LevelData, callbacks: GameSceneCallbacks, seed = (Math.random() * 2 ** 32) >>> 0): void {
+  mount(app: Application, level: LevelData, callbacks: GameSceneCallbacks, opts: GameSceneOptions = {}): void {
     this.app = app
     this.callbacks = callbacks
     this.layers = createLayers()
@@ -75,15 +82,17 @@ export class GameScene {
     this.effects = new Effects(this.layers.effects)
     this.applyFit()
 
-    this.sim = new Sim(level, { seed })
+    const seed = opts.seed ?? (Math.random() * 2 ** 32) >>> 0
+    this.sim = new Sim(level, { seed, ensureLayers: opts.endless ? ensureEndlessLayers : undefined })
     this.layers.background.addChild(drawZoneBackground(level.field, level.blockers))
     this.bindSimEvents()
     this.rebuildViews()
 
     this.hud = createGameHud({
-      onUndo: () => this.undo(),
-      onRestart: () => this.restart(),
+      onUndo: opts.endless ? undefined : () => this.undo(),
+      onRestart: () => (callbacks.onRestart ? callbacks.onRestart() : this.restart()),
       onMenu: () => callbacks.onMenu(),
+      showScore: opts.endless,
     })
 
     if (isDebugMode()) {
@@ -152,6 +161,7 @@ export class GameScene {
     this.effects.update(dt)
     this.applyFit()
     this.hud?.setUndoEnabled(this.sim.canUndo)
+    this.hud?.setScore(s.score, s.broken)
   }
 
   private syncMotes(motes: Mote[], time: number): void {

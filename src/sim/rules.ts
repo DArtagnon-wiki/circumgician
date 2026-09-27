@@ -146,6 +146,11 @@ export function damageObstacle(state: SimState, bus: SimBus, obstacle: Obstacle,
   const next = obstacle.layers[obstacle.index]
   if (next) obstacle.hp = next.hp
   else obstacle.cleared = true
-  state.score += previous.hp
+  state.broken++
+  state.score += Math.round((previous.hp * previous.radius) / 30)
+  if (previous.boss) {
+    // Endless insight upgrade: enigma -> silhouette -> full, run-wide.
+    for (const r of state.runes) r.insight = r.insight === 'none' ? 'shape' : 'full'
+  }
   bus.emit('obstacle:collapsed', { obstacle, previous, cleared: obstacle.cleared })
 }

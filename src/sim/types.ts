@@ -31,6 +31,7 @@ export interface ObstacleLayerSpec {
   sides: number
   radius: number
   hp: number
+  boss?: boolean // endless: breaking it raises run insight
 }
 
 export type Insight = 'none' | 'shape' | 'full'
@@ -133,5 +134,6 @@ export interface SimState {
   rng: number
   nextId: number
   status: SimStatus
-  score: number // endless: obstacle layers broken (weighted)
+  score: number // endless: sum of broken layers' HP
+  broken: number // obstacle layers broken
 }

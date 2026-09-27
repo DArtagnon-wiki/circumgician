@@ -2,13 +2,15 @@ import './ui.css'
 import { createAudioControl } from './AudioControl'
 
 export interface GameHudActions {
-  onUndo: () => void
+  onUndo?: () => void // omitted in endless (one life)
   onRestart: () => void
   onMenu: () => void
+  showScore?: boolean
 }
 
 export interface GameHud {
   setUndoEnabled: (enabled: boolean) => void
+  setScore: (score: number, layers: number) => void
   remove: () => void
 }
 
@@ -20,7 +22,8 @@ const ICONS = {
 }
 
 // Small round glyph buttons pinned top-right, clear of the obstacle zone's
-// usual content. Undo dims when there is nothing to undo.
+// usual content. Undo dims when there is nothing to undo. Endless adds a
+// score readout top-left.
 export function createGameHud(actions: GameHudActions): GameHud {
   const bar = document.createElement('div')
   bar.className = 'game-hud'
@@ -33,18 +36,39 @@ export function createGameHud(actions: GameHudActions): GameHud {
     return b
   }
   bar.appendChild(createAudioControl())
-  const undo = make(ICONS.undo, 'Undo', actions.onUndo)
+  const undo = actions.onUndo ? make(ICONS.undo, 'Undo', actions.onUndo) : null
   make(ICONS.restart, 'Restart', actions.onRestart)
   make(ICONS.menu, 'Menu', actions.onMenu)
   document.body.appendChild(bar)
 
+  let score: HTMLElement | null = null
+  if (actions.showScore) {
+    score = document.createElement('div')
+    score.className = 'endless-score'
+    document.body.appendChild(score)
+  }
+
   let undoEnabled: boolean | null = null
+  let shown = ''
   return {
     setUndoEnabled(enabled) {
-      if (enabled === undoEnabled) return
+      if (!undo || enabled === undoEnabled) return
       undoEnabled = enabled
       undo.disabled = !enabled
     },
-    remove: () => bar.remove(),
+    setScore(value, layers) {
+      if (!score) return
+      const text = `${value} · ${layers} layers`
+      if (text === shown) return
+      shown = text
+      score.textContent = text
+      score.classList.remove('bump')
+      void score.offsetWidth // restart the bump animation
+      score.classList.add('bump')
+    },
+    remove: () => {
+      bar.remove()
+      score?.remove()
+    },
   }
 }

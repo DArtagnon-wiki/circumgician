@@ -34,10 +34,28 @@ function damageCanSuffice(state: SimState): boolean {
   return true
 }
 
+// Could the free motes' colors (generics as wildcards) ever cover this
+// layer's catch requirements? Ignores position, so it only rules out.
+export function colorsCanCover(state: SimState, catches: string[]): boolean {
+  const have = new Map<string, number>()
+  let generic = 0
+  for (const m of state.motes) {
+    if (m.state !== 'free' && m.state !== 'ejecting') continue
+    if (m.color === 'generic') generic++
+    else have.set(m.color, (have.get(m.color) ?? 0) + 1)
+  }
+  const need = new Map<string, number>()
+  for (const c of catches) need.set(c, (need.get(c) ?? 0) + 1)
+  let short = 0
+  for (const [c, n] of need) short += Math.max(0, n - (have.get(c) ?? 0))
+  return short <= generic
+}
+
 export function anyIdlePlacement(state: SimState): boolean {
   const f = state.field
   for (const rune of state.runes) {
     if (rune.state !== 'idle') continue
+    if (!colorsCanCover(state, outerLayer(rune)!.nodes.map((n) => n.catch))) continue
     const r = footprintRadius(outerLayer(rune)!)
     for (let y = f.y + r; y <= f.y + f.h - r; y += SCAN_STEP)
       for (let x = f.x + r; x <= f.x + f.w - r; x += SCAN_STEP) if (canPlace(state, rune, { x, y })) return true

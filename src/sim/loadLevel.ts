@@ -22,13 +22,15 @@ export function loadLevel(level: LevelData, seed = 1): SimState {
         state: 'free' as const,
       }
     }),
-    obstacles: clone.obstacles.map((o) => ({
+    // Endless stacks carry a per-entity seed; generators extend them on demand.
+    obstacles: clone.obstacles.map((o, i) => ({
       id: id('obstacle'),
       pos: { x: o.x, y: o.y },
       layers: o.layers,
       index: 0,
       hp: o.layers[0]?.hp ?? 0,
       cleared: false,
+      ...(clone.endless ? { endlessSeed: (clone.endless.seed * 31 + 1000 + i) >>> 0 } : {}),
     })),
     runes: clone.hand.map((r, slot) => ({
       id: id('rune'),
@@ -39,11 +41,13 @@ export function loadLevel(level: LevelData, seed = 1): SimState {
       slot,
       held: [],
       linkedObstacleId: null,
+      ...(clone.endless ? { endlessSeed: (clone.endless.seed * 31 + slot) >>> 0 } : {}),
     })),
     time: 0,
     rng: seed >>> 0 || 1,
     nextId: n,
     status: 'playing',
     score: 0,
+    broken: 0,
   }
 }

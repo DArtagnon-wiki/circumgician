@@ -47,6 +47,13 @@ export class ObstacleView {
       strokeColor: 0xffffff,
       strokeWidth: 2,
     })
+    if (layer.boss) {
+      // Endless boss: a gilded double rim and three crown pips.
+      const glow = 0.5 + 0.5 * Math.sin(time * 3)
+      drawPolygon(this.shape, layer.sides, layer.radius + 4, { strokeColor: 0xffc857, strokeWidth: 2.5, strokeAlpha: 0.7 + glow * 0.3 })
+      drawPolygon(this.shape, layer.sides, layer.radius + 12, { strokeColor: 0xffc857, strokeWidth: 1, strokeAlpha: 0.3 + glow * 0.3 })
+      for (let k = -1; k <= 1; k++) this.shape.circle(k * 9, -layer.radius - 18, 2.5).fill({ color: 0xffc857 })
+    }
     this.shape.rotation = Math.sin(time * 0.4 + obstacle.pos.y) * 0.05
     this.hpText.text = String(obstacle.hp)
   }
