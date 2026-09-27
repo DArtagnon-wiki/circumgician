@@ -1,3 +1,6 @@
+import { audio } from '../audio/engine'
+import { createAudioControl } from './AudioControl'
+
 export interface MenuActions {
   onPlay: () => void
 }
@@ -27,9 +30,15 @@ export function showMenu(actions: MenuActions): HTMLElement {
     padding: 14px 40px; font-size: 18px; border-radius: 10px; border: none;
     cursor: pointer; background: white; color: #140a24; font-weight: bold;
   `
-  playButton.addEventListener('click', actions.onPlay)
+  playButton.addEventListener('click', () => {
+    audio.unlock() // first real gesture: start the music bed
+    actions.onPlay()
+  })
 
-  overlay.append(title, subtitle, playButton)
+  const sound = createAudioControl()
+  sound.classList.add('corner')
+
+  overlay.append(title, subtitle, playButton, sound)
   document.body.appendChild(overlay)
   return overlay
 }

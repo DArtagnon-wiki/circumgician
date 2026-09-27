@@ -104,7 +104,6 @@ export class GameScene {
     this.sim.bus.all.clear()
     this.app.stage.removeChild(this.layers.root)
     this.layers.root.destroy({ children: true })
-    this.sfx.close()
   }
 
   undo(): void {

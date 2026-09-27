@@ -1,3 +1,5 @@
+import { createAudioControl } from './AudioControl'
+
 export interface GameHudActions {
   onUndo: () => void
   onRestart: () => void
@@ -29,6 +31,7 @@ export function createGameHud(actions: GameHudActions): GameHud {
     bar.appendChild(b)
     return b
   }
+  bar.appendChild(createAudioControl())
   const undo = make(ICONS.undo, 'Undo', actions.onUndo)
   make(ICONS.restart, 'Restart', actions.onRestart)
   make(ICONS.menu, 'Menu', actions.onMenu)

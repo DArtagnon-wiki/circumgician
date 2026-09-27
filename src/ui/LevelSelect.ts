@@ -5,7 +5,7 @@ export interface LevelSelectActions {
   isCompleted: (id: string) => boolean
   onSelect: (index: number) => void
   onBack: () => void
-  // Guaranteed-fail fixtures for manually verifying the loss condition â€”
+  // Guaranteed-fail fixtures for manually verifying the loss condition,
   // only passed (non-empty) when ?debug=1 is active; renders as a small
   // separate section, invisible in the normal player experience.
   debugLevels?: LevelData[]
@@ -13,7 +13,7 @@ export interface LevelSelectActions {
 }
 
 // All levels are unlocked from the start (curated gift pack, not a
-// progression game) â€” the checkmark is pure feedback, never a gate.
+// progression game); the checkmark is pure feedback, never a gate.
 export function showLevelSelect(actions: LevelSelectActions): HTMLElement {
   const overlay = document.createElement('div')
   overlay.style.cssText = `
@@ -42,7 +42,7 @@ export function showLevelSelect(actions: LevelSelectActions): HTMLElement {
     const label = document.createElement('span')
     label.textContent = `${index + 1}. ${level.name}`
     const check = document.createElement('span')
-    check.textContent = actions.isCompleted(level.id) ? 'âœ“' : ''
+    check.textContent = actions.isCompleted(level.id) ? '✓' : ''
     check.style.cssText = 'color: #7cffb2; font-weight: bold; font-size: 18px;'
     button.append(label, check)
     button.addEventListener('click', () => actions.onSelect(index))

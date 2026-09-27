@@ -1,23 +1,18 @@
-// Lightweight synthesized SFX via Web Audio oscillators — no asset files
-// to keep the initial load small, and no asset loading step to get wrong.
+import { audio } from './engine'
+
+// Lightweight synthesized SFX via Web Audio: no asset files. Routed through
+// the shared engine's SFX bus (volume/mute); silent until a real gesture
+// unlocks the engine.
 export class Sfx {
-  private ctx: AudioContext | null = null
-
   // Call synchronously from within a real user-gesture handler (pointerdown)
-  // so iOS Safari's autoplay policy actually lets the context run — sounds
-  // triggered later from async game events reuse this already-unlocked context.
+  // so iOS Safari's autoplay policy actually lets the context run.
   unlock(): void {
-    this.ensureContext()
-  }
-
-  private ensureContext(): AudioContext {
-    if (!this.ctx) this.ctx = new AudioContext()
-    if (this.ctx.state === 'suspended') void this.ctx.resume()
-    return this.ctx
+    audio.unlock()
   }
 
   private tone(freq: number, duration: number, type: OscillatorType = 'sine', gainPeak = 0.15, delay = 0): void {
-    const ctx = this.ensureContext()
+    const ctx = audio.ctx
+    if (!ctx || !audio.sfxBus) return
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
     osc.type = type
@@ -27,13 +22,14 @@ export class Sfx {
     gain.gain.linearRampToValueAtTime(gainPeak, start + 0.01)
     gain.gain.exponentialRampToValueAtTime(0.0001, start + duration)
     osc.connect(gain)
-    gain.connect(ctx.destination)
+    gain.connect(audio.sfxBus)
     osc.start(start)
     osc.stop(start + duration + 0.02)
   }
 
   private noise(duration: number, gainPeak: number, cutoff: number, delay = 0): void {
-    const ctx = this.ensureContext()
+    const ctx = audio.ctx
+    if (!ctx || !audio.sfxBus) return
     const len = Math.ceil(ctx.sampleRate * duration)
     const buffer = ctx.createBuffer(1, len, ctx.sampleRate)
     const data = buffer.getChannelData(0)
@@ -49,7 +45,7 @@ export class Sfx {
     gain.gain.exponentialRampToValueAtTime(0.0001, start + duration)
     src.connect(filter)
     filter.connect(gain)
-    gain.connect(ctx.destination)
+    gain.connect(audio.sfxBus)
     src.start(start)
   }
 
@@ -70,7 +66,8 @@ export class Sfx {
 
   // Rising pentatonic plinks, throttled so a burst of catches stays musical.
   nodeFilled(): void {
-    const ctx = this.ensureContext()
+    const ctx = audio.ctx
+    if (!ctx) return
     if (ctx.currentTime - this.lastFill < 0.04) return
     this.lastFill = ctx.currentTime
     const scale = [659.25, 739.99, 880, 987.77, 1108.73]
@@ -108,10 +105,4 @@ export class Sfx {
     ;[400, 320, 240].forEach((f, i) => this.tone(f, 0.4, 'sine', 0.12, i * 0.12))
   }
 
-  // Called when a scene owning this Sfx instance is torn down, so repeated
-  // level restarts don't accumulate suspended AudioContexts.
-  close(): void {
-    if (this.ctx && this.ctx.state !== 'closed') void this.ctx.close()
-    this.ctx = null
-  }
 }
