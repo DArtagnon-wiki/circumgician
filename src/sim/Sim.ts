@@ -92,12 +92,12 @@ export class Sim {
     }
   }
 
-  // The player's tap on a mote: a small shove in a random direction. Not an
+  // The player's tap near a mote shoves it away from the touch point. Not an
   // undo step (it only moves a mote, and undo restores whole boards anyway).
-  kick(moteId: string): boolean {
+  kick(moteId: string, from: Vec2): boolean {
     if (this.state.status !== 'playing') return false
     const mote = this.state.motes.find((m) => m.id === moteId)
-    return !!mote && kickMote(this.state, mote)
+    return !!mote && kickMote(mote, from)
   }
 
   // Debug: collapse the current layer of every obstacle.

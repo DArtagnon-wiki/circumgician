@@ -1,5 +1,5 @@
 import { DEFAULT_TETHER } from './constants'
-import type { LevelData, SimState } from './types'
+import type { Hue, LevelData, SimState } from './types'
 
 // Build the initial runtime state for a level. `seed` drives drift only.
 export function loadLevel(level: LevelData, seed = 1): SimState {
@@ -49,5 +49,6 @@ export function loadLevel(level: LevelData, seed = 1): SimState {
     status: 'playing',
     score: 0,
     broken: 0,
+    seenHues: [...new Set(clone.motes.map((m) => m.color).filter((c): c is Hue => c !== 'generic'))],
   }
 }

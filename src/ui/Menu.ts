@@ -5,6 +5,7 @@ import { endlessBest } from './progress'
 export interface MenuActions {
   onPlay: () => void
   onEndless: () => void
+  onHowToPlay: () => void
 }
 
 export function showMenu(actions: MenuActions): HTMLElement {
@@ -42,6 +43,12 @@ export function showMenu(actions: MenuActions): HTMLElement {
   endlessButton.textContent = 'Endless'
   endlessButton.addEventListener('click', start(actions.onEndless))
 
+  const howButton = document.createElement('button')
+  howButton.className = 'btn'
+  howButton.style.cssText = 'min-width: 180px; font-size: 16px; background: transparent;'
+  howButton.textContent = 'How to play'
+  howButton.addEventListener('click', start(actions.onHowToPlay))
+
   const best = endlessBest()
   const bestLine = document.createElement('div')
   bestLine.style.cssText = 'font-size: 13px; opacity: 0.6; min-height: 1em;'
@@ -50,7 +57,7 @@ export function showMenu(actions: MenuActions): HTMLElement {
   const sound = createAudioControl()
   sound.classList.add('corner')
 
-  overlay.append(title, subtitle, playButton, endlessButton, bestLine, sound)
+  overlay.append(title, subtitle, playButton, endlessButton, howButton, bestLine, sound)
   document.body.appendChild(overlay)
   return overlay
 }

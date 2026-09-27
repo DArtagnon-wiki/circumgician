@@ -126,7 +126,17 @@ export function runCompetent(level: LevelData, seed: number, maxSeconds = 600, o
         const candidates = s().motes.filter((m) => m.state === 'free' && !m.vel && (want.has(m.color) || m.color === 'generic') && band(m) > 10)
         if (!candidates.length) continue
         candidates.sort((a, b) => band(a) - band(b))
-        sim.kick(candidates[0].id)
+        // Aim: tap on the far side so the mote coasts toward the nearest ring
+        // point. Coast ~ speed / friction = KICK_GAIN * offset / 3, so an
+        // offset of gap * 3 / 9 roughly lands it on the ring.
+        const m = candidates[0]
+        const cx = rune.pos.x
+        const cy = rune.pos.y
+        const d = Math.hypot(m.pos.x - cx, m.pos.y - cy) || 1
+        const ring = { x: cx + ((m.pos.x - cx) / d) * layer.radius, y: cy + ((m.pos.y - cy) / d) * layer.radius }
+        const gap = Math.hypot(ring.x - m.pos.x, ring.y - m.pos.y) || 1
+        const offset = Math.min(26, (gap * 3) / 9)
+        sim.kick(m.id, { x: m.pos.x - ((ring.x - m.pos.x) / gap) * offset, y: m.pos.y - ((ring.y - m.pos.y) / gap) * offset })
         break
       }
     }

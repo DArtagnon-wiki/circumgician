@@ -58,16 +58,29 @@ describe('catch ring', () => {
 })
 
 describe('kick', () => {
-  it('sends a free mote coasting a short way, then it re-homes where it stops', () => {
-    const sim = mk(testLevel({ hand: [{ layers: [layer(4, 40, 'red')] }], motes: [mote('red', 200, 500)] }), { seed: 7 })
+  const one = () => mk(testLevel({ hand: [{ layers: [layer(4, 40, 'red')] }], motes: [mote('red', 200, 500)] }))
+
+  it('shoves the mote directly away from the touch, then it re-homes where it stops', () => {
+    const sim = one()
     const m = sim.state.motes[0]
-    expect(sim.kick(m.id)).toBe(true)
+    expect(sim.kick(m.id, { x: 215, y: 500 })).toBe(true) // touch to the right
     stepFor(sim, 5)
     expect(m.vel).toBeUndefined()
-    const moved = dist(m.home, { x: 200, y: 500 })
-    expect(moved).toBeGreaterThan(30)
-    expect(moved).toBeLessThan(90)
+    expect(m.home.x).toBeLessThan(170) // moved left
+    expect(Math.abs(m.home.y - 500)).toBeLessThan(1)
     expect(m.pos).toEqual(m.home)
+  })
+
+  it('a farther tap kicks harder; a dead-center tap does nothing', () => {
+    const near = one()
+    near.kick(near.state.motes[0].id, { x: 200, y: 510 })
+    stepFor(near, 5)
+    const far = one()
+    far.kick(far.state.motes[0].id, { x: 200, y: 522 })
+    stepFor(far, 5)
+    expect(500 - far.state.motes[0].home.y).toBeGreaterThan(500 - near.state.motes[0].home.y)
+    const still = one()
+    expect(still.kick(still.state.motes[0].id, { x: 200, y: 500 })).toBe(false)
   })
 
   it('bounces off the field edge instead of leaving it', () => {
@@ -75,7 +88,7 @@ describe('kick', () => {
     const sim = mk(testLevel({ field, hand: [{ layers: [layer(4, 20, 'red')] }], motes: [mote('red', 130, 430)] }))
     const m = sim.state.motes[0]
     for (let i = 0; i < 5; i++) {
-      sim.kick(m.id)
+      sim.kick(m.id, { x: m.pos.x - 20 + i * 10, y: m.pos.y + 20 }) // hard kicks up and around
       stepFor(sim, 3)
     }
     expect(m.home.x).toBeGreaterThanOrEqual(field.x)

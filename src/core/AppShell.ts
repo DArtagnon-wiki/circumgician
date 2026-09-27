@@ -3,6 +3,7 @@ import { GameScene } from './GameScene'
 import { PACK, DEBUG_PACK } from '../data/levels/pack'
 import type { LevelData } from '../sim/types'
 import { showMenu } from '../ui/Menu'
+import { showHowToPlay } from '../ui/HowToPlay'
 import { showLevelSelect } from '../ui/LevelSelect'
 import { showHUD, showRunOver } from '../ui/HUD'
 import { endlessBest, isLevelCompleted, markLevelCompleted, recordEndlessRun } from '../ui/progress'
@@ -38,7 +39,12 @@ export class AppShell {
   showMenu(): void {
     this.teardownScene()
     this.clearOverlay()
-    this.overlay = showMenu({ onPlay: () => this.showLevelSelect(), onEndless: () => this.startEndless() })
+    this.overlay = showMenu({ onPlay: () => this.showLevelSelect(), onEndless: () => this.startEndless(), onHowToPlay: () => this.showHowToPlay() })
+  }
+
+  // Stacks above whatever screen is showing; closing returns to it.
+  private showHowToPlay(): void {
+    const el = showHowToPlay(() => el.remove())
   }
 
   startEndless(): void {
@@ -77,6 +83,7 @@ export class AppShell {
       isCompleted: isLevelCompleted,
       onSelect: (index) => this.startLevel(PACK, index),
       onBack: () => this.showMenu(),
+      onHowToPlay: () => this.showHowToPlay(),
       debugLevels: isDebugMode() ? DEBUG_PACK : undefined,
       onSelectDebug: (index) => this.startLevel(DEBUG_PACK, index),
     })

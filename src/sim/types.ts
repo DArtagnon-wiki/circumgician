@@ -137,4 +137,5 @@ export interface SimState {
   status: SimStatus
   score: number // endless: sum of broken layers' HP
   broken: number // obstacle layers broken
+  seenHues: Hue[] // hues that have existed in the pool; endless catches only these
 }

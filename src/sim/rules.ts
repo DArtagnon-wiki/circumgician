@@ -107,6 +107,7 @@ export function detonateRune(state: SimState, bus: SimBus, rune: Rune, ensure?: 
       return
     }
     mote.color = release
+    if (release !== 'generic' && !state.seenHues.includes(release)) state.seenHues.push(release)
     mote.home = clampToRect(landingPoint(pos, outer.sides, outer.radius, i), state.field, Math.min(mote.tether + 2, state.field.w / 2, state.field.h / 2))
     mote.state = 'ejecting'
     mote.ejectFrom = { ...mote.pos }

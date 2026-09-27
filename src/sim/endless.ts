@@ -23,16 +23,24 @@ function huesAt(depth: number): Hue[] {
 
 const pick = <T>(r: () => number, list: readonly T[]): T => list[Math.floor(r() * list.length)]
 
-export function runeLayerAt(seed: number, depth: number): RuneLayerSpec {
+const BASE_HUES: Hue[] = ['red', 'blue', 'gold']
+
+// `seen` = hues that have existed in the pool. A new hue ramps in on the
+// release side first; catches only ever ask for hues the player has had,
+// so a color is always produced before anything consumes it.
+export function runeLayerAt(seed: number, depth: number, seen: readonly Hue[] = BASE_HUES): RuneLayerSpec {
   const r = streamFrom(seed, depth)
   const maxSides = Math.min(6, 3 + Math.floor(depth / 4))
   const sides = 3 + Math.floor(r() * (maxSides - 2))
   const radius = Math.min(96, 34 + Math.floor(r() * 10) + depth * 2)
   const hues = huesAt(depth)
+  let catchable = hues.filter((h) => seen.includes(h))
+  if (!catchable.length) catchable = [...seen]
+  if (!catchable.length) catchable = BASE_HUES
   // Mostly one catch color per layer, sometimes a second: keeps layers
   // fillable from a conserved pool while still demanding specific colors.
-  const primary = pick(r, hues)
-  const secondary = pick(r, hues)
+  const primary = pick(r, catchable)
+  const secondary = pick(r, catchable)
   const nodes: NodeSpec[] = Array.from({ length: sides }, () => {
     const c = r() < ENDLESS_TUNING.primaryCatch ? primary : secondary
     const g = r()
@@ -52,16 +60,17 @@ export function obstacleLayerAt(seed: number, depth: number): ObstacleLayerSpec 
   return boss ? { sides, radius, hp, boss } : { sides, radius, hp }
 }
 
-// Keep three rune layers visible (outer/middle/center) and the current
-// obstacle layer present. Called by the Sim after every layer advance.
+// Keep three rune layers visible (outer/middle/center), and the current
+// obstacle layer plus the next one (shown as the circumscribed outline).
+// Called by the Sim after every layer advance.
 export function ensureEndlessLayers(state: SimState): void {
   for (const rune of state.runes) {
     if (rune.endlessSeed === undefined) continue
-    while (rune.layers.length < rune.index + 3) rune.layers.push(runeLayerAt(rune.endlessSeed, rune.layers.length))
+    while (rune.layers.length < rune.index + 3) rune.layers.push(runeLayerAt(rune.endlessSeed, rune.layers.length, state.seenHues))
   }
   for (const o of state.obstacles) {
     if (o.endlessSeed === undefined) continue
-    while (o.layers.length < o.index + 1) o.layers.push(obstacleLayerAt(o.endlessSeed, o.layers.length))
+    while (o.layers.length < o.index + 2) o.layers.push(obstacleLayerAt(o.endlessSeed, o.layers.length))
   }
 }
 
@@ -91,9 +100,9 @@ export function endlessLevel(seed: number): LevelData {
     blockers: [],
     motes,
     obstacles: [
-      { x: 80, y: 160, layers: [obstacleLayerAt(obstacleSeed(0), 0)] },
-      { x: 200, y: 110, layers: [obstacleLayerAt(obstacleSeed(1), 0)] },
-      { x: 320, y: 160, layers: [obstacleLayerAt(obstacleSeed(2), 0)] },
+      { x: 80, y: 170, layers: [obstacleLayerAt(obstacleSeed(0), 0)] },
+      { x: 200, y: 140, layers: [obstacleLayerAt(obstacleSeed(1), 0)] },
+      { x: 320, y: 170, layers: [obstacleLayerAt(obstacleSeed(2), 0)] },
     ],
     hand: [0, 1, 2].map((slot) => ({ insight: 'none' as const, layers: [0, 1, 2].map((d) => runeLayerAt(runeSeed(slot), d)) })),
     goal: { type: 'clearAll' },

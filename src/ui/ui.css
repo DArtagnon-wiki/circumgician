@@ -87,6 +87,77 @@
   font-size: 12px;
 }
 
+/* How to play */
+.howto {
+  position: fixed;
+  inset: 0;
+  z-index: 2500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: radial-gradient(circle at 50% 35%, rgba(60, 30, 120, 0.85), rgba(8, 4, 16, 0.96) 75%);
+  color: #efe8ff;
+  font-family: Georgia, 'Times New Roman', serif;
+  animation: result-in 0.35s ease-out both;
+}
+.howto-card {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  padding: 22px 20px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(190, 160, 255, 0.3);
+  background: rgba(20, 10, 36, 0.8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  touch-action: pan-y;
+}
+.howto-art {
+  width: 100%;
+  aspect-ratio: 220 / 130;
+  border-radius: 12px;
+  background: #170d33;
+  border: 1px solid rgba(155, 123, 255, 0.35);
+}
+.howto-title {
+  font-size: 26px;
+  font-style: italic;
+  text-shadow: 0 0 16px rgba(190, 160, 255, 0.7);
+}
+.howto-text {
+  font-size: 16px;
+  line-height: 1.45;
+  text-align: center;
+  opacity: 0.9;
+  min-height: 4.4em;
+}
+.howto-dots {
+  display: flex;
+  gap: 6px;
+}
+.howto-dots span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+}
+.howto-dots span.on {
+  background: #efe8ff;
+}
+.howto-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  border: none;
+  background: transparent;
+  color: #cfc4ee;
+  font-size: 18px;
+  cursor: pointer;
+}
+
 /* Endless score */
 .endless-score {
   position: fixed;

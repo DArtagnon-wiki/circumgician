@@ -1,4 +1,4 @@
-import { DRIFT_SPEED, EJECT_TIME, KICK_SPEED, MOTE_FRICTION, PUSH_BASE, PUSH_DEPTH, PUSH_INSET, REACH, SETTLE_SPEED, TRAVEL_TIME } from './constants'
+import { DRIFT_SPEED, EJECT_TIME, KICK_GAIN, KICK_MAX, KICK_MIN, MOTE_FRICTION, PUSH_BASE, PUSH_DEPTH, PUSH_INSET, REACH, SETTLE_SPEED, TRAVEL_TIME } from './constants'
 import { dist, nodePositions, outerLayer } from './geometry'
 import { nextRandom } from './rng'
 import type { SimBus } from './events'
@@ -68,12 +68,19 @@ function applyPushAndCoast(state: SimState, mote: Mote, pushers: Rune[], dt: num
   return true
 }
 
-// Give a free mote a nudge in a random direction (the player's tap).
-export function kickMote(state: SimState, mote: Mote): boolean {
+// The player's tap at `from` shoves the mote directly away from the touch:
+// velocity = -KICK_GAIN * (from - mote), clamped to [KICK_MIN, KICK_MAX].
+// A farther tap kicks harder; a dead-center tap has no direction, so it
+// does nothing.
+export function kickMote(mote: Mote, from: Vec2): boolean {
   if (mote.state !== 'free') return false
-  const a = nextRandom(state) * Math.PI * 2
+  const dx = mote.pos.x - from.x
+  const dy = mote.pos.y - from.y
+  const d = Math.hypot(dx, dy)
+  if (d < 1) return false
+  const speed = Math.max(KICK_MIN, Math.min(KICK_MAX, KICK_GAIN * d))
   const v = mote.vel ?? { x: 0, y: 0 }
-  mote.vel = { x: v.x + Math.cos(a) * KICK_SPEED, y: v.y + Math.sin(a) * KICK_SPEED }
+  mote.vel = { x: v.x + (dx / d) * speed, y: v.y + (dy / d) * speed }
   return true
 }
 

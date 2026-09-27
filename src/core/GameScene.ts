@@ -1,4 +1,4 @@
-import { Graphics, type Application, type FederatedPointerEvent } from 'pixi.js'
+import { Graphics, Point, type Application, type FederatedPointerEvent } from 'pixi.js'
 import { createLayers, type Layers } from '../render/Layers'
 import { ACCENT_COLOR, HUE_COLORS, INVALID_TINT, RUNE_BODY_COLOR, colorForMote } from '../render/Theme'
 import { drawZoneBackground } from '../render/ZoneBackground'
@@ -34,9 +34,9 @@ interface DragState {
   view: RuneView
   pos: Vec2
   liftY: number // touch drags hover the rune above the finger
-  onMove: (e: FederatedPointerEvent) => void
-  onEnd: (e: FederatedPointerEvent) => void
-  onCancel: () => void
+  onMove: (e: PointerEvent) => void
+  onEnd: (e: PointerEvent) => void
+  onCancel: (e: PointerEvent) => void
 }
 
 interface Flight {
@@ -454,7 +454,7 @@ export class GameScene {
         best = m
       }
     }
-    if (best && this.sim.kick(best.id)) {
+    if (best && this.sim.kick(best.id, { x: p.x, y: p.y })) {
       this.effects.ring(best.pos, colorForMote(best.color), 6, 22, 0.25, 2)
       this.sfx.kick()
     }
@@ -473,35 +473,43 @@ export class GameScene {
     }
   }
 
+  // Drag tracking uses window-level DOM pointer events, not Pixi per-object
+  // events: on touch the rune hovers above the finger (so release is never
+  // "over" it) and it is reparented mid-press, which made Pixi drop the
+  // release on iPhone and leave the rune stuck until a second drag.
   private beginDrag(runeId: string, e: FederatedPointerEvent): void {
     const view = this.runeViews.get(runeId)
     if (!view) return
     const liftY = e.pointerType === 'touch' ? TOUCH_LIFT : 0
-    const onMove = (ev: FederatedPointerEvent) => {
-      if (this.drag) this.drag.pos = this.pointerPos(ev, liftY)
+    const pointerId = e.pointerId
+    const onMove = (ev: PointerEvent) => {
+      if (ev.pointerId === pointerId && this.drag) this.drag.pos = this.clientToVirtual(ev, liftY)
     }
-    const onEnd = (ev: FederatedPointerEvent) => this.endDrag(ev)
-    const onCancel = () => this.cancelDrag()
-    this.drag = { runeId, view, pos: this.pointerPos(e, liftY), liftY, onMove, onEnd, onCancel }
-    // globalpointermove fires regardless of hit-testing; pointerupoutside
-    // catches releases elsewhere; pointercancel covers OS interruptions.
-    view.container.on('globalpointermove', onMove)
-    view.container.on('pointerup', onEnd)
-    view.container.on('pointerupoutside', onEnd)
-    view.container.on('pointercancel', onCancel)
+    const onEnd = (ev: PointerEvent) => {
+      if (ev.pointerId === pointerId) this.endDrag(this.clientToVirtual(ev, liftY))
+    }
+    const onCancel = (ev: PointerEvent) => {
+      if (ev.pointerId === pointerId) this.cancelDrag()
+    }
+    const g = this.layers.root.toLocal(e.global)
+    this.drag = { runeId, view, pos: { x: g.x, y: g.y - liftY }, liftY, onMove, onEnd, onCancel }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onEnd)
+    window.addEventListener('pointercancel', onCancel)
     this.layers.drag.addChild(view.container)
     this.sfx.pickUp()
   }
 
-  private pointerPos(e: FederatedPointerEvent, liftY: number): Vec2 {
-    const p = this.layers.root.toLocal(e.global)
+  private clientToVirtual(ev: PointerEvent, liftY: number): Vec2 {
+    const global = new Point()
+    this.app.renderer.events.mapPositionToPoint(global, ev.clientX, ev.clientY)
+    const p = this.layers.root.toLocal(global)
     return { x: p.x, y: p.y - liftY }
   }
 
-  private endDrag(e: FederatedPointerEvent): void {
+  private endDrag(pos: Vec2): void {
     const drag = this.drag
     if (!drag) return
-    const pos = this.pointerPos(e, drag.liftY)
     this.detachDrag()
     if (!this.sim.place(drag.runeId, pos)) {
       this.flights.set(drag.runeId, { from: pos, fromScale: 1, t: 0.3 })
@@ -521,10 +529,9 @@ export class GameScene {
   private detachDrag(): void {
     if (!this.drag) return
     const { view, onMove, onEnd, onCancel } = this.drag
-    view.container.off('globalpointermove', onMove)
-    view.container.off('pointerup', onEnd)
-    view.container.off('pointerupoutside', onEnd)
-    view.container.off('pointercancel', onCancel)
+    window.removeEventListener('pointermove', onMove)
+    window.removeEventListener('pointerup', onEnd)
+    window.removeEventListener('pointercancel', onCancel)
     if (!view.container.destroyed && view.container.parent === this.layers.drag) this.layers.runes.addChild(view.container)
     this.drag = null
   }

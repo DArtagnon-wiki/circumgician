@@ -5,6 +5,7 @@ export interface LevelSelectActions {
   isCompleted: (id: string) => boolean
   onSelect: (index: number) => void
   onBack: () => void
+  onHowToPlay: () => void
   // Guaranteed-fail fixtures for manually verifying the loss condition,
   // only passed (non-empty) when ?debug=1 is active; renders as a small
   // separate section, invisible in the normal player experience.
@@ -80,7 +81,12 @@ export function showLevelSelect(actions: LevelSelectActions): HTMLElement {
   `
   backButton.addEventListener('click', actions.onBack)
 
-  overlay.append(title, grid, debugSection, backButton)
+  const howButton = document.createElement('button')
+  howButton.textContent = 'How to play'
+  howButton.style.cssText = backButton.style.cssText
+  howButton.addEventListener('click', actions.onHowToPlay)
+
+  overlay.append(title, grid, debugSection, howButton, backButton)
   document.body.appendChild(overlay)
   return overlay
 }
