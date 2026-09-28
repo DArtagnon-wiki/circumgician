@@ -276,7 +276,7 @@ export class GameScene {
         hitR = Math.min(hitR, VIRTUAL_WIDTH / Math.max(1, s.runes.length) / 2 - 4)
       }
       view.setHitRadius(hitR)
-      view.sync(rune, oRot, mRot, s.time, motes)
+      view.sync(rune, oRot, mRot, s.time, dt, motes)
     }
   }
 
