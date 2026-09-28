@@ -8,6 +8,10 @@ const lerp = (a: Vec2, b: Vec2, t: number): Vec2 => ({ x: a.x + (b.x - a.x) * t,
 const easeIn = (t: number) => t * t
 const easeOut = (t: number) => 1 - (1 - t) * (1 - t)
 
+// Pushes that cancel down to less than this share of their summed size
+// hold a mote in place.
+const WEDGED = 0.25
+
 // A frozen piece (endless): a disc every free mote is pushed out of.
 interface Block {
   pos: Vec2
@@ -31,6 +35,7 @@ function pickWander(state: SimState, mote: Mote): Vec2 {
 function applyPushAndCoast(state: SimState, mote: Mote, pushers: Piece[], nodesOf: (p: Piece) => Vec2[], blocks: Block[], dt: number): boolean {
   let ax = 0
   let ay = 0
+  let effort = 0 // summed size of every push and pull, before they cancel
   const f = state.field
   // Push the mote directly away from `center`, harder the deeper it sits
   // inside `limit` (d is its distance from the center).
@@ -50,6 +55,7 @@ function applyPushAndCoast(state: SimState, mote: Mote, pushers: Piece[], nodesO
     const strength = PUSH_BASE + PUSH_DEPTH * Math.max(0, 1 - d / limit)
     ax += ux * strength
     ay += uy * strength
+    effort += Math.hypot(ux, uy) * strength
   }
   // Frozen pieces catch nothing: every free mote is pushed fully clear.
   for (const b of blocks) {
@@ -90,6 +96,7 @@ function applyPushAndCoast(state: SimState, mote: Mote, pushers: Piece[], nodesO
         const tl = Math.hypot(tx, ty) || 1
         ax += (tx / tl) * PULL_ACCEL
         ay += (ty / tl) * PULL_ACCEL
+        effort += PULL_ACCEL
         continue
       }
     } else {
@@ -120,8 +127,12 @@ function applyPushAndCoast(state: SimState, mote: Mote, pushers: Piece[], nodesO
   const decay = Math.exp(-MOTE_FRICTION * dt)
   v.x *= decay
   v.y *= decay
-  if (!pushed && Math.hypot(v.x, v.y) < SETTLE_SPEED) {
+  // A mote at rest settles; so does one wedged where pushes cancel out
+  // (say, between frozen pieces), rather than trembling there forever.
+  const wedged = Math.hypot(ax, ay) < effort * WEDGED
+  if ((!pushed || wedged) && Math.hypot(v.x, v.y) < SETTLE_SPEED) {
     delete mote.vel
+    delete mote.kicked
     mote.home = { ...mote.pos }
     mote.wander = { ...mote.pos }
   }
@@ -141,6 +152,7 @@ export function kickMote(mote: Mote, from: Vec2): boolean {
   const speed = Math.max(KICK_MIN, Math.min(KICK_MAX, KICK_GAIN * d))
   const v = mote.vel ?? { x: 0, y: 0 }
   mote.vel = { x: v.x + (dx / d) * speed, y: v.y + (dy / d) * speed }
+  mote.kicked = true
   return true
 }
 
@@ -237,6 +249,21 @@ export function updateCatching(state: SimState, bus: SimBus): void {
         best = h
       }
     }
+    // A kicked mote that flies into a rune's catch ring doesn't wait for a
+    // node to sweep by: the nearest hungry node that can hold it draws it in.
+    if (!best && mote.kicked) {
+      bestD = Infinity
+      for (const h of hungry) {
+        if (h.piece.held[h.node] !== null) continue
+        if (mote.color !== 'generic' && mote.color !== h.catch) continue
+        if (dist(mote.pos, h.piece.pos) > h.piece.layer.radius + REACH) continue
+        const d = dist(mote.pos, h.pos)
+        if (d < bestD) {
+          bestD = d
+          best = h
+        }
+      }
+    }
     if (!best) continue
     best.piece.held[best.node] = mote.id
     mote.state = 'traveling'
@@ -245,6 +272,7 @@ export function updateCatching(state: SimState, bus: SimBus): void {
     mote.travelFrom = { ...mote.pos }
     mote.t = 0
     delete mote.vel
+    delete mote.kicked
     bus.emit('mote:claimed', { mote, piece: best.piece, node: best.node })
   }
 }

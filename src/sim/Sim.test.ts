@@ -143,6 +143,40 @@ describe('kick', () => {
     expect(m.home.y).toBeGreaterThanOrEqual(field.y)
     expect(m.home.y).toBeLessThanOrEqual(field.y + field.h)
   })
+
+  // One red node among blues, and a red mote 110px to the right of the rune.
+  const mixed = () => {
+    const l = layer(4, 40, 'blue')
+    l.nodes[0] = { catch: 'red', release: 'red' }
+    return l
+  }
+  const aimed = (hand: LevelData['hand']) => {
+    const sim = mk(testLevel({ hand, motes: [mote('red', C.x + 110, C.y)] }))
+    const id = placeSlot(sim, 0)
+    const m = sim.state.motes[0]
+    sim.kick(m.id, { x: m.pos.x + 25, y: m.pos.y }) // straight at the rune
+    return { sim, id, m }
+  }
+
+  it('a mote kicked into a rune is drawn straight to the node that can hold it', () => {
+    const { sim, id, m } = aimed([{ layers: [mixed(), layer(3, 30, 'red')] }])
+    const claimed: number[] = []
+    sim.bus.on('mote:claimed', ({ node }) => claimed.push(node))
+    stepFor(sim, 1) // well under a turn of the rune: it did not wait for the sweep
+    expect(claimed).toEqual([0])
+    expect(m.pieceId).toBe(id)
+    expect(m.kicked).toBeUndefined()
+    stepFor(sim, 0.5)
+    expect(m.state).toBe('held')
+  })
+
+  it('a kicked mote no node can hold is still pushed clear', () => {
+    const { sim, m } = aimed([{ layers: [layer(4, 40, 'blue'), layer(3, 30, 'blue')] }])
+    stepFor(sim, 5)
+    expect(m.state).toBe('free')
+    expect(m.kicked).toBeUndefined()
+    expect(dist(m.pos, C)).toBeGreaterThanOrEqual(40 + REACH)
+  })
 })
 
 describe('contention', () => {

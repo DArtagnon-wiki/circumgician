@@ -1,9 +1,10 @@
 import { KICK_GAIN, MOTE_FRICTION } from './constants'
 import { outerLayer } from './geometry'
+import { colorsCanCover } from './progress'
 import { Sim, type SimOptions } from './Sim'
 import { nextRandom } from './rng'
 import type { Move } from './solver'
-import type { LevelData, SimStatus, Vec2 } from './types'
+import type { LevelData, RuneLayerSpec, SimStatus, Vec2 } from './types'
 
 export type ScriptStep =
   | { place: number; at: Vec2 } // cast the layer in that hand slot at a field position
@@ -140,12 +141,16 @@ export function runCompetent(level: LevelData, seed: number, maxSeconds = 600, o
       }
     }
     const busy = s().pieces.some((p) => p.state === 'full') || s().motes.some((m) => m.state === 'traveling' || m.state === 'ejecting')
+    const fallback = !busy && idleWait > 8 && !s().pieces.some((p) => p.state === 'charging') ? fallbackCast(sim) : null
     if (best) {
       sim.place(best.id, best.at)
       idleWait = 0
     } else if (!busy && (idleWait += 0.9) > 4 && partial) {
       // Nothing better to do: gamble on the best partial spot, as a person would.
       sim.place(partial.id, partial.at)
+      idleWait = 0
+    } else if (fallback) {
+      sim.place(fallback.id, fallback.at)
       idleWait = 0
     } else {
       // Nudge a mote a charging piece still needs (kicks go in random directions).
@@ -173,6 +178,47 @@ export function runCompetent(level: LevelData, seed: number, maxSeconds = 600, o
     }
   }
   return { status: s().status, time: s().time, sim, moves }
+}
+
+// When nothing sits on a catch ring anywhere: cast a layer the free motes
+// could fill at the legal spot closest to those motes (to kick them in),
+// or else dig: cast a layer that cannot fill, as far from the motes as
+// possible, to bring a deeper one that can into hand.
+function fallbackCast(sim: Sim): { id: string; at: Vec2 } | null {
+  const s = sim.state
+  const free = s.motes.filter((m) => m.state === 'free')
+  const spots = (layer: RuneLayerSpec) => {
+    const out: Vec2[] = []
+    const f = s.field
+    for (let y = f.y + layer.radius; y <= f.y + f.h - layer.radius; y += 12) for (let x = f.x + layer.radius; x <= f.x + f.w - layer.radius; x += 12) out.push({ x, y })
+    return out
+  }
+  const catchesOf = (layer: RuneLayerSpec) => layer.nodes.map((n) => n.catch as string)
+  let near: { id: string; at: Vec2; d: number } | null = null
+  let dig: { id: string; at: Vec2; d: number } | null = null
+  for (const rune of s.runes) {
+    const layer = outerLayer(rune)
+    if (rune.state !== 'idle' || !layer) continue
+    const catches = catchesOf(layer)
+    if (colorsCanCover(s, catches)) {
+      const wanted = free.filter((m) => m.color === 'generic' || catches.includes(m.color))
+      if (!wanted.length) continue
+      const cx = wanted.reduce((a, m) => a + m.pos.x, 0) / wanted.length
+      const cy = wanted.reduce((a, m) => a + m.pos.y, 0) / wanted.length
+      for (const at of spots(layer)) {
+        const d = Math.hypot(at.x - cx, at.y - cy)
+        if ((!near || d < near.d) && sim.canPlace(rune.id, at)) near = { id: rune.id, at, d }
+      }
+    } else if (!near) {
+      const next = rune.layers[rune.index + 1]
+      if (!next || rune.index + 2 >= rune.layers.length || !colorsCanCover(s, catchesOf(next))) continue
+      for (const at of spots(layer)) {
+        const d = Math.min(...free.map((m) => Math.hypot(at.x - m.pos.x, at.y - m.pos.y)))
+        if ((!dig || d > dig.d) && sim.canPlace(rune.id, at)) dig = { id: rune.id, at, d }
+      }
+    }
+  }
+  return near ?? dig
 }
 
 // A careless player: at human pace, taps any full piece, otherwise casts a

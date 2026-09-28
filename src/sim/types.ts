@@ -87,6 +87,7 @@ export interface Mote {
   pos: Vec2
   wander: Vec2 // current drift target inside the tether
   vel?: Vec2 // free motes only: coasting after a kick or a rune's push
+  kicked?: boolean // coasting from the player's kick: a rune it flies into draws it to a node
   state: MoteStateKind
   // traveling / held
   pieceId?: string

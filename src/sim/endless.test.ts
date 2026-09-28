@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { endlessLevel, ensureEndlessLayers, obstacleLayerAt, runeLayerAt } from './endless'
+import { ENDLESS_TUNING, endlessLevel, ensureEndlessLayers, obstacleLayerAt, runeLayerAt } from './endless'
 import { runCompetent } from './headless'
 import { validateLevel } from './validate'
 import { Sim } from './Sim'
@@ -87,7 +87,7 @@ describe('endless run length (competent agent)', () => {
     const times: number[] = []
     const broken: number[] = []
     for (let seed = 1; seed <= 16; seed++) {
-      const res = runCompetent(endlessLevel(seed), seed, 900, { ensureLayers: ensureEndlessLayers })
+      const res = runCompetent(endlessLevel(seed), seed, 900, { ensureLayers: ensureEndlessLayers, fuse: ENDLESS_TUNING.fuse })
       times.push(res.time)
       broken.push(res.sim.state.broken)
     }
