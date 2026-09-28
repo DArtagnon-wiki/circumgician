@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { PACK } from './pack'
 import { runCareless, runScript, type ScriptStep } from '../../sim/headless'
+import { economyWon, moveLabel, replay } from '../../sim/solver'
 
 // Each curated level ships with its intended solution (must win for every
 // drift seed) and at least one plausible wrong ordering (must not win).
@@ -93,6 +94,20 @@ describe('curated pack solutions', () => {
         }
       })
     }
+  }
+
+  // The solver (src/sim/solver.ts) abstracts geometry away; it must still
+  // agree with the real sim about every intended line.
+  for (const level of PACK) {
+    const intended = LINES[level.id]?.find((line) => line.expect === 'won')
+    if (!intended) continue
+    it(`${level.id}: the intended line also wins in the solver's model`, () => {
+      const run = runScript(level, intended.steps, { seed: 1 })
+      const end = replay(level, run.moves)
+      const log = run.moves.map(moveLabel).join(', ')
+      expect(end, log).not.toBeNull()
+      expect(economyWon(level, end!), log).toBe(true)
+    })
   }
 
   // Careless play should almost always fail (level 1 is the gentle exception).

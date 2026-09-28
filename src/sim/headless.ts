@@ -1,5 +1,6 @@
 import { Sim, type SimOptions } from './Sim'
 import { nextRandom } from './rng'
+import type { Move } from './solver'
 import type { LevelData, SimStatus, Vec2 } from './types'
 
 export type ScriptStep =
@@ -11,10 +12,23 @@ export interface RunResult {
   status: SimStatus
   time: number
   sim: Sim
+  moves: Move[] // what happened, as solver moves
   error?: string // a step could not be performed (illegal placement, never filled)
 }
 
 const DT = 1 / 30
+
+// The run in the solver's terms (solver.ts): a fill when a rune becomes
+// full, a fire at each detonation.
+function recordMoves(sim: Sim): Move[] {
+  const moves: Move[] = []
+  sim.bus.on('rune:full', ({ rune }) => moves.push({ kind: 'fill', rune: rune.slot }))
+  sim.bus.on('rune:detonated', ({ rune, info }) => {
+    const target = info.obstacleId === null ? null : sim.state.obstacles.findIndex((o) => o.id === info.obstacleId)
+    moves.push({ kind: 'fire', rune: rune.slot, target })
+  })
+  return moves
+}
 
 function runeInSlot(sim: Sim, slot: number) {
   return sim.state.runes.find((r) => r.slot === slot)
@@ -24,8 +38,9 @@ function runeInSlot(sim: Sim, slot: number) {
 // sim decides (or `settle` seconds pass). Drift randomness comes from `seed`.
 export function runScript(level: LevelData, steps: ScriptStep[], opts: SimOptions & { fillTimeout?: number; settle?: number } = {}): RunResult {
   const sim = new Sim(level, opts)
+  const moves = recordMoves(sim)
   const fillTimeout = opts.fillTimeout ?? 30
-  const fail = (error: string): RunResult => ({ status: sim.state.status, time: sim.state.time, sim, error })
+  const fail = (error: string): RunResult => ({ status: sim.state.status, time: sim.state.time, sim, moves, error })
 
   for (const step of steps) {
     if (sim.state.status !== 'playing') break
@@ -48,7 +63,7 @@ export function runScript(level: LevelData, steps: ScriptStep[], opts: SimOption
   }
   const settleEnd = sim.state.time + (opts.settle ?? 20)
   while (sim.state.status === 'playing' && sim.state.time < settleEnd) sim.step(DT)
-  return { status: sim.state.status, time: sim.state.time, sim }
+  return { status: sim.state.status, time: sim.state.time, sim, moves }
 }
 
 // A competent (not optimal) player for tuning endless: taps linked full
@@ -57,6 +72,7 @@ export function runScript(level: LevelData, steps: ScriptStep[], opts: SimOption
 // that link.
 export function runCompetent(level: LevelData, seed: number, maxSeconds = 600, opts: SimOptions = {}): RunResult {
   const sim = new Sim(level, { seed, ...opts })
+  const moves = recordMoves(sim)
   const s = () => sim.state
   let cooldown = 0
   let idleWait = 0
@@ -141,13 +157,14 @@ export function runCompetent(level: LevelData, seed: number, maxSeconds = 600, o
       }
     }
   }
-  return { status: s().status, time: s().time, sim }
+  return { status: s().status, time: s().time, sim, moves }
 }
 
 // A careless player: at human pace, taps any full rune, otherwise drops a
 // random idle rune at a random legal spot. Ignores color, links and order.
 export function runCareless(level: LevelData, seed: number, maxSeconds = 240): RunResult {
   const sim = new Sim(level, { seed })
+  const moves = recordMoves(sim)
   const agent = { rng: (seed * 7919) >>> 0 || 1 }
   let cooldown = 0
   while (sim.state.status === 'playing' && sim.state.time < maxSeconds) {
@@ -169,5 +186,5 @@ export function runCareless(level: LevelData, seed: number, maxSeconds = 240): R
       if (sim.place(rune.id, at)) break
     }
   }
-  return { status: sim.state.status, time: sim.state.time, sim }
+  return { status: sim.state.status, time: sim.state.time, sim, moves }
 }

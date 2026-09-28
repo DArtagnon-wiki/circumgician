@@ -8,7 +8,8 @@
     "editor": "vite --open /circumgician/editor.html",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "analyze-levels": "node scripts/analyze-levels.mjs"
   },
   "devDependencies": {
     "typescript": "~6.0.2",
