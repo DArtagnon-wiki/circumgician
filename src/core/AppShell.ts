@@ -9,6 +9,7 @@ import { showHUD, showRunOver } from '../ui/HUD'
 import { endlessBest, isLevelCompleted, markLevelCompleted, recordEndlessRun } from '../ui/progress'
 import { endlessLevel } from '../sim/endless'
 import { isDebugMode } from '../debug/DebugPanel'
+import { textures } from '../render/textures'
 
 // Owns the single PIXI Application for the whole session (menu -> level ->
 // menu round-trips reuse it, avoiding WebGL context churn) and the one
@@ -34,6 +35,9 @@ export class AppShell {
     this.bindResize()
 
     this.showMenu()
+    // Paint the shared textures while the (DOM) menu is up, so the first
+    // level doesn't hitch on it.
+    window.setTimeout(() => textures(), 50)
   }
 
   showMenu(): void {

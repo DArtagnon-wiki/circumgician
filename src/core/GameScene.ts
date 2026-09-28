@@ -1,7 +1,7 @@
 import { Graphics, Point, type Application, type FederatedPointerEvent } from 'pixi.js'
 import { createLayers, type Layers } from '../render/Layers'
 import { ACCENT_COLOR, HUE_COLORS, INVALID_TINT, RUNE_BODY_COLOR, colorForMote } from '../render/Theme'
-import { drawZoneBackground } from '../render/ZoneBackground'
+import { ZoneBackground } from '../render/ZoneBackground'
 import { ObstacleView } from '../render/ObstacleView'
 import { MIDDLE_SCALE, RuneView } from '../render/RuneView'
 import { MoteView } from '../render/MoteView'
@@ -67,6 +67,8 @@ export class GameScene {
   private pops = new Map<string, number>()
   private linkG = new Graphics()
   private effects!: Effects
+  private zoneBg!: ZoneBackground
+  private clock = 0 // monotonic scene time for decoration (sim time rewinds on undo)
   private drag: DragState | null = null
   private pendingResult: { kind: 'won' | 'lost'; wait: number } | null = null
   private mood = 1 // 1 = normal, drops toward 0.35 during the loss animation
@@ -86,7 +88,8 @@ export class GameScene {
 
     const seed = opts.seed ?? (Math.random() * 2 ** 32) >>> 0
     this.sim = new Sim(level, { seed, ensureLayers: opts.endless ? ensureEndlessLayers : undefined })
-    this.layers.background.addChild(drawZoneBackground(level.field, level.blockers))
+    this.zoneBg = new ZoneBackground(level.field, level.blockers)
+    this.layers.background.addChild(this.zoneBg.container)
     this.bindSimEvents()
     this.rebuildViews()
 
@@ -146,6 +149,7 @@ export class GameScene {
 
   update(dt: number): void {
     dt = Math.min(dt, 1 / 20) // no giant steps after a background tab
+    this.clock += dt
     this.sim.step(dt)
     const s = this.sim.state
 
@@ -164,6 +168,7 @@ export class GameScene {
     this.layers.obstacles.alpha = 0.4 + 0.6 * this.mood
     this.layers.motes.alpha = 0.3 + 0.7 * this.mood
 
+    this.zoneBg.update(dt, this.clock)
     this.syncMotes(s.motes, s.time)
     for (const o of s.obstacles) this.obstacleViews.get(o.id)?.sync(o, dt, s.time)
     this.syncRunes(dt)

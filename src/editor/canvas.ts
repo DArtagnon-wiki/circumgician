@@ -67,7 +67,7 @@ export class EditorCanvas {
     const sel = this.state.selection
     const g = this.g
     g.clear()
-    this.bg.removeChildren().forEach((c) => c.destroy())
+    this.bg.removeChildren().forEach((c) => c.destroy({ children: true }))
     this.bg.addChild(drawZoneBackground(L.field, L.blockers))
     this.labels.removeChildren().forEach((c) => c.destroy())
 
