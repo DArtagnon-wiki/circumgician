@@ -1,5 +1,4 @@
 import { Graphics, Sprite, type Container, type Texture } from 'pixi.js'
-import { polygonPoints } from '../sim/geometry'
 import type { Vec2 } from '../sim/types'
 import { textures } from './textures'
 
@@ -23,10 +22,11 @@ export interface ParticleOptions {
 
 type Anim = (dt: number) => boolean // false when finished
 
-// Short-lived juice: polygon shatter, impact rings, sparks and screen shake.
+// Short-lived juice: sprite particles, obsidian shards, impact rings,
+// flashes, delayed callbacks and screen shake.
 export class Effects {
   private anims: Anim[] = []
-  private layer: Container
+  readonly layer: Container
   shake = 0 // current shake amplitude in virtual px
 
   constructor(layer: Container) {
@@ -37,6 +37,22 @@ export class Effects {
     this.anims.push(anim)
   }
 
+  // Runs fn once, `delay` seconds from now (immediately if delay <= 0).
+  // Dropped by clear(), so undo cancels anything still pending.
+  after(delay: number, fn: () => void): void {
+    if (delay <= 0) {
+      fn()
+      return
+    }
+    let left = delay
+    this.add((dt) => {
+      left -= dt
+      if (left > 0) return true
+      fn()
+      return false
+    })
+  }
+
   clear(): void {
     this.anims = []
     this.layer.removeChildren().forEach((c) => c.destroy())
@@ -44,7 +60,11 @@ export class Effects {
   }
 
   update(dt: number): void {
-    this.anims = this.anims.filter((a) => a(dt))
+    // Anims may add anims (after() spawning particles): keep those too.
+    const running = this.anims
+    this.anims = []
+    const kept = running.filter((a) => a(dt))
+    this.anims = kept.concat(this.anims)
     this.shake = Math.max(0, this.shake - dt * 30)
   }
 
@@ -67,34 +87,6 @@ export class Effects {
       }
       return true
     })
-  }
-
-  // Each edge of the polygon flies outward from the center, spinning and
-  // fading — "the lines of the polygon" coming apart.
-  shatter(center: Vec2, sides: number, radius: number, angle: number, color: number, width = 3): void {
-    const pts = polygonPoints(center, sides, radius, angle)
-    for (let i = 0; i < sides; i++) {
-      const a = pts[i]
-      const b = pts[(i + 1) % sides]
-      const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
-      const dir = Math.atan2(mid.y - center.y, mid.x - center.x)
-      const speed = 70 + Math.random() * 70
-      const spin = (Math.random() - 0.5) * 8
-      const half = { x: (b.x - a.x) / 2, y: (b.y - a.y) / 2 }
-      this.temp((g, t) => {
-        const e = 1 - (1 - t) * (1 - t)
-        const cx = mid.x + Math.cos(dir) * speed * e
-        const cy = mid.y + Math.sin(dir) * speed * e + 40 * t * t
-        const rot = spin * t
-        const c = Math.cos(rot)
-        const s = Math.sin(rot)
-        const hx = (half.x * c - half.y * s) * (1 - t * 0.4)
-        const hy = (half.x * s + half.y * c) * (1 - t * 0.4)
-        g.moveTo(cx - hx, cy - hy)
-          .lineTo(cx + hx, cy + hy)
-          .stroke({ color, width: width * (1 - t * 0.5), alpha: 1 - t })
-      }, 0.65)
-    }
   }
 
   // A single short-lived sprite with simple ballistic motion.
@@ -182,17 +174,6 @@ export class Effects {
     this.temp((g, t) => {
       g.circle(center.x, center.y, from + (to - from) * (1 - (1 - t) * (1 - t))).stroke({ color, width: width * (1 - t) + 0.5, alpha: 1 - t })
     }, duration)
-  }
-
-  sparks(center: Vec2, color: number, count = 12, speed = 140): void {
-    for (let i = 0; i < count; i++) {
-      const a = (i / count) * Math.PI * 2 + Math.random() * 0.4
-      const v = speed * (0.6 + Math.random() * 0.6)
-      this.temp((g, t) => {
-        const d = v * (1 - (1 - t) * (1 - t)) * 0.5
-        g.circle(center.x + Math.cos(a) * d, center.y + Math.sin(a) * d, 2.5 * (1 - t) + 0.5).fill({ color, alpha: 1 - t })
-      }, 0.5)
-    }
   }
 
   flash(color: number, alpha: number, duration: number, rect: { x: number; y: number; w: number; h: number }): void {

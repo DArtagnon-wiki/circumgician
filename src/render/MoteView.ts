@@ -3,10 +3,17 @@ import type { Mote, MoteStateKind } from '../sim/types'
 import { colorForMote, lighten, opal } from './Theme'
 import { textures } from './textures'
 import type { SmokeSystem } from './SmokeSystem'
+import { LAUNCH } from './Detonation'
+import { EJECT_TIME } from '../sim/constants'
 
 const TAU = Math.PI * 2
 const GLOW = 128 // texture sizes, for converting px to scale
 const DROP = 48
+// Ejecting keeps the sim's timing (t: 0..1 over EJECT_TIME) but is drawn
+// in three beats: unseen until the tubes spill, a droplet forming where it
+// spilled, then a flight home that ends exactly when the sim frees it.
+const SPILL = LAUNCH / EJECT_TIME
+const FORMED = SPILL + 0.12
 
 const smooth = (a: number, b: number, v: number) => {
   const t = Math.min(1, Math.max(0, (v - a) / (b - a)))
@@ -90,21 +97,28 @@ export class MoteView {
         })
       })
     } else if (mote.state === 'ejecting' && mote.ejectFrom) {
-      // A liquid droplet in flight, turning back into smoke as it lands.
+      // A liquid droplet: formed from the spill, in flight, then turning
+      // back into smoke as it lands.
       const t = mote.t ?? 0
-      const dx = mote.home.x - mote.ejectFrom.x
-      const dy = mote.home.y - mote.ejectFrom.y
-      const liquid = 1 - smooth(0.55, 0.95, t)
+      const from = mote.ejectFrom
+      const dx = mote.home.x - from.x
+      const dy = mote.home.y - from.y
+      const u = smooth(FORMED, 1, t)
+      const fx = from.x + dx * u
+      const fy = from.y + dy * u
+      for (const s of [this.halo, this.body, this.hot]) s.position.set(fx, fy)
+      const liquid = t < SPILL ? 0 : 1 - smooth(0.78, 0.98, t)
+      const form = smooth(SPILL, FORMED, t)
       this.drop.visible = liquid > 0.01
-      this.drop.position.set(x, y)
+      this.drop.position.set(fx, fy)
       this.drop.rotation = Math.atan2(dy, dx)
-      this.drop.scale.set((16 / DROP) * (1 + (1 - t) * 0.5), 11 / DROP)
+      this.drop.scale.set(((16 / DROP) * (1 + (1 - u) * 0.4)) * (0.35 + 0.65 * form), (11 / DROP) * (0.35 + 0.65 * form))
       this.drop.tint = color
       this.drop.alpha = liquid
-      alpha = 1 - liquid
-      if (t > 0.45) {
+      alpha = t < SPILL ? 0 : 1 - liquid
+      if (t > 0.7) {
         this.every(dt, 0.045, () =>
-          this.smoke.emit(x, y, wisp, { size: 14, life: 0.8, alpha: 0.8 * (t - 0.4), grow: 2.2, add: true, opal: generic ? this.phase : undefined }),
+          this.smoke.emit(fx, fy, wisp, { size: 14, life: 0.8, alpha: 1.6 * (t - 0.65), grow: 2.2, add: true, opal: generic ? this.phase : undefined }),
         )
       }
     } else {

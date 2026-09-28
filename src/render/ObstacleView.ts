@@ -57,6 +57,9 @@ export class ObstacleView {
   private shownHp = -1
   private dying: Dying[] = []
   private glintOffset: number
+  // Display snapshots queued by detonations in flight: until each one's
+  // orb lands, the obstacle keeps showing the state from before its hit.
+  private holds: { left: number; index: number; hp: number }[] = []
 
   constructor(obstacle: Obstacle) {
     this.glintOffset = (obstacle.pos.x * 0.013 + obstacle.pos.y * 0.007) % GLINT_EVERY
@@ -72,18 +75,27 @@ export class ObstacleView {
     this.flash = 1
   }
 
+  hold(seconds: number, index: number, hp: number): void {
+    this.holds.push({ left: seconds, index, hp })
+  }
+
   sync(obstacle: Obstacle, dt: number, time: number): void {
-    const layer = obstacle.layers[obstacle.index]
-    if (obstacle.cleared || !layer) {
+    for (const h of this.holds) h.left -= dt
+    while (this.holds.length && this.holds[0].left <= 0) this.holds.shift()
+    const shown = this.holds[0]
+    const index = shown ? shown.index : obstacle.index
+    const hp = shown ? shown.hp : obstacle.hp
+    const layer = obstacle.layers[index]
+    if ((!shown && obstacle.cleared) || !layer) {
       this.container.visible = false
       return
     }
     this.container.visible = true
-    const next = obstacle.layers[obstacle.index + 1]
+    const next = obstacle.layers[index + 1]
     const sway = Math.sin(time * 0.4 + obstacle.pos.y) * 0.05
 
-    if (this.drawnIndex !== obstacle.index) {
-      const prev = obstacle.layers[obstacle.index - 1]
+    if (this.drawnIndex !== index) {
+      const prev = obstacle.layers[index - 1]
       if (this.drawnIndex !== -1 && prev) {
         this.reveal = 0
         this.revealFrom = circumscribing(prev.radius, layer.sides)
@@ -93,8 +105,8 @@ export class ObstacleView {
         const d = this.nextC.rotation - sway
         this.revealTurn = d - Math.round(d / step) * step
       }
-      this.drawnIndex = obstacle.index
-      this.shownHp = obstacle.hp
+      this.drawnIndex = index
+      this.shownHp = hp
       for (const d of this.dying) this.release(d.hole)
       this.dying = []
       this.drawLayer(layer, next)
@@ -123,7 +135,7 @@ export class ObstacleView {
     }
 
     this.drawGlint(time)
-    this.syncHoles(obstacle.hp, layer.radius * Math.cos(Math.PI / layer.sides), time, dt, e)
+    this.syncHoles(hp, layer.radius * Math.cos(Math.PI / layer.sides), time, dt, e)
   }
 
   private drawLayer(layer: ObstacleLayerSpec, next: ObstacleLayerSpec | undefined): void {

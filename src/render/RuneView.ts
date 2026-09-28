@@ -1,10 +1,11 @@
 import { Circle, Container, Graphics, Sprite } from 'pixi.js'
 import type { Mote, ReleaseColor, Rune, RuneLayerSpec, Vec2 } from '../sim/types'
-import { centerLayer, middleLayer, outerLayer } from '../sim/geometry'
+import { centerLayer, middleLayer, outerLayer, polygonPoints } from '../sim/geometry'
 import { ASH_COLOR, ASH_DARK, RUNE_BODY_COLOR, colorForMote, colorForRelease, lighten, opal } from './Theme'
 import { drawPolygon, localVertices } from './drawPolygon'
 import { sheenBand } from './obsidian'
 import { textures } from './textures'
+import type { Liquid } from './Detonation'
 
 // Middle and center are drawn nested inside the outer at fixed fractions of
 // its radius (their authored radii only matter once they become the outer).
@@ -45,6 +46,7 @@ interface Bowl {
   liquid: Sprite
   shine: Sprite
   fill: number
+  held: boolean
   color: number
   generic: boolean
 }
@@ -145,6 +147,7 @@ export class RuneView {
         b.color = colorForMote(m.color)
       }
       const held = m?.state === 'held'
+      b.held = held
       const step = dt / FILL_TIME
       b.fill = Math.max(0, Math.min(1, b.fill + (held ? step : -step)))
       let level = 1 - (1 - b.fill) * (1 - b.fill)
@@ -162,6 +165,17 @@ export class RuneView {
 
     this.aura.scale.set(((outer.radius + BOWL_R) * 2.9) / 128)
     this.aura.alpha = full ? 0.22 + pulse * 0.2 : rune.state === 'charging' ? 0.06 : 0
+  }
+
+  // What the bowls hold right now, in world space, for a detonation's
+  // gather. Valid until the next sync redraws the (new) outer layer.
+  liquids(pos: Vec2, outer: RuneLayerSpec, angle: number): Liquid[] {
+    const pts = polygonPoints(pos, outer.sides, outer.radius, angle)
+    const out: Liquid[] = []
+    this.bowls.forEach((b, i) => {
+      if (b.held && pts[i]) out.push({ x: pts[i].x, y: pts[i].y, color: b.color, generic: b.generic })
+    })
+    return out
   }
 
   // The tap area lives in unscaled container space while only `body` is
@@ -278,7 +292,7 @@ export class RuneView {
       const shine = sprite(t.highlight, BOWL_R * 2)
       shine.alpha = 0.85
       this.bowlC.addChild(c)
-      return { c, glass, glow, liquid, shine, fill: 0, color: 0xffffff, generic: false }
+      return { c, glass, glow, liquid, shine, fill: 0, held: false, color: 0xffffff, generic: false }
     })
   }
 

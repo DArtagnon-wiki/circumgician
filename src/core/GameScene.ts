@@ -8,6 +8,7 @@ import { MoteView } from '../render/MoteView'
 import { SmokeSystem } from '../render/SmokeSystem'
 import { LinkThreads, type Link } from '../render/LinkThreads'
 import { Effects } from '../render/Effects'
+import { detonationTiming, playDetonation } from '../render/Detonation'
 import { VIRTUAL_WIDTH, VIRTUAL_HEIGHT, computeFit } from './VirtualScreen'
 import { Sim } from '../sim/Sim'
 import { ensureEndlessLayers } from '../sim/endless'
@@ -45,6 +46,7 @@ interface Flight {
   from: Vec2
   fromScale: number
   t: number
+  delay?: number // seconds to linger at `from` first (a detonation's burst)
 }
 
 const FLY_HOME_TIME = 0.5
@@ -64,7 +66,10 @@ export class GameScene {
   private runeViews = new Map<string, RuneView>()
   private obstacleViews = new Map<string, ObstacleView>()
   private moteViews = new Map<string, MoteView>()
-  private lastMotePos = new Map<string, { pos: Vec2; color: string }>()
+  // Obstacles hit by the action being resolved right now, with the delay
+  // until each one's orb lands (sim events fire synchronously; cleared
+  // every frame).
+  private impacts = new Map<string, number>()
   private flights = new Map<string, Flight>()
   private pops = new Map<string, number>()
   private links = new LinkThreads()
@@ -155,6 +160,7 @@ export class GameScene {
   update(dt: number): void {
     dt = Math.min(dt, 1 / 20) // no giant steps after a background tab
     this.clock += dt
+    this.impacts.clear()
     this.sim.step(dt)
     const s = this.sim.state
 
@@ -196,7 +202,6 @@ export class GameScene {
         this.layers.motes.addChild(view.container)
       }
       view.sync(m, dt, time)
-      this.lastMotePos.set(m.id, { pos: { ...m.pos }, color: m.color })
     }
     for (const [id, view] of this.moteViews) {
       if (alive.has(id)) continue
@@ -254,7 +259,11 @@ export class GameScene {
         const slot = this.slotPosition(rune.slot)
         const icon = this.iconScale(outer.radius)
         const flight = this.flights.get(rune.id)
-        if (flight) {
+        if (flight?.delay && flight.delay > 0) {
+          flight.delay -= dt
+          pos = flight.from
+          scale = flight.fromScale
+        } else if (flight) {
           flight.t = Math.min(1, flight.t + dt / FLY_HOME_TIME)
           const e = 1 - Math.pow(1 - flight.t, 3)
           const arc = Math.sin(flight.t * Math.PI) * -40
@@ -362,28 +371,41 @@ export class GameScene {
       this.sfx.ready()
     })
     bus.on('rune:detonated', ({ rune, info }) => this.onDetonated(rune.id, rune.state === 'spent', info))
-    bus.on('obstacle:damaged', ({ obstacle }) => this.obstacleViews.get(obstacle.id)?.hit())
+    // Damage lands when the detonation's orb does (the view holds the
+    // obstacle until then); a debug collapse has no orb and lands at once.
+    bus.on('obstacle:damaged', ({ obstacle }) => {
+      this.effects.after(this.impacts.get(obstacle.id) ?? 0, () => this.obstacleViews.get(obstacle.id)?.hit())
+    })
     bus.on('obstacle:collapsed', ({ obstacle, previous, cleared }) => {
-      this.effects.obsidianShatter(obstacle.pos, previous.radius, cleared)
-      this.effects.ring(obstacle.pos, 0xcdb8ff, previous.radius, previous.radius + (cleared ? 90 : 50), 0.5, 3)
-      this.effects.addShake(cleared ? 10 : 7)
-      this.sfx.obstacleCleared(cleared)
+      const pos = { ...obstacle.pos }
+      this.effects.after(this.impacts.get(obstacle.id) ?? 0, () => {
+        this.effects.obsidianShatter(pos, previous.radius, cleared)
+        this.effects.ring(pos, 0xcdb8ff, previous.radius, previous.radius + (cleared ? 90 : 50), 0.5, 2)
+        this.effects.addShake(cleared ? 10 : 7)
+        this.sfx.obstacleCleared(cleared)
+      })
     })
     bus.on('sim:won', () => {
-      this.pendingResult = { kind: 'won', wait: RESULT_DELAY }
-      const hues = Object.values(HUE_COLORS)
-      hues.forEach((c, i) => this.effects.ring({ x: 200, y: 450 }, c, 20 + i * 8, 260 + i * 30, 1.2, 3))
-      this.effects.addShake(6)
-      this.sfx.win()
+      const delay = this.latestImpact()
+      this.pendingResult = { kind: 'won', wait: RESULT_DELAY + delay }
+      this.effects.after(delay, () => {
+        const hues = Object.values(HUE_COLORS)
+        hues.forEach((c, i) => this.effects.ring({ x: 200, y: 450 }, c, 20 + i * 8, 260 + i * 30, 1.2, 3))
+        this.effects.addShake(6)
+        this.sfx.win()
+      })
     })
     bus.on('sim:lost', () => {
-      this.pendingResult = { kind: 'lost', wait: RESULT_DELAY }
-      this.effects.flash(0x8a0f2a, 0.35, 1.4, { x: 0, y: 0, w: VIRTUAL_WIDTH, h: VIRTUAL_HEIGHT })
-      for (const r of this.sim.state.runes) {
-        const outer = outerLayer(r)
-        if (r.pos && outer) this.effects.ring(r.pos, 0x6d6480, outer.radius, outer.radius * 0.4, 1.2, 3)
-      }
-      this.sfx.lose()
+      const delay = this.latestImpact()
+      this.pendingResult = { kind: 'lost', wait: RESULT_DELAY + delay }
+      this.effects.after(delay, () => {
+        this.effects.flash(0x8a0f2a, 0.35, 1.4, { x: 0, y: 0, w: VIRTUAL_WIDTH, h: VIRTUAL_HEIGHT })
+        for (const r of this.sim.state.runes) {
+          const outer = outerLayer(r)
+          if (r.pos && outer) this.effects.ring(r.pos, 0x6d6480, outer.radius, outer.radius * 0.4, 1.2, 3)
+        }
+        this.sfx.lose()
+      })
     })
     bus.on('sim:restored', () => {
       this.mood = Math.max(this.mood, 0.6)
@@ -391,63 +413,41 @@ export class GameScene {
     })
   }
 
-  private onDetonated(runeId: string, spent: boolean, info: DetonationInfo): void {
-    const { pos, outer } = info
-    this.effects.shatter(pos, outer.sides, outer.radius, info.outerAngle, RUNE_BODY_COLOR, 3.5)
-    this.effects.ring(pos, 0xffffff, outer.radius * 0.5, outer.radius + 50, 0.45, 4)
-    for (const id of info.annihilated) {
-      const last = this.lastMotePos.get(id)
-      if (!last) continue
-      this.effects.ring(last.pos, 0xff2266, 16, 2, 0.4, 3)
-      this.effects.sparks(last.pos, 0x3a0014, 6, 60)
-    }
-    for (const id of info.released) {
-      const m = this.sim.state.motes.find((mm) => mm.id === id)
-      if (m) this.effects.sparks(m.pos, colorForMote(m.color), 3, 90)
-    }
-    if (info.obstacleId) {
-      const o = this.sim.state.obstacles.find((oo) => oo.id === info.obstacleId)
-      if (o) this.bolt(pos, o.pos)
-      this.effects.addShake(5 + info.damage)
-    } else {
-      this.effects.addShake(3)
-    }
-    if (spent) {
-      if (info.middle === undefined) this.effects.sparks(pos, 0x6d6480, 10, 80)
-    } else {
-      const rune = this.sim.rune(runeId)!
-      const newOuter = outerLayer(rune)!
-      this.flights.set(runeId, { from: { ...pos }, fromScale: (MIDDLE_SCALE * outer.radius) / newOuter.radius, t: 0 })
-    }
-    this.sfx.detonate(info.damage > 0)
+  private latestImpact(): number {
+    let d = 0
+    for (const v of this.impacts.values()) d = Math.max(d, v)
+    return d
   }
 
-  // A jagged arc of light from the rune to the obstacle it hits.
-  private bolt(from: Vec2, to: Vec2): void {
-    const segs = 9
-    const pts: Vec2[] = []
-    for (let i = 0; i <= segs; i++) {
-      const t = i / segs
-      const j = i === 0 || i === segs ? 0 : (Math.random() - 0.5) * 22
-      const nx = -(to.y - from.y)
-      const ny = to.x - from.x
-      const len = Math.hypot(nx, ny) || 1
-      pts.push({ x: from.x + (to.x - from.x) * t + (nx / len) * j, y: from.y + (to.y - from.y) * t + (ny / len) * j })
+  private onDetonated(runeId: string, spent: boolean, info: DetonationInfo): void {
+    const { pos, outer } = info
+    // Fires before the sim damages the obstacle, so it still shows the
+    // state to hold on screen until the orb lands.
+    const target = info.obstacleId ? this.sim.state.obstacles.find((o) => o.id === info.obstacleId) : undefined
+    const timing = detonationTiming(pos, target?.pos ?? null)
+    if (target) {
+      this.impacts.set(target.id, timing.impact)
+      this.obstacleViews.get(target.id)?.hold(timing.impact, target.index, target.hp)
+      this.effects.after(timing.impact, () => this.effects.addShake(5 + info.damage))
+    } else {
+      this.effects.after(timing.launch, () => this.effects.addShake(3))
     }
-    let life = 0
-    const g = new Graphics()
-    this.layers.effects.addChild(g)
-    this.effects.add((dt) => {
-      life += dt / 0.3
-      g.clear()
-      if (life >= 1) {
-        g.destroy()
-        return false
-      }
-      g.poly(pts.flatMap((p) => [p.x, p.y]), false).stroke({ color: 0xffffff, width: 4 * (1 - life), alpha: 1 - life })
-      g.poly(pts.flatMap((p) => [p.x, p.y]), false).stroke({ color: 0xb89cff, width: 10 * (1 - life), alpha: 0.3 * (1 - life) })
-      return true
+    playDetonation(this.effects, this.smoke, {
+      pos,
+      sides: outer.sides,
+      radius: outer.radius,
+      angle: info.outerAngle,
+      liquids: this.runeViews.get(runeId)?.liquids(pos, outer, info.outerAngle) ?? [],
+      releases: outer.nodes.map((n) => n.release),
+      target: target ? { ...target.pos } : null,
     })
+    if (!spent) {
+      // What's left of the rune lingers through the burst, then flies home.
+      const rune = this.sim.rune(runeId)!
+      const newOuter = outerLayer(rune)!
+      this.flights.set(runeId, { from: { ...pos }, fromScale: (MIDDLE_SCALE * outer.radius) / newOuter.radius, t: 0, delay: timing.launch })
+    }
+    this.sfx.detonate(info.damage > 0)
   }
 
   // ---------------------------------------------------------------------
