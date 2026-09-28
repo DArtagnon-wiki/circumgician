@@ -6,6 +6,7 @@ import { ObstacleView } from '../render/ObstacleView'
 import { MIDDLE_SCALE, RuneView } from '../render/RuneView'
 import { MoteView } from '../render/MoteView'
 import { SmokeSystem } from '../render/SmokeSystem'
+import { LinkThreads, type Link } from '../render/LinkThreads'
 import { Effects } from '../render/Effects'
 import { VIRTUAL_WIDTH, VIRTUAL_HEIGHT, computeFit } from './VirtualScreen'
 import { Sim } from '../sim/Sim'
@@ -66,7 +67,7 @@ export class GameScene {
   private lastMotePos = new Map<string, { pos: Vec2; color: string }>()
   private flights = new Map<string, Flight>()
   private pops = new Map<string, number>()
-  private linkG = new Graphics()
+  private links = new LinkThreads()
   private effects!: Effects
   private smoke!: SmokeSystem
   private zoneBg!: ZoneBackground
@@ -84,7 +85,7 @@ export class GameScene {
     this.callbacks = callbacks
     this.layers = createLayers()
     this.app.stage.addChild(this.layers.root)
-    this.layers.links.addChild(this.linkG)
+    this.layers.links.addChild(this.links.container)
     this.smoke = new SmokeSystem()
     this.layers.motes.addChild(this.smoke.container)
     this.effects = new Effects(this.layers.effects)
@@ -281,23 +282,21 @@ export class GameScene {
   }
 
   private drawLinks(): void {
-    const g = this.linkG
-    g.clear()
     const s = this.sim.state
     const obstacles = new Map(s.obstacles.map((o) => [o.id, o]))
+    const list: Link[] = []
     for (const rune of s.runes) {
       if (!rune.pos || !rune.linkedObstacleId) continue
       const o = obstacles.get(rune.linkedObstacleId)
-      if (!o) continue
-      const full = rune.state === 'full'
-      const pulse = full ? 0.5 + 0.5 * Math.sin(s.time * 6) : 0
-      g.moveTo(rune.pos.x, rune.pos.y).lineTo(o.pos.x, o.pos.y).stroke({ color: ACCENT_COLOR, width: full ? 3 + pulse * 2 : 2, alpha: full ? 0.45 + pulse * 0.3 : 0.28 })
+      if (o) list.push({ from: rune.pos, to: o.pos, full: rune.state === 'full' })
     }
     if (this.drag) {
       const target = this.sim.previewLink(this.drag.runeId, this.drag.pos)
       const ok = this.sim.canPlace(this.drag.runeId, this.drag.pos)
-      if (target) g.moveTo(this.drag.pos.x, this.drag.pos.y).lineTo(target.pos.x, target.pos.y).stroke({ color: ok ? ACCENT_COLOR : INVALID_TINT, width: 2, alpha: 0.5 })
+      if (target) list.push({ from: this.drag.pos, to: target.pos, preview: true, invalid: !ok })
     }
+    this.links.draw(list, this.clock)
+    const g = this.links.g
     if (this.showRings) {
       for (const rune of s.runes) {
         const outer = outerLayer(rune)
@@ -365,9 +364,8 @@ export class GameScene {
     bus.on('rune:detonated', ({ rune, info }) => this.onDetonated(rune.id, rune.state === 'spent', info))
     bus.on('obstacle:damaged', ({ obstacle }) => this.obstacleViews.get(obstacle.id)?.hit())
     bus.on('obstacle:collapsed', ({ obstacle, previous, cleared }) => {
-      this.effects.shatter(obstacle.pos, previous.sides, previous.radius, -Math.PI / 2, 0xffffff, 3)
-      this.effects.sparks(obstacle.pos, 0xd8c8ff, cleared ? 22 : 12, cleared ? 220 : 140)
-      this.effects.ring(obstacle.pos, 0xffffff, previous.radius, previous.radius + (cleared ? 90 : 50), 0.5, 4)
+      this.effects.obsidianShatter(obstacle.pos, previous.radius, cleared)
+      this.effects.ring(obstacle.pos, 0xcdb8ff, previous.radius, previous.radius + (cleared ? 90 : 50), 0.5, 3)
       this.effects.addShake(cleared ? 10 : 7)
       this.sfx.obstacleCleared(cleared)
     })

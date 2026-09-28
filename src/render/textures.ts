@@ -19,6 +19,8 @@ export interface Textures {
   swirl: Texture // two-armed spiral
   droplet: Texture // glossy drop pointing +x
   streak: Texture // thin glint, long along +x
+  ring: Texture // thin soft ring (lensing, ripples)
+  disc: Texture // solid disc with a soft edge
 }
 
 let cache: Textures | null = null
@@ -322,6 +324,14 @@ function streak(): HTMLCanvasElement {
   return c
 }
 
+function ring(): HTMLCanvasElement {
+  return paint(64, (x, y) => [1, 1, 1, Math.exp(-Math.pow((Math.hypot(x, y) - 0.8) / 0.07, 2))])
+}
+
+function disc(): HTMLCanvasElement {
+  return paint(32, (x, y) => [1, 1, 1, 1 - smoothstep(0.8, 1, Math.hypot(x, y))])
+}
+
 // Deep violet nebula: a smooth base, broad colored glows, domain-warped
 // cloud filaments and dark dust lanes, dim fixed stars and a vignette.
 // Composited per pixel in float precision (canvas layering quantizes faint
@@ -454,5 +464,7 @@ function build(): Textures {
     swirl: tex(swirl()),
     droplet: tex(droplet()),
     streak: tex(streak()),
+    ring: tex(ring()),
+    disc: tex(disc()),
   }
 }
