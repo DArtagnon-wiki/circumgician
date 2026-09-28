@@ -76,15 +76,18 @@ export const LINES: Record<string, Line[]> = {
       steps: [place(0, at(200, 430)), wait(2), flick(6, at(228.3, 401.7)), tap(0), place(1, at(200, 536)), tap(1)],
     },
   ],
-  // The heptagon clears the square in one clean blow, but annihilates the
-  // reds that, recycled, would have fed the pentagon's rune.
+  // Every blow has a price: each phase runs on the color the last one made,
+  // red (two to spare) > gold (exact) > blue (two to spare) > teal (exact).
+  // The ash triangle clears the square cleanly with reds, and so starves
+  // the square rune that turns reds into gold; the loss shows only after
+  // the blues and teals are spent.
   'the-price': [
+    { name: 'intended', expect: 'won', steps: [place(0, at(200, 505)), tap(0), place(1, at(200, 505)), tap(1), place(2, at(200, 505)), tap(2), place(3, at(200, 505)), tap(3)] },
     {
-      name: 'intended',
-      expect: 'won',
-      steps: [place(1, at(200, 505)), tap(1), place(2, at(200, 505)), tap(2), place(1, at(200, 505)), tap(1), place(3, at(200, 505)), tap(3)],
+      name: 'the clean one-shot',
+      expect: 'lost',
+      steps: [place(4, at(200, 505)), tap(4), place(2, at(200, 505)), tap(2), place(3, at(200, 505)), tap(3)],
     },
-    { name: 'the clean one-shot', expect: 'lost', steps: [place(0, at(200, 505)), tap(0), place(2, at(200, 505)), tap(2)] },
   ],
   circumgician: [
     {

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { PACK } from './pack'
-import { profileLevel } from '../../sim/solver'
+import { intendedLine } from './lines'
+import { runScript } from '../../sim/headless'
+import { profileLevel, tensionAlong } from '../../sim/solver'
+import { tensionShape } from '../../sim/solverReport'
 
 // Design gates, checked with the economy solver (src/sim/solver.ts; see
 // `npm run analyze-levels` for the full profiles). Every level can be
@@ -16,6 +19,12 @@ const DILEMMAS: Record<string, { plans: number }> = {
   circumgician: { plans: 1 },
 }
 
+// Levels built around a tension arc (see Tension in solver.ts): along the
+// intended line, tension must release at least this often before the win.
+const ARCS: Record<string, { releases: number }> = {
+  'the-price': { releases: 1 },
+}
+
 describe('pack decision profiles', () => {
   for (const level of PACK) {
     const gate = DILEMMAS[level.id]
@@ -26,6 +35,15 @@ describe('pack decision profiles', () => {
       if (!gate) return
       expect(p.plans).toHaveLength(gate.plans)
       expect(p.traps.some((t) => t.revealedAfter >= 2)).toBe(true)
+    })
+  }
+
+  for (const [id, arc] of Object.entries(ARCS)) {
+    it(`${id}: tension ebbs and flows along the intended line`, () => {
+      const level = PACK.find((l) => l.id === id)!
+      const run = runScript(level, intendedLine(id)!.steps, { seed: 1 })
+      const points = tensionAlong(level, run.moves)!
+      expect(tensionShape(points).releases).toBeGreaterThanOrEqual(arc.releases)
     })
   }
 })
