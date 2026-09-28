@@ -1,10 +1,11 @@
 import { Graphics, Point, type Application, type FederatedPointerEvent } from 'pixi.js'
 import { createLayers, type Layers } from '../render/Layers'
-import { ACCENT_COLOR, HUE_COLORS, INVALID_TINT, RUNE_BODY_COLOR, colorForMote } from '../render/Theme'
+import { ACCENT_COLOR, HUE_COLORS, INVALID_TINT, RUNE_BODY_COLOR, colorForMote, lighten } from '../render/Theme'
 import { ZoneBackground } from '../render/ZoneBackground'
 import { ObstacleView } from '../render/ObstacleView'
 import { MIDDLE_SCALE, RuneView } from '../render/RuneView'
 import { MoteView } from '../render/MoteView'
+import { SmokeSystem } from '../render/SmokeSystem'
 import { Effects } from '../render/Effects'
 import { VIRTUAL_WIDTH, VIRTUAL_HEIGHT, computeFit } from './VirtualScreen'
 import { Sim } from '../sim/Sim'
@@ -67,6 +68,7 @@ export class GameScene {
   private pops = new Map<string, number>()
   private linkG = new Graphics()
   private effects!: Effects
+  private smoke!: SmokeSystem
   private zoneBg!: ZoneBackground
   private clock = 0 // monotonic scene time for decoration (sim time rewinds on undo)
   private drag: DragState | null = null
@@ -83,6 +85,8 @@ export class GameScene {
     this.layers = createLayers()
     this.app.stage.addChild(this.layers.root)
     this.layers.links.addChild(this.linkG)
+    this.smoke = new SmokeSystem()
+    this.layers.motes.addChild(this.smoke.container)
     this.effects = new Effects(this.layers.effects)
     this.applyFit()
 
@@ -169,7 +173,8 @@ export class GameScene {
     this.layers.motes.alpha = 0.3 + 0.7 * this.mood
 
     this.zoneBg.update(dt, this.clock)
-    this.syncMotes(s.motes, s.time)
+    this.syncMotes(s.motes, dt, s.time)
+    this.smoke.update(dt)
     for (const o of s.obstacles) this.obstacleViews.get(o.id)?.sync(o, dt, s.time)
     this.syncRunes(dt)
     this.drawLinks()
@@ -179,22 +184,22 @@ export class GameScene {
     this.hud?.setScore(s.score, s.broken)
   }
 
-  private syncMotes(motes: Mote[], time: number): void {
+  private syncMotes(motes: Mote[], dt: number, time: number): void {
     const alive = new Set<string>()
     for (const m of motes) {
       alive.add(m.id)
       let view = this.moteViews.get(m.id)
       if (!view) {
-        view = new MoteView()
+        view = new MoteView(this.smoke)
         this.moteViews.set(m.id, view)
-        this.layers.motes.addChild(view.graphic)
+        this.layers.motes.addChild(view.container)
       }
-      view.sync(m, time)
+      view.sync(m, dt, time)
       this.lastMotePos.set(m.id, { pos: { ...m.pos }, color: m.color })
     }
     for (const [id, view] of this.moteViews) {
       if (alive.has(id)) continue
-      view.graphic.destroy()
+      view.destroy()
       this.moteViews.delete(id)
     }
   }
@@ -311,7 +316,7 @@ export class GameScene {
     this.cancelDrag()
     for (const id of [...this.runeViews.keys()]) this.removeRuneView(id)
     for (const v of this.obstacleViews.values()) v.container.destroy({ children: true })
-    for (const v of this.moteViews.values()) v.graphic.destroy()
+    for (const v of this.moteViews.values()) v.destroy()
     this.obstacleViews.clear()
     this.moteViews.clear()
     this.flights.clear()
@@ -467,7 +472,9 @@ export class GameScene {
       }
     }
     if (best && this.sim.kick(best.id, { x: p.x, y: p.y })) {
-      this.effects.ring(best.pos, colorForMote(best.color), 6, 22, 0.25, 2)
+      const v = best.vel ?? { x: 0, y: 0 }
+      this.moteViews.get(best.id)?.burst(best.pos.x, best.pos.y, lighten(colorForMote(best.color), 0.12), best.color === 'generic', 5, v.x * 0.25, v.y * 0.25)
+      this.effects.ring(best.pos, colorForMote(best.color), 6, 22, 0.25, 1.5)
       this.sfx.kick()
       return true
     }
