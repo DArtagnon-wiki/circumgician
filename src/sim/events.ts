@@ -1,5 +1,5 @@
 import mitt from 'mitt'
-import type { Mote, Obstacle, ObstacleLayerSpec, Piece, Rune, RuneLayerSpec, Vec2 } from './types'
+import type { Hue, Mote, Obstacle, ObstacleLayerSpec, Piece, Rune, RuneLayerSpec, Vec2 } from './types'
 
 // Snapshot of a piece as it was the instant it detonated, so views can
 // animate its glass shattering and its energy striking.
@@ -24,6 +24,7 @@ export type SimEvents = {
   'piece:full': { piece: Piece }
   'piece:detonated': { piece: Piece; info: DetonationInfo }
   'piece:frozen': { piece: Piece; obstacle: Obstacle } // its fuse ran out
+  'hue:discovered': { hue: Hue; mote: Mote } // a detonation made the first mote of this hue
   'obstacle:damaged': { obstacle: Obstacle; damage: number }
   'obstacle:collapsed': { obstacle: Obstacle; previous: ObstacleLayerSpec; cleared: boolean }
   'sim:won': undefined

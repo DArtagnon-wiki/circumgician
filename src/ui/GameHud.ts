@@ -11,6 +11,9 @@ export interface GameHudActions {
 export interface GameHud {
   setUndoEnabled: (enabled: boolean) => void
   setScore: (score: number, layers: number) => void
+  // A brief two-line banner over the board (a small kicker above a title in
+  // `color`) that fades on its own and never takes input.
+  announce: (kicker: string, title: string, color: string) => void
   remove: () => void
 }
 
@@ -48,6 +51,7 @@ export function createGameHud(actions: GameHudActions): GameHud {
     document.body.appendChild(score)
   }
 
+  const banners = new Set<HTMLElement>()
   let undoEnabled: boolean | null = null
   let shown = ''
   return {
@@ -66,9 +70,29 @@ export function createGameHud(actions: GameHudActions): GameHud {
       void score.offsetWidth // restart the bump animation
       score.classList.add('bump')
     },
+    announce(kicker, title, color) {
+      const el = document.createElement('div')
+      el.className = 'hud-announce'
+      el.style.setProperty('--hue', color)
+      const k = document.createElement('div')
+      k.className = 'kicker'
+      k.textContent = kicker
+      const t = document.createElement('div')
+      t.className = 'title'
+      t.textContent = title
+      el.append(k, t)
+      document.body.appendChild(el)
+      banners.add(el)
+      el.addEventListener('animationend', () => {
+        el.remove()
+        banners.delete(el)
+      })
+    },
     remove: () => {
       bar.remove()
       score?.remove()
+      for (const el of banners) el.remove()
+      banners.clear()
     },
   }
 }

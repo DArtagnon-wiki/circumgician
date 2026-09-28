@@ -504,6 +504,62 @@
   }
 }
 
+/* A new color, announced over the board without stopping play. */
+.hud-announce {
+  position: fixed;
+  left: 50%;
+  top: 35%;
+  z-index: 1500;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+  white-space: nowrap;
+  animation: announce 2.6s ease-out forwards;
+}
+.hud-announce .kicker {
+  font-family: var(--font-display);
+  font-size: 13px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: #efe6ff;
+  opacity: 0.85;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+.hud-announce .title {
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--hue);
+  text-shadow:
+    0 0 18px var(--hue),
+    0 0 42px var(--hue),
+    0 2px 3px rgba(0, 0, 0, 0.7);
+}
+@keyframes announce {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.7);
+    filter: brightness(2.2);
+  }
+  12% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.06);
+    filter: brightness(1.6);
+  }
+  22% {
+    transform: translate(-50%, -50%) scale(1);
+    filter: brightness(1);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -58%) scale(1.02);
+  }
+}
+
 .result-overlay {
   position: fixed;
   inset: 0;

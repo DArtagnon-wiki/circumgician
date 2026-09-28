@@ -276,6 +276,15 @@ export class Sfx {
     this.noise(0.28, { type: 'bandpass', freq: 3000, to: 900, q: 1.5, peak: 0.03, swell: true })
   }
 
+  // A new color: a glass run sparkling up the pentatonic, landing on a bright
+  // major chord high above the bed, with a shimmer. Short: play goes on.
+  discover(): void {
+    SCALE.forEach((f, i) => this.ping(f, 0.35, 0.03, i * 0.045, 0.5))
+    const top = 0.4
+    ;[12, 16, 19, 24].forEach((s, i) => this.ping(D5 * Math.pow(2, s / 12), 1.5, 0.05 - i * 0.006, top + i * 0.012, 0.65))
+    this.noise(0.9, { type: 'highpass', freq: 5000, to: 9000, peak: 0.028, attack: 0.25, reverb: 0.6 }, top - 0.1)
+  }
+
   // Win resolves the minor bed to its major: a glass arpeggio and a bloom.
   win(): void {
     const major = [0, 4, 7, 12, 16].map((s) => D5 * Math.pow(2, s / 12))

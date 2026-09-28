@@ -41,8 +41,13 @@ describe('endless generators', () => {
     expect(catches.has('teal')).toBe(true)
   })
 
-  it('a detonation that releases a new hue adds it to the seen set', () => {
+  it('a detonation that releases a new hue adds it to the seen set, announced once', () => {
     const sim = new Sim(endlessLevel(5), { seed: 1, ensureLayers: ensureEndlessLayers, lossCheck: false })
+    const discovered: string[] = []
+    sim.bus.on('hue:discovered', ({ hue, mote }) => {
+      discovered.push(hue)
+      expect(mote.color).toBe(hue)
+    })
     expect(sim.state.seenHues.sort()).toEqual(['blue', 'gold', 'red'])
     const rune = sim.state.runes[0]
     const layer = rune.layers[0]
@@ -59,6 +64,7 @@ describe('endless generators', () => {
     piece.state = 'full'
     sim.detonate(piece.id)
     expect(sim.state.seenHues).toContain('teal')
+    expect(discovered).toEqual(['teal']) // every node released teal: one announcement
   })
 
   it('obstacles always have their next layer ready (for the outline)', () => {

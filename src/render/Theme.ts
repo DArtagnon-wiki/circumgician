@@ -20,6 +20,15 @@ export const HUE_COLORS: Record<string, number> = {
   violet: 0xdd8bff, // amethyst
 }
 
+// What the player calls each hue.
+export const HUE_NAMES: Record<string, string> = {
+  red: 'Ruby',
+  blue: 'Sapphire',
+  gold: 'Amber',
+  teal: 'Jade',
+  violet: 'Amethyst',
+}
+
 // The 'annihilating' release: dull ash, no hue at all, drawn cracked and
 // still. It must never read as another jewel tone (least of all ruby).
 export const ASH_COLOR = 0x8a847d

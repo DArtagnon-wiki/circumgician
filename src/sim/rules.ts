@@ -1,7 +1,7 @@
 import { BURST_GAP, FOOTPRINT_MARGIN } from './constants'
 import type { DetonationInfo, SimBus } from './events'
 import { circleHitsRect, circleInRect, clampToRect, dist, footprintRadius, middleAngle, middleLayer, outerAngle, outerLayer, polygonPoints } from './geometry'
-import type { Obstacle, Piece, Rune, RuneLayerSpec, SimState, Vec2 } from './types'
+import type { Hue, Mote, Obstacle, Piece, Rune, RuneLayerSpec, SimState, Vec2 } from './types'
 
 // Where node i's released mote settles: along that node's REST direction
 // (vertex 0 pointing up), BURST_GAP outside the outer radius. Independent
@@ -100,6 +100,7 @@ export function detonatePiece(state: SimState, bus: SimBus, piece: Piece, ensure
 
   // 1. Resolve each node's mote: annihilate, or recolor and burst outward.
   const annihilate = new Set<string>()
+  const discovered: { hue: Hue; mote: Mote }[] = []
   piece.held.forEach((moteId, i) => {
     if (moteId === null) return
     const mote = state.motes.find((m) => m.id === moteId)
@@ -111,7 +112,10 @@ export function detonatePiece(state: SimState, bus: SimBus, piece: Piece, ensure
       return
     }
     mote.color = release
-    if (release !== 'generic' && !state.seenHues.includes(release)) state.seenHues.push(release)
+    if (release !== 'generic' && !state.seenHues.includes(release)) {
+      state.seenHues.push(release)
+      discovered.push({ hue: release, mote })
+    }
     mote.home = clampToRect(landingPoint(pos, outer.sides, outer.radius, i), state.field, Math.min(mote.tether + 2, state.field.w / 2, state.field.h / 2))
     mote.state = 'ejecting'
     mote.ejectFrom = { ...mote.pos }
@@ -129,6 +133,7 @@ export function detonatePiece(state: SimState, bus: SimBus, piece: Piece, ensure
   // 2. The piece is used up.
   state.pieces = state.pieces.filter((p) => p !== piece)
   bus.emit('piece:detonated', { piece, info })
+  for (const d of discovered) bus.emit('hue:discovered', d)
 
   // 3. Damage the obstacle (after the piece has left, so relinking sees the
   //    freed field), then relink everything still on the field.

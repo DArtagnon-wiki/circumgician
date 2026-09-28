@@ -1,6 +1,6 @@
 import { Graphics, Point, type Application, type FederatedPointerEvent } from 'pixi.js'
 import { createLayers, type Layers } from '../render/Layers'
-import { ACCENT_COLOR, HUE_COLORS, INVALID_TINT, RUNE_BODY_COLOR, colorForMote, lighten } from '../render/Theme'
+import { ACCENT_COLOR, HUE_COLORS, HUE_NAMES, INVALID_TINT, RUNE_BODY_COLOR, colorForMote, lighten } from '../render/Theme'
 import { ZoneBackground } from '../render/ZoneBackground'
 import { ObstacleView } from '../render/ObstacleView'
 import { MIDDLE_SCALE, RuneView, handLook, pieceLook } from '../render/RuneView'
@@ -8,14 +8,15 @@ import { MoteView, createMoteLayers, type MoteLayers } from '../render/MoteView'
 import { SmokeSystem } from '../render/SmokeSystem'
 import { LinkThreads, type Link } from '../render/LinkThreads'
 import { Effects } from '../render/Effects'
-import { detonationTiming, playDetonation } from '../render/Detonation'
+import { LAUNCH, detonationTiming, playDetonation } from '../render/Detonation'
+import { textures } from '../render/textures'
 import { governor, quality, type Tier } from '../render/Quality'
 import { VIRTUAL_WIDTH, VIRTUAL_HEIGHT, computeFit } from './VirtualScreen'
 import { Sim } from '../sim/Sim'
 import { ENDLESS_TUNING, ensureEndlessLayers } from '../sim/endless'
-import { INVENTORY_ZONE, REACH } from '../sim/constants'
+import { EJECT_TIME, INVENTORY_ZONE, REACH } from '../sim/constants'
 import { middleAngle, outerAngle, outerLayer } from '../sim/geometry'
-import type { LevelData, Mote, Obstacle, Piece, Rune, Vec2 } from '../sim/types'
+import type { Hue, LevelData, Mote, Obstacle, Piece, Rune, Vec2 } from '../sim/types'
 import type { DetonationInfo } from '../sim/events'
 import { createDebugPanel, isDebugMode } from '../debug/DebugPanel'
 import { createGameHud, type GameHud } from '../ui/GameHud'
@@ -75,6 +76,7 @@ export class GameScene {
   // until each one's orb lands (sim events fire synchronously; cleared
   // every frame).
   private impacts = new Map<string, number>()
+  private discoveries = 0 // new hues announced for the detonation in progress
   private flights = new Map<string, Flight>()
   private pops = new Map<string, number>()
   private links = new LinkThreads()
@@ -441,6 +443,7 @@ export class GameScene {
       this.sfx.full()
     })
     bus.on('piece:detonated', ({ piece, info }) => this.onDetonated(piece.id, info))
+    bus.on('hue:discovered', ({ hue, mote }) => this.onHueDiscovered(hue, { ...mote.home }))
     // Endless: a piece whose fuse ran out turns to frosted obsidian in place.
     bus.on('piece:frozen', ({ piece, obstacle }) => {
       this.removeView(this.pieceViews, piece.id)
@@ -498,6 +501,7 @@ export class GameScene {
 
   private onDetonated(pieceId: string, info: DetonationInfo): void {
     const { pos, outer } = info
+    this.discoveries = 0
     // Fires before the sim damages the obstacle, so it still shows the
     // state to hold on screen until the orb lands.
     const target = info.obstacleId ? this.sim.state.obstacles.find((o) => o.id === info.obstacleId) : undefined
@@ -521,6 +525,46 @@ export class GameScene {
     // The piece is used up: its glass shatters in the effect above.
     this.removeView(this.pieceViews, pieceId)
     this.sfx.detonate(timing.launch, target ? timing.impact : null)
+  }
+
+  // A hue the board has never had: the screen flashes it as its liquid
+  // spills, light blooms where its first mote lands, and its name rings out
+  // over a jingle. Nothing pauses. Two new hues at once take turns.
+  private onHueDiscovered(hue: Hue, at: Vec2): void {
+    const color = HUE_COLORS[hue]
+    const delay = this.discoveries++ * 1.2
+    this.effects.after(LAUNCH + delay, () => {
+      this.effects.flash(color, 0.24, 0.9, { x: 0, y: 0, w: VIRTUAL_WIDTH, h: VIRTUAL_HEIGHT })
+      this.effects.flash(0xffffff, 0.12, 0.25, { x: 0, y: 0, w: VIRTUAL_WIDTH, h: VIRTUAL_HEIGHT })
+      this.sfx.discover()
+    })
+    this.effects.after(EJECT_TIME + delay, () => {
+      const t = textures()
+      this.effects.particle(t.glow, { x: at.x, y: at.y, scale: 0.4, scaleTo: 3.4, tint: color, add: true, life: 1 })
+      this.effects.particle(t.glow, { x: at.x, y: at.y, scale: 0.3, scaleTo: 1.4, tint: 0xffffff, alpha: 0.8, add: true, life: 0.45 })
+      this.effects.ring(at, color, 8, 110, 0.8, 3)
+      this.effects.ring(at, lighten(color, 0.6), 4, 70, 0.55, 2)
+      this.effects.after(0.18, () => this.effects.ring(at, color, 12, 170, 1.1, 2))
+      for (let i = 0; i < 14; i++) {
+        const a = (i / 14) * Math.PI * 2 + Math.random() * 0.3
+        const v = 90 + Math.random() * 110
+        this.effects.particle(t.star, {
+          x: at.x,
+          y: at.y,
+          vx: Math.cos(a) * v,
+          vy: Math.sin(a) * v,
+          drag: 0.08,
+          spin: (Math.random() - 0.5) * 6,
+          scale: 0.5 + Math.random() * 0.3,
+          scaleTo: 0.1,
+          tint: lighten(color, 0.35),
+          add: true,
+          life: 0.8 + Math.random() * 0.4,
+        })
+      }
+      this.effects.addShake(3)
+      this.hud?.announce('New color', HUE_NAMES[hue], `#${color.toString(16).padStart(6, '0')}`)
+    })
   }
 
   // ---------------------------------------------------------------------
