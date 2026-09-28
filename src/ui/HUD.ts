@@ -1,7 +1,75 @@
 import './ui.css'
 import { addFiligree, divider } from './ornament'
+import type { BoardStats, LossReason } from '../sim/types'
 
 export type HUDResult = 'won' | 'lost'
+
+// Everything the result screens report about an attempt.
+export interface Recap extends BoardStats {
+  time: number // seconds of play
+  kicks: number
+  undos: number
+  strengthLeft: number // HP still standing, all layers (curated levels)
+  lostBecause?: LossReason
+}
+
+type StatKey = 'time' | 'detonations' | 'landed' | 'wasted' | 'kicks' | 'undos' | 'strengthLeft'
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
+const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+
+const STATS: Record<StatKey, { label: string; value: (r: Recap) => string }> = {
+  time: { label: 'time', value: (r) => clock(r.time) },
+  detonations: { label: 'detonations', value: (r) => `${r.detonations}` },
+  landed: { label: 'blows landed', value: (r) => `${r.landed}` },
+  wasted: { label: 'blows wasted', value: (r) => `${r.wasted}` },
+  kicks: { label: 'flicks', value: (r) => `${r.kicks}` },
+  undos: { label: 'undos', value: (r) => `${r.undos}` },
+  strengthLeft: { label: 'strength left', value: (r) => `${r.strengthLeft}` },
+}
+
+// A grid of numbers, then a line for the rarer things that happened.
+// Wasted blows are the one stat to watch: rose when any, gilt when a win
+// wasted none.
+function recapBlock(recap: Recap, keys: StatKey[], won: boolean): HTMLElement[] {
+  const grid = document.createElement('div')
+  grid.className = 'recap'
+  for (const key of keys) {
+    const stat = document.createElement('div')
+    stat.className = 'recap-stat'
+    if (key === 'wasted' && recap.wasted) stat.classList.add('waste')
+    if (key === 'wasted' && !recap.wasted && won) stat.classList.add('clean')
+    const value = document.createElement('span')
+    value.className = 'recap-value'
+    value.textContent = STATS[key].value(recap)
+    const label = document.createElement('span')
+    label.className = 'recap-label'
+    label.textContent = STATS[key].label
+    stat.append(value, label)
+    grid.append(stat)
+  }
+  const notes = [
+    recap.unlinked ? `${plural(recap.unlinked, 'detonation')} struck nothing` : '',
+    recap.destroyed ? `${plural(recap.destroyed, 'mote')} destroyed` : '',
+  ].filter(Boolean)
+  if (!notes.length) return [grid]
+  const note = document.createElement('div')
+  note.className = 'recap-note'
+  note.textContent = notes.join(' · ')
+  return [grid, note]
+}
+
+function subtitle(text: string): HTMLElement {
+  const el = document.createElement('div')
+  el.className = 'result-sub'
+  el.textContent = text
+  return el
+}
+
+const LOSS_LINES: Record<LossReason, string> = {
+  damage: 'Too few blows remain to break what is left.',
+  stuck: 'No rune can fill from the motes that are left.',
+}
 
 export interface HUDActions {
   onRetry: () => void
@@ -10,7 +78,7 @@ export interface HUDActions {
   onLevelSelect: () => void
 }
 
-export function showHUD(result: HUDResult, actions: HUDActions): HTMLElement {
+export function showHUD(result: HUDResult, actions: HUDActions, recap?: Recap): HTMLElement {
   const overlay = document.createElement('div')
   overlay.className = `result-overlay ${result}`
   const card = resultCard(overlay)
@@ -39,7 +107,15 @@ export function showHUD(result: HUDResult, actions: HUDActions): HTMLElement {
   }
   buttonRow.append(makeButton('Levels', actions.onLevelSelect, false))
 
-  card.append(title, divider(), buttonRow)
+  card.append(title)
+  if (recap && result === 'won' && recap.wasted === 0) card.append(subtitle('Not a blow wasted.'))
+  if (recap && result === 'lost' && recap.lostBecause) card.append(subtitle(LOSS_LINES[recap.lostBecause]))
+  card.append(divider())
+  if (recap) {
+    const keys: StatKey[] = result === 'won' ? ['time', 'detonations', 'landed', 'wasted', 'kicks', 'undos'] : ['strengthLeft', 'detonations', 'landed', 'wasted', 'kicks', 'undos']
+    card.append(...recapBlock(recap, keys, result === 'won'))
+  }
+  card.append(buttonRow)
   document.body.appendChild(overlay)
   return overlay
 }
@@ -59,6 +135,7 @@ export interface RunOverInfo {
   bestScore: number
   bestDepth: number
   improved: boolean
+  recap?: Recap
 }
 
 // Endless: the single life is spent.
@@ -83,7 +160,9 @@ export function showRunOver(info: RunOverInfo, actions: { onAgain: () => void; o
   menu.textContent = 'Menu'
   menu.addEventListener('click', actions.onMenu)
   row.append(again, menu)
-  card.append(title, divider(), stats, row)
+  card.append(title, divider(), stats)
+  if (info.recap) card.append(...recapBlock(info.recap, ['time', 'detonations', 'wasted'], false))
+  card.append(row)
   document.body.appendChild(overlay)
   return overlay
 }

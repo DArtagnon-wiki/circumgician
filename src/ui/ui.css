@@ -511,6 +511,56 @@
   font-style: italic;
   opacity: 0.75;
 }
+/* A line under the title: a clean run, or why the game called the loss. */
+.result-sub {
+  margin-top: -10px;
+  font-size: 17px;
+  font-style: italic;
+  text-align: center;
+  color: var(--ink-soft);
+}
+
+/* The recap: numbers in the display face over small-caps labels. */
+.recap {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px 6px;
+  width: 100%;
+}
+.recap-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.recap-value {
+  font: 600 23px/1 var(--font-display);
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--ink);
+}
+.recap-label {
+  font: 500 10px/1.25 var(--font-display);
+  letter-spacing: 0.08em;
+  text-align: center;
+  color: var(--ink-soft);
+}
+.recap-stat.clean .recap-value {
+  color: var(--gilt-bright);
+  text-shadow: 0 0 12px rgba(217, 184, 114, 0.5);
+}
+.recap-stat.waste .recap-value {
+  color: #f0a5b4;
+  text-shadow: 0 0 12px rgba(214, 64, 96, 0.45);
+}
+.recap-note {
+  margin-top: -6px;
+  font-size: 15px;
+  font-style: italic;
+  text-align: center;
+  color: var(--ink-soft);
+}
+
 .result-buttons {
   display: flex;
   gap: 10px;

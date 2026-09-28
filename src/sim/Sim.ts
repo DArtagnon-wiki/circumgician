@@ -1,7 +1,7 @@
 import { createSimBus, type SimBus } from './events'
 import { loadLevel } from './loadLevel'
 import { kickMote, updateCatching, updateMotion } from './motion'
-import { isCertainLoss, isWon } from './progress'
+import { certainLoss, isWon } from './progress'
 import { canPlace, damageObstacle, detonateRune, findLink, placeRune, relinkAll, type EnsureLayers } from './rules'
 import type { LevelData, Obstacle, Rune, SimState, Vec2 } from './types'
 
@@ -131,8 +131,10 @@ export class Sim {
 
   checkLoss(): void {
     if (this.opts.lossCheck === false) return
-    if (this.state.status === 'playing' && isCertainLoss(this.state)) {
+    const reason = certainLoss(this.state)
+    if (reason) {
       this.state.status = 'lost'
+      this.state.lostBecause = reason
       this.bus.emit('sim:lost')
     }
   }

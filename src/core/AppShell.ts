@@ -86,7 +86,7 @@ export class AppShell {
           const best = endlessBest()
           this.clearOverlay()
           this.overlay = showRunOver(
-            { score, depth: broken, bestScore: best.score, bestDepth: best.depth, improved },
+            { score, depth: broken, bestScore: best.score, bestDepth: best.depth, improved, recap: scene.recap() },
             { onAgain: () => this.startEndless(), onMenu: () => this.showMenu() },
           )
         },
@@ -136,18 +136,22 @@ export class AppShell {
   private showResult(result: 'won' | 'lost', pack: LevelData[], index: number): void {
     const hasNext = pack === PACK && index < pack.length - 1
     this.clearOverlay()
-    this.overlay = showHUD(result, {
-      onRetry: () => this.startLevel(pack, index),
-      onNext: hasNext ? () => this.startLevel(pack, index + 1) : undefined,
-      onUndo:
-        result === 'lost' && this.scene?.sim.canUndo
-          ? () => {
-              this.clearOverlay()
-              this.scene?.undo()
-            }
-          : undefined,
-      onLevelSelect: () => this.showLevelSelect(),
-    })
+    this.overlay = showHUD(
+      result,
+      {
+        onRetry: () => this.startLevel(pack, index),
+        onNext: hasNext ? () => this.startLevel(pack, index + 1) : undefined,
+        onUndo:
+          result === 'lost' && this.scene?.sim.canUndo
+            ? () => {
+                this.clearOverlay()
+                this.scene?.undo()
+              }
+            : undefined,
+        onLevelSelect: () => this.showLevelSelect(),
+      },
+      this.scene?.recap(),
+    )
   }
 
   private teardownScene(): void {

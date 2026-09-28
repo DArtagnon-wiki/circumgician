@@ -1,6 +1,6 @@
 import { canPlace } from './rules'
 import { footprintRadius, outerLayer } from './geometry'
-import type { SimState } from './types'
+import type { LossReason, SimState } from './types'
 
 const SCAN_STEP = 6
 
@@ -75,15 +75,19 @@ function chargingRuneCanFill(state: SimState): boolean {
   return false
 }
 
-// Conservative: true only when no sequence of actions can ever win. Anything
-// uncertain (pending motion, a tappable rune, a legal placement) is treated
-// as "still playable"; undo and restart cover the rest.
+// Conservative: a reason only when no sequence of actions can ever win.
+// Anything uncertain (pending motion, a tappable rune, a legal placement) is
+// treated as "still playable"; undo and restart cover the rest.
+export function certainLoss(state: SimState): LossReason | null {
+  if (state.status !== 'playing' || isWon(state)) return null
+  if (!damageCanSuffice(state)) return 'damage'
+  if (state.motes.some((m) => m.state === 'traveling' || m.state === 'ejecting' || m.vel)) return null
+  if (state.runes.some((r) => r.state === 'full')) return null
+  if (anyIdlePlacement(state)) return null
+  if (chargingRuneCanFill(state)) return null
+  return 'stuck'
+}
+
 export function isCertainLoss(state: SimState): boolean {
-  if (state.status !== 'playing' || isWon(state)) return false
-  if (!damageCanSuffice(state)) return true
-  if (state.motes.some((m) => m.state === 'traveling' || m.state === 'ejecting' || m.vel)) return false
-  if (state.runes.some((r) => r.state === 'full')) return false
-  if (anyIdlePlacement(state)) return false
-  if (chargingRuneCanFill(state)) return false
-  return true
+  return certainLoss(state) !== null
 }

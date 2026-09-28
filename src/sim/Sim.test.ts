@@ -201,6 +201,7 @@ describe('full, hold and detonation lifecycle', () => {
     stepFor(sim, 15)
     expect(sim.detonate(id)).toBe(true)
     expect(sim.state.obstacles[0].hp).toBe(6)
+    expect(sim.state.stats).toEqual({ detonations: 1, landed: 4, wasted: 0, unlinked: 0, destroyed: 0 })
     expect(rune.state).toBe('idle')
     expect(rune.index).toBe(1)
     expect(rune.pos).toBeUndefined()
@@ -225,6 +226,7 @@ describe('full, hold and detonation lifecycle', () => {
     sim.detonate(id)
     expect(sim.state.obstacles[0].hp).toBe(10)
     expect(sim.state.motes.filter((m) => m.color === 'blue')).toHaveLength(4)
+    expect(sim.state.stats).toMatchObject({ detonations: 1, landed: 0, unlinked: 1 })
   })
 
   it('a rune with no layer left is spent', () => {
@@ -233,6 +235,7 @@ describe('full, hold and detonation lifecycle', () => {
     stepFor(sim, 15)
     sim.detonate(id)
     expect(sim.rune(id)!.state).toBe('spent')
+    expect(sim.state.stats.unlinked).toBe(0) // a last layer has nothing to aim, so it misses nothing
   })
 
   it('annihilating releases destroy their motes', () => {
@@ -241,6 +244,7 @@ describe('full, hold and detonation lifecycle', () => {
     stepFor(sim, 15)
     sim.detonate(id)
     expect(sim.state.motes).toHaveLength(1)
+    expect(sim.state.stats.destroyed).toBe(4)
   })
 })
 
@@ -262,7 +266,7 @@ describe('burst clamping', () => {
 })
 
 describe('obstacles', () => {
-  it('excess damage does not carry into the next layer; links follow the new shape', () => {
+  it('excess damage does not carry into the next layer (it is counted as wasted); links follow the new shape', () => {
     const sim = mk(
       testLevel({
         obstacles: [obstacle(200, 150, [3, 2], [4, 9])],
@@ -278,6 +282,7 @@ describe('obstacles', () => {
     const o = sim.state.obstacles[0]
     expect(o.index).toBe(1)
     expect(o.hp).toBe(9)
+    expect(sim.state.stats).toMatchObject({ landed: 2, wasted: 3 })
     expect(sim.rune(b)!.linkedObstacleId).toBe(o.id)
   })
 
@@ -310,6 +315,7 @@ describe('undo', () => {
     sim.detonate(sim.state.runes[0].id)
     expect(sim.undo()).toBe(true) // undo the detonation
     expect(sim.state.runes[0].state).toBe('full')
+    expect(sim.state.stats.detonations).toBe(0) // its stats go with it
     expect(sim.undo()).toBe(true) // undo the placement
     const { rng: _a, ...now } = sim.state
     const { rng: _b, ...was } = before

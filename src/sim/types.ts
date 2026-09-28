@@ -124,6 +124,20 @@ export interface Obstacle {
 
 export type SimStatus = 'playing' | 'won' | 'lost'
 
+// Why the game called a loss: too little damage left for the HP standing,
+// or nothing left to do (no rune can fill from the motes that remain).
+export type LossReason = 'damage' | 'stuck'
+
+// What the line played so far has done, for the result screen. Part of the
+// board, so an undo takes back the stats of what it undoes.
+export interface BoardStats {
+  detonations: number
+  landed: number // blows that took strength (HP removed)
+  wasted: number // blows past a layer's last HP: damage never carries over
+  unlinked: number // detonations whose middle matched nothing, so struck nothing
+  destroyed: number // motes annihilated
+}
+
 export interface SimState {
   levelId: string
   field: Rect
@@ -135,7 +149,9 @@ export interface SimState {
   rng: number
   nextId: number
   status: SimStatus
+  lostBecause?: LossReason
   score: number // endless: sum of broken layers' HP
   broken: number // obstacle layers broken
+  stats: BoardStats
   seenHues: Hue[] // hues that have existed in the pool; endless catches only these
 }

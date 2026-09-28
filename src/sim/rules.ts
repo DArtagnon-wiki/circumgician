@@ -118,6 +118,9 @@ export function detonateRune(state: SimState, bus: SimBus, rune: Rune, ensure?: 
     info.released.push(mote.id)
   })
   if (annihilate.size) state.motes = state.motes.filter((m) => !annihilate.has(m.id))
+  state.stats.detonations++
+  state.stats.destroyed += annihilate.size
+  if (!obstacle && info.middle) state.stats.unlinked++
 
   // 3. The rune leaves the field one layer thinner, or is spent.
   rune.index++
@@ -138,7 +141,10 @@ export function detonateRune(state: SimState, bus: SimBus, rune: Rune, ensure?: 
 
 // Damage never overflows into the next layer. Does not relink; callers do.
 export function damageObstacle(state: SimState, bus: SimBus, obstacle: Obstacle, amount: number, ensure?: EnsureLayers): void {
-  obstacle.hp = Math.max(0, obstacle.hp - amount)
+  const landed = Math.min(obstacle.hp, amount)
+  state.stats.landed += landed
+  state.stats.wasted += amount - landed
+  obstacle.hp -= landed
   bus.emit('obstacle:damaged', { obstacle, damage: amount })
   if (obstacle.hp > 0) return
   const previous = obstacle.layers[obstacle.index]

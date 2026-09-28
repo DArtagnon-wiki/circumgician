@@ -19,6 +19,7 @@ import type { LevelData, Mote, Vec2 } from '../sim/types'
 import type { DetonationInfo } from '../sim/events'
 import { createDebugPanel, isDebugMode } from '../debug/DebugPanel'
 import { createGameHud, type GameHud } from '../ui/GameHud'
+import type { Recap } from '../ui/HUD'
 import { Sfx } from '../audio/Sfx'
 
 export interface GameSceneCallbacks {
@@ -86,10 +87,14 @@ export class GameScene {
   private sfx = new Sfx()
   private hud: GameHud | null = null
   private debugPanel: HTMLElement | null = null
+  private endless = false
+  // For the result screen. Unlike the board's own stats, these survive undo.
+  private session = { time: 0, kicks: 0, undos: 0 }
 
   mount(app: Application, level: LevelData, callbacks: GameSceneCallbacks, opts: GameSceneOptions = {}): void {
     this.app = app
     this.callbacks = callbacks
+    this.endless = !!opts.endless
     this.layers = createLayers()
     this.app.stage.addChild(this.layers.root)
     this.layers.links.addChild(this.links.container)
@@ -151,13 +156,27 @@ export class GameScene {
 
   undo(): void {
     this.sfx.unlock()
-    if (this.sim.undo()) this.sfx.undo()
+    if (this.sim.undo()) {
+      this.session.undos++
+      this.sfx.undo()
+    }
   }
 
   restart(): void {
     this.sfx.unlock()
     this.sim.restart((Math.random() * 2 ** 32) >>> 0)
+    this.session = { time: 0, kicks: 0, undos: 0 }
     this.sfx.undo()
+  }
+
+  // The result screen's numbers: the board's stats for the line that ended
+  // here, plus what the player did along the way.
+  recap(): Recap {
+    const s = this.sim.state
+    let strengthLeft = 0
+    // Endless stacks never end, so only a curated level has a total.
+    if (!this.endless) for (const o of s.obstacles) if (!o.cleared) strengthLeft += o.layers.slice(o.index + 1).reduce((hp, l) => hp + l.hp, o.hp)
+    return { ...s.stats, ...this.session, strengthLeft, lostBecause: s.lostBecause }
   }
 
   relayout(): void {
@@ -183,6 +202,7 @@ export class GameScene {
     this.impacts.clear()
     this.sim.step(dt)
     const s = this.sim.state
+    if (s.status === 'playing') this.session.time += dt
 
     if (this.pendingResult) {
       this.pendingResult.wait -= dt
@@ -492,6 +512,7 @@ export class GameScene {
       }
     }
     if (best && this.sim.kick(best.id, { x: p.x, y: p.y })) {
+      this.session.kicks++
       const v = best.vel ?? { x: 0, y: 0 }
       this.moteViews.get(best.id)?.burst(best.pos.x, best.pos.y, lighten(colorForMote(best.color), 0.12), best.color === 'generic', 5, v.x * 0.25, v.y * 0.25)
       this.effects.ring(best.pos, colorForMote(best.color), 6, 22, 0.25, 1.5)

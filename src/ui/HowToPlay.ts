@@ -159,7 +159,7 @@ const PAGES: { title: string; text: string; svg: string }[] = [
   },
   {
     title: 'Obstacles',
-    text: "Black holes are an obstacle's strength: each blow swallows one. The ghostly outline around it is the shape it becomes next.",
+    text: "Black holes are an obstacle's strength: each blow swallows one. The ghostly outline around it is the shape it becomes next. Blows left over when a shape breaks are wasted: they never carry into the next.",
     svg: `${ghost(110, 72, 60, 4)}
       ${obsidian(110, 76, 37, 3, [[110, 82], [101, 73], [119, 73], [110, 64]])}`,
   },
