@@ -260,6 +260,12 @@ export class GameScene {
       }
       view.container.position.set(pos.x, pos.y)
       view.body.scale.set(scale)
+      // Tap area matches what is drawn; inventory icons never overlap.
+      let hitR = outer.radius * scale + 10
+      if (rune.state === 'idle' && this.drag?.runeId !== rune.id) {
+        hitR = Math.min(hitR, VIRTUAL_WIDTH / Math.max(1, s.runes.length) / 2 - 4)
+      }
+      view.setHitRadius(hitR)
       view.sync(rune, oRot, mRot, s.time, motes)
     }
   }

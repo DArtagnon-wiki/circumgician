@@ -19,12 +19,14 @@ export class RuneView {
   private centerG = new Graphics()
   private nodesG = new Graphics()
   private drawnKey = ''
+  private hit = new Circle(0, 0, 0)
   readonly runeId: string
 
   constructor(rune: Rune) {
     this.runeId = rune.id
     this.body.addChild(this.glow, this.outerG, this.middleG, this.centerG, this.nodesG)
     this.container.addChild(this.body)
+    this.container.hitArea = this.hit
     this.container.eventMode = 'static'
     this.container.cursor = 'pointer'
   }
@@ -55,9 +57,16 @@ export class RuneView {
     }
   }
 
+  // The tap area lives in unscaled container space while only `body` is
+  // scaled, so the scene sizes it to what is actually drawn each frame.
+  // (A fixed full-size circle let a big rune's invisible tap area cover its
+  // neighbours' inventory icons.)
+  setHitRadius(r: number): void {
+    if (this.hit.radius !== r) this.hit.radius = r
+  }
+
   private redrawLayers(rune: Rune, outer: RuneLayerSpec): void {
     this.drawnKey = `${rune.index}:${rune.insight}`
-    this.container.hitArea = new Circle(0, 0, outer.radius + 10)
 
     this.outerG.clear()
     drawPolygon(this.outerG, outer.sides, outer.radius, { fillColor: RUNE_BODY_COLOR, fillAlpha: 0.06, strokeColor: RUNE_BODY_COLOR, strokeWidth: 3 })
