@@ -5,6 +5,7 @@ import { textures } from './textures'
 import type { SmokeSystem } from './SmokeSystem'
 import { LAUNCH } from './Detonation'
 import { EJECT_TIME } from '../sim/constants'
+import { quality } from './Quality'
 
 const TAU = Math.PI * 2
 const GLOW = 128 // texture sizes, for converting px to scale
@@ -161,6 +162,7 @@ export class MoteView {
     if (!stretched) this.halo.scale.set((44 / GLOW) * breathe * heart)
     this.body.scale.set((19 / GLOW) * heart)
     this.hot.scale.set((7 / GLOW) * heart * breathe)
+    this.halo.visible = quality.settings.glows
     this.halo.alpha = 0.3 * alpha
     this.body.alpha = alpha
     this.hot.alpha = 0.75 * alpha

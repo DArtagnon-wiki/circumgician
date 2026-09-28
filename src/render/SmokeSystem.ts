@@ -40,7 +40,7 @@ const STRETCH = 0.035 // elongation per px/s of flow speed: wisps streak along i
 // growing and fading. Quality tiers scale the emission rate and the cap.
 export class SmokeSystem {
   readonly container = new Container()
-  private live: Puff[] = []
+  private puffs: Puff[] = []
   private pool: Puff[] = []
   private textures: Texture[]
   private time = 0
@@ -52,8 +52,12 @@ export class SmokeSystem {
     this.textures = textures().smoke
   }
 
+  get live(): number {
+    return this.puffs.length
+  }
+
   emit(x: number, y: number, color: number, o: PuffOptions): void {
-    if (this.live.length >= this.cap) return
+    if (this.puffs.length >= this.cap) return
     let p = this.pool.pop()
     if (!p) {
       const s = new Sprite(this.textures[0])
@@ -79,21 +83,21 @@ export class SmokeSystem {
     p.fx = p.vx
     p.fy = p.vy - RISE
     this.place(p)
-    this.live.push(p)
+    this.puffs.push(p)
   }
 
   update(dt: number): void {
     this.time += dt
     const t = this.time
     const drag = Math.exp(-2.2 * dt)
-    for (let i = this.live.length - 1; i >= 0; i--) {
-      const p = this.live[i]
+    for (let i = this.puffs.length - 1; i >= 0; i--) {
+      const p = this.puffs[i]
       p.age += dt
       if (p.age >= p.life) {
         p.s.visible = false
         this.pool.push(p)
-        this.live[i] = this.live[this.live.length - 1]
-        this.live.pop()
+        this.puffs[i] = this.puffs[this.puffs.length - 1]
+        this.puffs.pop()
         continue
       }
       // Velocity field v = (dpsi/dy, -dpsi/dx) for

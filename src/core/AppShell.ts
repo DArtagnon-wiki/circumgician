@@ -11,6 +11,7 @@ import { endlessLevel } from '../sim/endless'
 import { isDebugMode } from '../debug/DebugPanel'
 import { textures, texturesReady } from '../render/textures'
 import { MenuBackdrop } from '../render/ZoneBackground'
+import { governor, quality } from '../render/Quality'
 
 // Owns the single PIXI Application for the whole session (menu -> level ->
 // menu round-trips reuse it, avoiding WebGL context churn) and the one
@@ -26,7 +27,7 @@ export class AppShell {
     await this.app.init({
       resizeTo: window,
       autoDensity: true,
-      resolution: Math.min(window.devicePixelRatio, 2),
+      resolution: Math.min(window.devicePixelRatio, quality.settings.maxResolution),
       backgroundAlpha: 0,
       antialias: true,
     })
@@ -37,9 +38,14 @@ export class AppShell {
     this.app.ticker.add((ticker) => {
       const dt = Math.min(ticker.deltaMS / 1000, 1 / 20)
       this.clock += dt
+      if (this.scene) governor.sample(ticker.deltaMS)
       this.scene?.update(ticker.deltaMS / 1000)
       this.backdrop?.update(dt, this.clock)
     })
+    governor.onChange = () => {
+      this.applyResolution()
+      this.scene?.applyQuality()
+    }
     this.bindResize()
 
     this.showMenu()
@@ -147,6 +153,14 @@ export class AppShell {
   private teardownScene(): void {
     this.scene?.destroy()
     this.scene = null
+    governor.restart() // the next scene's first moments are uploads and JIT
+  }
+
+  // The lowest detail tier also caps the render resolution: fill rate is
+  // what a phone GPU runs out of first.
+  private applyResolution(): void {
+    const res = Math.min(window.devicePixelRatio, quality.settings.maxResolution)
+    if (res !== this.app.renderer.resolution) this.app.renderer.resize(window.innerWidth, window.innerHeight, res)
   }
 
   private clearOverlay(): void {

@@ -9,6 +9,7 @@ import { SmokeSystem } from '../render/SmokeSystem'
 import { LinkThreads, type Link } from '../render/LinkThreads'
 import { Effects } from '../render/Effects'
 import { detonationTiming, playDetonation } from '../render/Detonation'
+import { governor, quality, type Tier } from '../render/Quality'
 import { VIRTUAL_WIDTH, VIRTUAL_HEIGHT, computeFit } from './VirtualScreen'
 import { Sim } from '../sim/Sim'
 import { ensureEndlessLayers } from '../sim/endless'
@@ -100,6 +101,7 @@ export class GameScene {
     this.sim = new Sim(level, { seed, ensureLayers: opts.endless ? ensureEndlessLayers : undefined })
     this.zoneBg = new ZoneBackground(level.field, level.blockers)
     this.layers.background.addChild(this.zoneBg.container)
+    this.applyQuality()
     this.bindSimEvents()
     this.rebuildViews()
 
@@ -125,6 +127,13 @@ export class GameScene {
         },
         collapseObstacles: () => this.sim.debugCollapseAll(),
         toggleRings: () => (this.showRings = !this.showRings),
+        cycleTier: () => {
+          // auto -> 2 -> 1 -> 0 -> auto
+          const next: Tier | null = governor.pinned === null ? 2 : governor.pinned === 0 ? null : ((governor.pinned - 1) as Tier)
+          governor.pin(next)
+          return next === null ? 'Detail: auto' : `Detail: ${next} (pinned)`
+        },
+        stats: () => `tier ${quality.tier}${governor.pinned === null ? '' : ' pinned'} · ${governor.fps.toFixed(0)} fps (${governor.avgMs.toFixed(1)} ms) · ${this.smoke.live} puffs`,
       })
     }
   }
@@ -151,6 +160,15 @@ export class GameScene {
 
   relayout(): void {
     this.applyFit()
+  }
+
+  // Detail for the current quality tier (the governor calls through the
+  // shell when it changes; views read the glows flag themselves).
+  applyQuality(): void {
+    const q = quality.settings
+    this.smoke.rate = q.smokeRate
+    this.smoke.cap = q.smokeCap
+    this.zoneBg.setStarCount(q.stars)
   }
 
   // ---------------------------------------------------------------------

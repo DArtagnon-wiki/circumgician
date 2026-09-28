@@ -6,6 +6,7 @@ import { drawPolygon, localVertices } from './drawPolygon'
 import { sheenBand } from './obsidian'
 import { textures } from './textures'
 import type { Liquid } from './Detonation'
+import { quality } from './Quality'
 
 // Middle and center are drawn nested inside the outer at fixed fractions of
 // its radius (their authored radii only matter once they become the outer).
@@ -160,11 +161,11 @@ export class RuneView {
       b.liquid.alpha = held ? 0.95 : 0.5
       b.liquid.scale.set((level * BOWL_R * 1.75) / 64)
       b.glow.tint = color
-      b.glow.alpha = held ? level * (full ? 0.55 + pulse * 0.35 : 0.3) : 0
+      b.glow.alpha = held && quality.settings.glows ? level * (full ? 0.55 + pulse * 0.35 : 0.3) : 0
     })
 
     this.aura.scale.set(((outer.radius + BOWL_R) * 2.9) / 128)
-    this.aura.alpha = full ? 0.22 + pulse * 0.2 : rune.state === 'charging' ? 0.06 : 0
+    this.aura.alpha = !quality.settings.glows ? 0 : full ? 0.22 + pulse * 0.2 : rune.state === 'charging' ? 0.06 : 0
   }
 
   // What the bowls hold right now, in world space, for a detonation's
