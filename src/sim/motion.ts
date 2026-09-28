@@ -1,4 +1,4 @@
-import { DRIFT_SPEED, EJECT_TIME, KICK_GAIN, KICK_MAX, KICK_MIN, MOTE_FRICTION, PUSH_BASE, PUSH_DEPTH, PUSH_INSET, REACH, SETTLE_SPEED, TRAVEL_TIME } from './constants'
+import { DRIFT_SPEED, EJECT_TIME, KICK_GAIN, KICK_MAX, KICK_MIN, MOTE_FRICTION, PULL_ACCEL, PULL_RANGE, PUSH_BASE, PUSH_DEPTH, PUSH_INSET, REACH, SETTLE_SPEED, TRAVEL_TIME } from './constants'
 import { dist, nodePositions, outerLayer } from './geometry'
 import { nextRandom } from './rng'
 import type { SimBus } from './events'
@@ -14,18 +14,45 @@ function pickWander(state: SimState, mote: Mote): Vec2 {
   return { x: mote.home.x + Math.cos(a) * r, y: mote.home.y + Math.sin(a) * r }
 }
 
-// Rune bodies push uncaptured motes outward; kicked or pushed motes coast
-// with friction, bounce off the field edge, and adopt their resting spot as
-// home. Returns true when this mote is coasting (skip tether drift).
-function applyPushAndCoast(state: SimState, mote: Mote, pushers: Rune[], dt: number): boolean {
+// Rune bodies pull a mote they can catch toward the nearest matching hungry
+// node, and push anything else outward. Kicked, pulled or pushed motes
+// coast with friction, bounce off the field edge, and adopt their resting
+// spot as home. Returns true when this mote is coasting (skip tether drift).
+function applyPushAndCoast(state: SimState, mote: Mote, pushers: Rune[], nodesOf: (r: Rune) => Vec2[], dt: number): boolean {
   let ax = 0
   let ay = 0
   for (const rune of pushers) {
-    const limit = outerLayer(rune)!.radius - PUSH_INSET
+    const layer = outerLayer(rune)!
+    const limit = layer.radius - PUSH_INSET
     const dx = mote.pos.x - rune.pos!.x
     const dy = mote.pos.y - rune.pos!.y
     const d = Math.hypot(dx, dy)
     if (d >= limit) continue
+    if (rune.state === 'charging') {
+      let target: Vec2 | null = null
+      let best = Infinity
+      nodesOf(rune).forEach((p, i) => {
+        if (rune.held[i] !== null) return
+        if (mote.color !== 'generic' && mote.color !== layer.nodes[i].catch) return
+        const dn = Math.hypot(p.x - mote.pos.x, p.y - mote.pos.y)
+        if (dn < best) {
+          best = dn
+          target = p
+        }
+      })
+      // Only chase a node that is nearby; one across the body would drag the
+      // mote through the interior and fling it out the far side. A distant
+      // match is pushed out onto the ring instead, where the node sweeps by.
+      if (target && best <= layer.radius * PULL_RANGE) {
+        const t: Vec2 = target
+        const tx = t.x - mote.pos.x
+        const ty = t.y - mote.pos.y
+        const tl = Math.hypot(tx, ty) || 1
+        ax += (tx / tl) * PULL_ACCEL
+        ay += (ty / tl) * PULL_ACCEL
+        continue
+      }
+    }
     let ux = dx / d
     let uy = dy / d
     if (!(d > 0.01)) {
@@ -99,7 +126,7 @@ export function updateMotion(state: SimState, bus: SimBus, dt: number): void {
   for (const mote of state.motes) {
     switch (mote.state) {
       case 'free': {
-        if (applyPushAndCoast(state, mote, pushers, dt)) break
+        if (applyPushAndCoast(state, mote, pushers, nodesOf, dt)) break
         const d = dist(mote.pos, mote.wander)
         const step = DRIFT_SPEED * dt
         if (d <= step) {

@@ -35,6 +35,10 @@ export const SETTLE_SPEED = 4
 export const PUSH_INSET = REACH / 2
 export const PUSH_BASE = 50
 export const PUSH_DEPTH = 160
+// ...except a mote a hungry node can catch, which is drawn toward the
+// nearest such node instead (px/s^2; friction bounds the speed).
+export const PULL_ACCEL = 260
+export const PULL_RANGE = 0.9 // x outer radius: farther matching nodes don't pull
 
 // Footprint = outer radius + this margin (node rings draw slightly outside).
 export const FOOTPRINT_MARGIN = 4

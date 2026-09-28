@@ -38,6 +38,37 @@ describe('catch ring', () => {
     expect(blue.state).toBe('free')
   })
 
+  it('pulls a catchable mote inside the body straight to a node', () => {
+    // 15px off-center: some node of the square is always within pull range.
+    const sim = mk(testLevel({ hand: level.hand, motes: [mote('red', C.x + 15, C.y)] }))
+    placeSlot(sim, 0)
+    const m = sim.state.motes[0]
+    let maxD = 0
+    for (let t = 0; t < 4 && m.state === 'free'; t += DT) {
+      sim.step(DT)
+      maxD = Math.max(maxD, dist(m.pos, C))
+    }
+    expect(m.state).not.toBe('free') // claimed (traveling or held)
+    expect(maxD).toBeLessThanOrEqual(40 + REACH) // never left the body first
+  })
+
+  it('a full rune has no hungry nodes, so even matching motes are pushed out', () => {
+    const sim = mk(testLevel({ hand: level.hand, motes: [...ring('red', C.x, C.y, 40, 4), mote('red', C.x + 3, C.y + 2)] }))
+    const id = placeSlot(sim, 0)
+    const inner = sim.state.motes[4]
+    // Fill from the ring first: hold the inner mote still until the rune is full.
+    for (let t = 0; t < 15 && sim.rune(id)!.state !== 'full'; t += DT) {
+      inner.pos = { x: C.x + 3, y: C.y + 2 }
+      delete inner.vel
+      sim.step(DT)
+    }
+    expect(sim.rune(id)!.state).toBe('full')
+    expect(inner.state).toBe('free')
+    stepFor(sim, 6)
+    expect(inner.state).toBe('free')
+    expect(dist(inner.home, C)).toBeGreaterThanOrEqual(40 - REACH / 2)
+  })
+
   it('pushes uncaptured motes out of the rune body, where they settle', () => {
     const sim = mk(testLevel({ hand: level.hand, motes: [mote('blue', C.x + 5, C.y + 3), mote('blue', C.x - 20, C.y)] }))
     placeSlot(sim, 0)
