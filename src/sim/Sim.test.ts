@@ -4,7 +4,7 @@ import { BURST_GAP, REACH } from './constants'
 import { dist, nodePositions } from './geometry'
 import { layer, mote, obstacle, ring, testLevel } from './testFixtures'
 import { runScript } from './headless'
-import { DEBUG_PACK } from '../data/levels/pack'
+import { DEBUG_PACK, PACK } from '../data/levels/pack'
 import type { LevelData } from './types'
 
 const DT = 1 / 30
@@ -67,6 +67,20 @@ describe('catch ring', () => {
     stepFor(sim, 6)
     expect(inner.state).toBe('free')
     expect(dist(inner.home, C)).toBeGreaterThanOrEqual(40 - REACH / 2)
+  })
+
+  it('regression: motes a rune cannot catch are pushed fully clear of it (Hungry Circle softlock)', () => {
+    const level = PACK.find((l) => l.id === 'the-hungry-circle')!
+    const sim = mk(level, { seed: 4 })
+    const big = sim.state.runes[1] // 5-gon R66, catches blue; reds sit at r40 under it
+    const P = { x: 140, y: 500 }
+    expect(sim.place(big.id, P)).toBe(true)
+    stepFor(sim, 8)
+    for (const m of sim.state.motes) {
+      expect(m.vel, 'settled').toBeUndefined()
+      // Clear of the outline and catch ring, even at the edge of its drift.
+      expect(dist(m.home, P) - m.tether).toBeGreaterThanOrEqual(66 + REACH - 0.5)
+    }
   })
 
   it('pushes uncaptured motes out of the rune body, where they settle', () => {

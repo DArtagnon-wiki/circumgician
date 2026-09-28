@@ -14,35 +14,46 @@ function pickWander(state: SimState, mote: Mote): Vec2 {
   return { x: mote.home.x + Math.cos(a) * r, y: mote.home.y + Math.sin(a) * r }
 }
 
-// Rune bodies pull a mote they can catch toward the nearest matching hungry
-// node, and push anything else outward. Kicked, pulled or pushed motes
-// coast with friction, bounce off the field edge, and adopt their resting
-// spot as home. Returns true when this mote is coasting (skip tether drift).
+// Placed runes act on nearby free motes:
+// - a mote the rune can still catch is pulled toward a nearby matching
+//   hungry node, or (if the only match is across the body) pushed out onto
+//   the ring, where that node sweeps by;
+// - any other mote is pushed fully clear: past the catch ring plus its own
+//   drift radius, so it can't hover inside the rune's outline or wander back.
+// Kicked, pulled or pushed motes coast with friction, bounce off the field
+// edge, and adopt their resting spot as home. Returns true while coasting.
 function applyPushAndCoast(state: SimState, mote: Mote, pushers: Rune[], nodesOf: (r: Rune) => Vec2[], dt: number): boolean {
   let ax = 0
   let ay = 0
+  const f = state.field
   for (const rune of pushers) {
     const layer = outerLayer(rune)!
-    const limit = layer.radius - PUSH_INSET
     const dx = mote.pos.x - rune.pos!.x
     const dy = mote.pos.y - rune.pos!.y
     const d = Math.hypot(dx, dy)
-    if (d >= limit) continue
+
+    let catchable = false
+    let target: Vec2 | null = null
+    let best = Infinity
     if (rune.state === 'charging') {
-      let target: Vec2 | null = null
-      let best = Infinity
       nodesOf(rune).forEach((p, i) => {
         if (rune.held[i] !== null) return
         if (mote.color !== 'generic' && mote.color !== layer.nodes[i].catch) return
+        catchable = true
         const dn = Math.hypot(p.x - mote.pos.x, p.y - mote.pos.y)
         if (dn < best) {
           best = dn
           target = p
         }
       })
-      // Only chase a node that is nearby; one across the body would drag the
-      // mote through the interior and fling it out the far side. A distant
-      // match is pushed out onto the ring instead, where the node sweeps by.
+    }
+
+    let limit: number
+    if (catchable) {
+      limit = layer.radius - PUSH_INSET
+      if (d >= limit) continue // on or near the ring: the node will sweep by
+      // Only chase a nearby node; one across the body would drag the mote
+      // through the interior and fling it out the far side.
       if (target && best <= layer.radius * PULL_RANGE) {
         const t: Vec2 = target
         const tx = t.x - mote.pos.x
@@ -52,7 +63,11 @@ function applyPushAndCoast(state: SimState, mote: Mote, pushers: Rune[], nodesOf
         ay += (ty / tl) * PULL_ACCEL
         continue
       }
+    } else {
+      limit = layer.radius + REACH + mote.tether
+      if (d >= limit) continue
     }
+
     let ux = dx / d
     let uy = dy / d
     if (!(d > 0.01)) {
@@ -60,7 +75,12 @@ function applyPushAndCoast(state: SimState, mote: Mote, pushers: Rune[], nodesOf
       ux = Math.cos(a)
       uy = Math.sin(a)
     }
-    const strength = PUSH_BASE + PUSH_DEPTH * (1 - d / limit)
+    // Against a field wall, drop the part of the push that points into it,
+    // so the mote slides along the wall instead of pinning there forever.
+    if ((mote.pos.x <= f.x + 0.5 && ux < 0) || (mote.pos.x >= f.x + f.w - 0.5 && ux > 0)) ux = 0
+    if ((mote.pos.y <= f.y + 0.5 && uy < 0) || (mote.pos.y >= f.y + f.h - 0.5 && uy > 0)) uy = 0
+    if (ux === 0 && uy === 0) continue
+    const strength = PUSH_BASE + PUSH_DEPTH * Math.max(0, 1 - d / limit)
     ax += ux * strength
     ay += uy * strength
   }
@@ -74,7 +94,6 @@ function applyPushAndCoast(state: SimState, mote: Mote, pushers: Rune[], nodesOf
 
   let x = mote.pos.x + v.x * dt
   let y = mote.pos.y + v.y * dt
-  const f = state.field
   if (x < f.x || x > f.x + f.w) {
     v.x = -v.x
     x = Math.max(f.x, Math.min(f.x + f.w, x))

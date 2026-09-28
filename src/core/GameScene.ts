@@ -446,9 +446,10 @@ export class GameScene {
   // Input
   // ---------------------------------------------------------------------
 
-  private onBoardPointerDown(e: FederatedPointerEvent): void {
+  // Returns whether a mote was kicked.
+  private onBoardPointerDown(e: FederatedPointerEvent): boolean {
     this.sfx.unlock()
-    if (this.drag || this.sim.state.status !== 'playing') return
+    if (this.drag || this.sim.state.status !== 'playing') return false
     const p = this.layers.root.toLocal(e.global)
     let best: Mote | null = null
     let bestD = e.pointerType === 'touch' ? KICK_TOUCH_RADIUS : KICK_MOUSE_RADIUS
@@ -463,7 +464,9 @@ export class GameScene {
     if (best && this.sim.kick(best.id, { x: p.x, y: p.y })) {
       this.effects.ring(best.pos, colorForMote(best.color), 6, 22, 0.25, 2)
       this.sfx.kick()
+      return true
     }
+    return false
   }
 
   private onRunePointerDown(runeId: string, e: FederatedPointerEvent): void {
@@ -475,7 +478,9 @@ export class GameScene {
     } else if (rune.state === 'idle' && !this.drag && !this.flights.has(runeId)) {
       this.beginDrag(runeId, e)
     } else if (rune.state === 'charging') {
-      this.sfx.notReady()
+      // A charging rune has nothing to do on tap, so the tap falls through to
+      // kicking a mote under the finger (motes near a rune stay reachable).
+      if (!this.onBoardPointerDown(e)) this.sfx.notReady()
     }
   }
 
