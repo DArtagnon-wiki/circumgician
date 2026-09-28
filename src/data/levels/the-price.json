@@ -1,0 +1,321 @@
+{
+  "version": 1,
+  "id": "the-price",
+  "name": "The Price",
+  "field": {
+    "x": 30,
+    "y": 340,
+    "w": 340,
+    "h": 350
+  },
+  "blockers": [],
+  "motes": [
+    {
+      "color": "red",
+      "x": 200,
+      "y": 469
+    },
+    {
+      "color": "red",
+      "x": 228.1,
+      "y": 482.6
+    },
+    {
+      "color": "red",
+      "x": 235.1,
+      "y": 513
+    },
+    {
+      "color": "red",
+      "x": 215.6,
+      "y": 537.4
+    },
+    {
+      "color": "red",
+      "x": 184.4,
+      "y": 537.4
+    },
+    {
+      "color": "red",
+      "x": 164.9,
+      "y": 513
+    },
+    {
+      "color": "red",
+      "x": 171.9,
+      "y": 482.6
+    },
+    {
+      "color": "gold",
+      "x": 200,
+      "y": 443
+    },
+    {
+      "color": "gold",
+      "x": 253.7,
+      "y": 536
+    },
+    {
+      "color": "gold",
+      "x": 146.3,
+      "y": 536
+    },
+    {
+      "color": "gold",
+      "x": 200,
+      "y": 593
+    }
+  ],
+  "obstacles": [
+    {
+      "x": 110,
+      "y": 150,
+      "layers": [
+        {
+          "sides": 4,
+          "radius": 30,
+          "hp": 7
+        }
+      ]
+    },
+    {
+      "x": 290,
+      "y": 150,
+      "layers": [
+        {
+          "sides": 3,
+          "radius": 30,
+          "hp": 3
+        },
+        {
+          "sides": 5,
+          "radius": 30,
+          "hp": 4
+        }
+      ]
+    }
+  ],
+  "hand": [
+    {
+      "layers": [
+        {
+          "sides": 7,
+          "radius": 36,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "annihilating"
+            },
+            {
+              "catch": "red",
+              "release": "annihilating"
+            },
+            {
+              "catch": "red",
+              "release": "annihilating"
+            },
+            {
+              "catch": "red",
+              "release": "annihilating"
+            },
+            {
+              "catch": "red",
+              "release": "annihilating"
+            },
+            {
+              "catch": "red",
+              "release": "annihilating"
+            },
+            {
+              "catch": "red",
+              "release": "annihilating"
+            }
+          ]
+        },
+        {
+          "sides": 4,
+          "radius": 62,
+          "nodes": [
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "layers": [
+        {
+          "sides": 3,
+          "radius": 36,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "gold"
+            },
+            {
+              "catch": "red",
+              "release": "gold"
+            },
+            {
+              "catch": "red",
+              "release": "gold"
+            }
+          ]
+        },
+        {
+          "sides": 4,
+          "radius": 88,
+          "nodes": [
+            {
+              "catch": "blue",
+              "release": "red"
+            },
+            {
+              "catch": "blue",
+              "release": "red"
+            },
+            {
+              "catch": "blue",
+              "release": "red"
+            },
+            {
+              "catch": "gold",
+              "release": "red"
+            }
+          ]
+        },
+        {
+          "sides": 4,
+          "radius": 114,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "layers": [
+        {
+          "sides": 3,
+          "radius": 62,
+          "nodes": [
+            {
+              "catch": "gold",
+              "release": "blue"
+            },
+            {
+              "catch": "gold",
+              "release": "blue"
+            },
+            {
+              "catch": "gold",
+              "release": "blue"
+            }
+          ]
+        },
+        {
+          "sides": 3,
+          "radius": 40,
+          "nodes": [
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "layers": [
+        {
+          "sides": 4,
+          "radius": 114,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "teal"
+            },
+            {
+              "catch": "red",
+              "release": "teal"
+            },
+            {
+              "catch": "red",
+              "release": "teal"
+            },
+            {
+              "catch": "red",
+              "release": "teal"
+            }
+          ]
+        },
+        {
+          "sides": 5,
+          "radius": 88,
+          "nodes": [
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "goal": {
+    "type": "clearAll"
+  }
+}

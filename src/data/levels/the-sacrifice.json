@@ -1,0 +1,241 @@
+{
+  "version": 1,
+  "id": "the-sacrifice",
+  "name": "The Sacrifice",
+  "field": {
+    "x": 30,
+    "y": 340,
+    "w": 340,
+    "h": 350
+  },
+  "blockers": [],
+  "motes": [
+    {
+      "color": "red",
+      "x": 200,
+      "y": 460
+    },
+    {
+      "color": "red",
+      "x": 240,
+      "y": 500
+    },
+    {
+      "color": "red",
+      "x": 200,
+      "y": 540
+    },
+    {
+      "color": "red",
+      "x": 160,
+      "y": 500
+    }
+  ],
+  "obstacles": [
+    {
+      "x": 200,
+      "y": 150,
+      "layers": [
+        {
+          "sides": 3,
+          "radius": 30,
+          "hp": 4
+        },
+        {
+          "sides": 4,
+          "radius": 30,
+          "hp": 4
+        }
+      ]
+    }
+  ],
+  "hand": [
+    {
+      "layers": [
+        {
+          "sides": 4,
+          "radius": 40,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "teal"
+            },
+            {
+              "catch": "red",
+              "release": "teal"
+            },
+            {
+              "catch": "red",
+              "release": "teal"
+            },
+            {
+              "catch": "red",
+              "release": "teal"
+            }
+          ]
+        },
+        {
+          "sides": 3,
+          "radius": 66,
+          "nodes": [
+            {
+              "catch": "teal",
+              "release": "gold"
+            },
+            {
+              "catch": "teal",
+              "release": "gold"
+            },
+            {
+              "catch": "teal",
+              "release": "gold"
+            }
+          ]
+        },
+        {
+          "sides": 5,
+          "radius": 40,
+          "nodes": [
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "layers": [
+        {
+          "sides": 4,
+          "radius": 66,
+          "nodes": [
+            {
+              "catch": "gold",
+              "release": "blue"
+            },
+            {
+              "catch": "gold",
+              "release": "blue"
+            },
+            {
+              "catch": "gold",
+              "release": "blue"
+            },
+            {
+              "catch": "gold",
+              "release": "blue"
+            }
+          ]
+        },
+        {
+          "sides": 3,
+          "radius": 40,
+          "nodes": [
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "layers": [
+        {
+          "sides": 4,
+          "radius": 40,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "gold"
+            },
+            {
+              "catch": "red",
+              "release": "gold"
+            },
+            {
+              "catch": "red",
+              "release": "gold"
+            },
+            {
+              "catch": "red",
+              "release": "gold"
+            }
+          ]
+        },
+        {
+          "sides": 4,
+          "radius": 92,
+          "nodes": [
+            {
+              "catch": "blue",
+              "release": "red"
+            },
+            {
+              "catch": "blue",
+              "release": "red"
+            },
+            {
+              "catch": "blue",
+              "release": "red"
+            },
+            {
+              "catch": "blue",
+              "release": "red"
+            }
+          ]
+        },
+        {
+          "sides": 4,
+          "radius": 118,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "goal": {
+    "type": "clearAll"
+  }
+}

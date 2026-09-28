@@ -31,9 +31,14 @@ export function showLevelSelect(actions: LevelSelectActions): HTMLElement {
   title.className = 'levels-title gilt-text'
   title.textContent = 'Select a Level'
 
+  // The frame keeps its filigree still while the rows scroll inside it,
+  // should they outgrow a short screen.
   const list = document.createElement('div')
   list.className = 'level-list panel'
   addFiligree(list)
+  const rows = document.createElement('div')
+  rows.className = 'level-rows'
+  list.append(rows)
   actions.levels.forEach((level, index) => {
     const button = document.createElement('button')
     button.className = 'level-btn'
@@ -52,7 +57,7 @@ export function showLevelSelect(actions: LevelSelectActions): HTMLElement {
       button.append(seal)
     }
     button.addEventListener('click', () => actions.onSelect(index))
-    list.appendChild(button)
+    rows.appendChild(button)
   })
 
   const debugSection = document.createElement('div')

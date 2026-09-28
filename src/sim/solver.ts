@@ -224,7 +224,7 @@ export interface Trap {
 
 export interface LevelProfile {
   winnable: boolean
-  plans: Plan[] // distinct sets of blows that win; reorderings count once
+  plans: Plan[] // distinct minimal sets of blows that win; reorderings count once
   morePlans: boolean // the plan list was cut off
   decisions: number // states on a winning line where some move loses
   forced: number // ...of which exactly one move keeps the win
@@ -289,9 +289,13 @@ export function profileLevel(level: LevelData, opts: SolverOptions = {}): LevelP
       return out
     })
   }
-  const plans = [...plansFrom(start).values()]
-  profile.morePlans = plans.length > PLAN_CAP
-  profile.plans = plans
+  const found = [...plansFrom(start).values()]
+  profile.morePlans = found.length > PLAN_CAP
+  // A plan that is another plan plus extra detonations (a spare last layer
+  // fired for nothing, say) is not a different way to win.
+  const ids = found.map((blows) => new Set(blows.map(blowId)))
+  const minimal = found.filter((_, i) => !ids.some((other, j) => j !== i && other.size < ids[i].size && [...other].every((id) => ids[i].has(id))))
+  profile.plans = minimal
     .slice(0, PLAN_CAP)
     .map((blows) => ({ blows, wasted: blows.reduce((w, b) => w + b.wasted, 0), unlinked: blows.filter((b) => b.unlinked).length }))
     .sort((a, b) => a.wasted - b.wasted || a.blows.length - b.blows.length)

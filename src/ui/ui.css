@@ -192,13 +192,32 @@
   font-weight: 600;
   letter-spacing: 0.1em;
 }
+/* Never let a tall list push the title and footer off a short screen:
+   the list shrinks and its rows scroll. */
+.screen.levels {
+  justify-content: safe center;
+}
 .level-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
   width: 100%;
   max-width: 330px;
+  min-height: 0;
   padding: 22px 18px;
+}
+.level-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  padding: 1px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  touch-action: pan-y;
+}
+.level-rows::-webkit-scrollbar {
+  display: none;
 }
 .level-btn {
   display: flex;
@@ -271,6 +290,27 @@
 .levels-footer {
   display: flex;
   gap: 6px;
+}
+@media (max-height: 760px) {
+  .screen.levels {
+    gap: 10px;
+    padding: 16px 24px;
+  }
+  .level-list {
+    padding: 16px 14px;
+  }
+  .level-rows {
+    gap: 6px;
+  }
+  .level-btn {
+    padding: 6px 12px;
+    font-size: 17px;
+  }
+  .level-num {
+    width: 24px;
+    height: 24px;
+    font-size: 12px;
+  }
 }
 
 /* ------------------------------------------------------------------

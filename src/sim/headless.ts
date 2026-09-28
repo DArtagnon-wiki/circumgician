@@ -1,3 +1,4 @@
+import { KICK_GAIN, MOTE_FRICTION } from './constants'
 import { Sim, type SimOptions } from './Sim'
 import { nextRandom } from './rng'
 import type { Move } from './solver'
@@ -7,6 +8,7 @@ export type ScriptStep =
   | { place: number; at: Vec2 } // hand slot -> field position
   | { tap: number } // wait for that slot's rune to fill, then detonate it
   | { wait: number } // seconds
+  | { flick: number; toward: Vec2 } // kick the level's nth mote so it coasts to a point
 
 export interface RunResult {
   status: SimStatus
@@ -46,6 +48,16 @@ export function runScript(level: LevelData, steps: ScriptStep[], opts: SimOption
     if (sim.state.status !== 'playing') break
     if ('wait' in step) {
       for (let t = 0; t < step.wait; t += DT) sim.step(DT)
+    } else if ('flick' in step) {
+      // A kicked mote coasts speed / MOTE_FRICTION, and a tap d away
+      // kicks at KICK_GAIN * d, so tap that far behind it.
+      const mote = sim.state.motes.find((m) => m.id === `mote-${step.flick}`)
+      if (!mote || mote.state !== 'free') return fail(`mote ${step.flick} cannot be flicked`)
+      const dx = step.toward.x - mote.pos.x
+      const dy = step.toward.y - mote.pos.y
+      const d = Math.hypot(dx, dy) || 1
+      const back = (d * MOTE_FRICTION) / KICK_GAIN
+      sim.kick(mote.id, { x: mote.pos.x - (dx / d) * back, y: mote.pos.y - (dy / d) * back })
     } else if ('place' in step) {
       const rune = runeInSlot(sim, step.place)
       if (!rune || !sim.place(rune.id, step.at)) return fail(`cannot place slot ${step.place} at ${step.at.x},${step.at.y}`)

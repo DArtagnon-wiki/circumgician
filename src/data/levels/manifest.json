@@ -2,8 +2,13 @@
   "levels": [
     "first-threads",
     "changing-colors",
+    "the-weighing",
     "the-hungry-circle",
+    "patience",
     "crowded-circle",
+    "the-sacrifice",
+    "the-wildcard",
+    "the-price",
     "circumgician"
   ],
   "debug": [
