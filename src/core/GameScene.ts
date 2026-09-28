@@ -365,10 +365,13 @@ export class GameScene {
       this.effects.ring(rune.pos!, RUNE_BODY_COLOR, 20, outerLayer(rune)!.radius + 20, 0.35, 2)
       this.sfx.place()
     })
-    bus.on('mote:held', () => this.sfx.nodeFilled())
+    bus.on('mote:held', ({ rune }) => {
+      const motes = this.sim.state.motes
+      this.sfx.nodeFilled(rune.held.filter((id) => id !== null && motes.find((m) => m.id === id)?.state === 'held').length)
+    })
     bus.on('rune:full', ({ rune }) => {
       this.effects.ring(rune.pos!, ACCENT_COLOR, outerLayer(rune)!.radius, outerLayer(rune)!.radius + 26, 0.45, 2)
-      this.sfx.ready()
+      this.sfx.full()
     })
     bus.on('rune:detonated', ({ rune, info }) => this.onDetonated(rune.id, rune.state === 'spent', info))
     // Damage lands when the detonation's orb does (the view holds the
@@ -447,7 +450,7 @@ export class GameScene {
       const newOuter = outerLayer(rune)!
       this.flights.set(runeId, { from: { ...pos }, fromScale: (MIDDLE_SCALE * outer.radius) / newOuter.radius, t: 0, delay: timing.launch })
     }
-    this.sfx.detonate(info.damage > 0)
+    this.sfx.detonate(timing.launch, target ? timing.impact : null)
   }
 
   // ---------------------------------------------------------------------
