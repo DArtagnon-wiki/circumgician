@@ -3,7 +3,7 @@ import { createLayers, type Layers } from '../render/Layers'
 import { ACCENT_COLOR, HUE_COLORS, INVALID_TINT, RUNE_BODY_COLOR, colorForMote, lighten } from '../render/Theme'
 import { ZoneBackground } from '../render/ZoneBackground'
 import { ObstacleView } from '../render/ObstacleView'
-import { MIDDLE_SCALE, RuneView } from '../render/RuneView'
+import { MIDDLE_SCALE, RuneView, handLook, pieceLook } from '../render/RuneView'
 import { MoteView, createMoteLayers, type MoteLayers } from '../render/MoteView'
 import { SmokeSystem } from '../render/SmokeSystem'
 import { LinkThreads, type Link } from '../render/LinkThreads'
@@ -15,7 +15,7 @@ import { Sim } from '../sim/Sim'
 import { ensureEndlessLayers } from '../sim/endless'
 import { INVENTORY_ZONE, REACH } from '../sim/constants'
 import { middleAngle, outerAngle, outerLayer } from '../sim/geometry'
-import type { LevelData, Mote, Vec2 } from '../sim/types'
+import type { LevelData, Mote, Piece, Rune, Vec2 } from '../sim/types'
 import type { DetonationInfo } from '../sim/events'
 import { createDebugPanel, isDebugMode } from '../debug/DebugPanel'
 import { createGameHud, type GameHud } from '../ui/GameHud'
@@ -57,6 +57,7 @@ const REST_ANGLE = -Math.PI / 2
 const TOUCH_LIFT = 56
 const KICK_TOUCH_RADIUS = 26 // fingers are blunt
 const KICK_MOUSE_RADIUS = 16
+const NO_MOTES = new Map<string, Mote>()
 
 // One instance per level attempt. The Sim owns all rules; this class only
 // renders its state, turns input into sim actions and adds juice.
@@ -65,7 +66,8 @@ export class GameScene {
   sim!: Sim
   private app!: Application
   private callbacks!: GameSceneCallbacks
-  private runeViews = new Map<string, RuneView>()
+  private handViews = new Map<string, RuneView>() // by rune id
+  private pieceViews = new Map<string, RuneView>() // by piece id
   private obstacleViews = new Map<string, ObstacleView>()
   private moteViews = new Map<string, MoteView>()
   // Obstacles hit by the action being resolved right now, with the delay
@@ -130,7 +132,7 @@ export class GameScene {
     if (isDebugMode()) {
       this.debugPanel = createDebugPanel({
         forceDetonate: () => {
-          for (const r of this.sim.state.runes) if (r.state === 'charging' || r.state === 'full') this.sim.detonate(r.id, true)
+          for (const p of [...this.sim.state.pieces]) this.sim.detonate(p.id, true)
         },
         collapseObstacles: () => this.sim.debugCollapseAll(),
         toggleRings: () => (this.showRings = !this.showRings),
@@ -223,7 +225,8 @@ export class GameScene {
     this.syncMotes(s.motes, dt, s.time)
     this.smoke.update(dt)
     for (const o of s.obstacles) this.obstacleViews.get(o.id)?.sync(o, dt, s.time)
-    this.syncRunes(dt)
+    this.syncHand(dt)
+    this.syncPieces(dt)
     this.drawLinks()
     this.effects.update(dt)
     this.applyFit()
@@ -260,43 +263,28 @@ export class GameScene {
     return Math.min(1, room / radius)
   }
 
-  private syncRunes(dt: number): void {
+  // Runes in hand sit in their slots; the one being dragged follows the
+  // finger, and a rune whose next layer just came back flies home.
+  private syncHand(dt: number): void {
     const s = this.sim.state
-    const motes = new Map(s.motes.map((m) => [m.id, m]))
     for (const rune of s.runes) {
-      const view = this.runeViews.get(rune.id)
+      const view = this.handViews.get(rune.id)
       if (!view) continue
-      const outer = outerLayer(rune)
-      if (rune.state === 'spent' || !outer) {
-        if (!this.flights.has(rune.id)) this.removeRuneView(rune.id)
+      const look = handLook(rune)
+      if (!look) {
+        if (!this.flights.has(rune.id)) this.removeView(this.handViews, rune.id)
         continue
       }
-
       let pos: Vec2
       let scale: number
-      let oRot = REST_ANGLE
-      let mRot = REST_ANGLE
       view.container.tint = 0xffffff
-
       if (this.drag?.runeId === rune.id) {
         pos = this.drag.pos
         scale = 1
         view.container.tint = this.sim.canPlace(rune.id, pos) ? 0xffffff : INVALID_TINT
-      } else if (rune.pos && (rune.state === 'charging' || rune.state === 'full')) {
-        pos = rune.pos
-        oRot = outerAngle(rune, s.time)
-        mRot = middleAngle(rune, s.time)
-        let pop = this.pops.get(rune.id)
-        if (pop !== undefined) {
-          pop += dt / 0.3
-          if (pop >= 1) this.pops.delete(rune.id)
-          else this.pops.set(rune.id, pop)
-        }
-        scale = pop !== undefined && pop < 1 ? 1 + Math.sin(pop * Math.PI) * 0.12 : 1
-        if (view.container.parent !== this.layers.runes) this.layers.runes.addChild(view.container)
       } else {
         const slot = this.slotPosition(rune.slot)
-        const icon = this.iconScale(outer.radius)
+        const icon = this.iconScale(look.outer.radius)
         const flight = this.flights.get(rune.id)
         if (flight?.delay && flight.delay > 0) {
           flight.delay -= dt
@@ -320,12 +308,30 @@ export class GameScene {
       view.container.position.set(pos.x, pos.y)
       view.body.scale.set(scale)
       // Tap area matches what is drawn; inventory icons never overlap.
-      let hitR = outer.radius * scale + 10
-      if (rune.state === 'idle' && this.drag?.runeId !== rune.id) {
-        hitR = Math.min(hitR, VIRTUAL_WIDTH / Math.max(1, s.runes.length) / 2 - 4)
-      }
+      let hitR = look.outer.radius * scale + 10
+      if (this.drag?.runeId !== rune.id) hitR = Math.min(hitR, VIRTUAL_WIDTH / Math.max(1, s.runes.length) / 2 - 4)
       view.setHitRadius(hitR)
-      view.sync(rune, oRot, mRot, s.time, dt, motes)
+      view.sync(look, REST_ANGLE, REST_ANGLE, s.time, dt, NO_MOTES)
+    }
+  }
+
+  private syncPieces(dt: number): void {
+    const s = this.sim.state
+    const motes = new Map(s.motes.map((m) => [m.id, m]))
+    for (const piece of s.pieces) {
+      const view = this.pieceViews.get(piece.id)
+      if (!view) continue
+      let pop = this.pops.get(piece.id)
+      if (pop !== undefined) {
+        pop += dt / 0.3
+        if (pop >= 1) this.pops.delete(piece.id)
+        else this.pops.set(piece.id, pop)
+      }
+      const scale = pop !== undefined && pop < 1 ? 1 + Math.sin(pop * Math.PI) * 0.12 : 1
+      view.container.position.set(piece.pos.x, piece.pos.y)
+      view.body.scale.set(scale)
+      view.setHitRadius(piece.layer.radius * scale + 10)
+      view.sync(pieceLook(piece), outerAngle(piece, s.time), middleAngle(piece, s.time), s.time, dt, motes)
     }
   }
 
@@ -333,10 +339,10 @@ export class GameScene {
     const s = this.sim.state
     const obstacles = new Map(s.obstacles.map((o) => [o.id, o]))
     const list: Link[] = []
-    for (const rune of s.runes) {
-      if (!rune.pos || !rune.linkedObstacleId) continue
-      const o = obstacles.get(rune.linkedObstacleId)
-      if (o) list.push({ from: rune.pos, to: o.pos, full: rune.state === 'full' })
+    for (const piece of s.pieces) {
+      if (!piece.linkedObstacleId) continue
+      const o = obstacles.get(piece.linkedObstacleId)
+      if (o) list.push({ from: piece.pos, to: o.pos, full: piece.state === 'full' })
     }
     if (this.drag) {
       const target = this.sim.previewLink(this.drag.runeId, this.drag.pos)
@@ -346,11 +352,9 @@ export class GameScene {
     this.links.draw(list, this.clock)
     const g = this.links.g
     if (this.showRings) {
-      for (const rune of s.runes) {
-        const outer = outerLayer(rune)
-        if (!rune.pos || !outer) continue
-        g.circle(rune.pos.x, rune.pos.y, outer.radius + REACH).stroke({ color: 0x7cffb2, width: 1, alpha: 0.5 })
-        g.circle(rune.pos.x, rune.pos.y, Math.max(1, outer.radius - REACH)).stroke({ color: 0x7cffb2, width: 1, alpha: 0.5 })
+      for (const { pos, layer } of s.pieces) {
+        g.circle(pos.x, pos.y, layer.radius + REACH).stroke({ color: 0x7cffb2, width: 1, alpha: 0.5 })
+        g.circle(pos.x, pos.y, Math.max(1, layer.radius - REACH)).stroke({ color: 0x7cffb2, width: 1, alpha: 0.5 })
       }
     }
   }
@@ -361,7 +365,8 @@ export class GameScene {
 
   private rebuildViews(): void {
     this.cancelDrag()
-    for (const id of [...this.runeViews.keys()]) this.removeRuneView(id)
+    for (const id of [...this.handViews.keys()]) this.removeView(this.handViews, id)
+    for (const id of [...this.pieceViews.keys()]) this.removeView(this.pieceViews, id)
     for (const v of this.obstacleViews.values()) v.container.destroy({ children: true })
     for (const v of this.moteViews.values()) v.destroy()
     this.obstacleViews.clear()
@@ -377,20 +382,29 @@ export class GameScene {
       this.obstacleViews.set(o.id, view)
       this.layers.obstacles.addChild(view.container)
     }
-    for (const r of s.runes) {
-      if (r.state === 'spent') continue
-      const view = new RuneView(r)
-      view.container.on('pointerdown', (e) => this.onRunePointerDown(r.id, e))
-      this.runeViews.set(r.id, view)
-      this.layers.runes.addChild(view.container)
-    }
+    for (const r of s.runes) if (r.state === 'idle') this.addHandView(r)
+    for (const p of s.pieces) this.addPieceView(p)
   }
 
-  private removeRuneView(id: string): void {
-    const view = this.runeViews.get(id)
+  private addHandView(rune: Rune): void {
+    const view = new RuneView(rune.id)
+    view.container.on('pointerdown', (e) => this.onRunePointerDown(rune.id, e))
+    this.handViews.set(rune.id, view)
+    this.layers.runes.addChild(view.container)
+  }
+
+  private addPieceView(piece: Piece): void {
+    const view = new RuneView(piece.id)
+    view.container.on('pointerdown', (e) => this.onPiecePointerDown(piece.id, e))
+    this.pieceViews.set(piece.id, view)
+    this.layers.runes.addChild(view.container)
+  }
+
+  private removeView(views: Map<string, RuneView>, id: string): void {
+    const view = views.get(id)
     if (!view) return
     view.container.destroy({ children: true })
-    this.runeViews.delete(id)
+    views.delete(id)
   }
 
   // ---------------------------------------------------------------------
@@ -399,20 +413,26 @@ export class GameScene {
 
   private bindSimEvents(): void {
     const bus = this.sim.bus
-    bus.on('rune:placed', ({ rune }) => {
-      this.pops.set(rune.id, 0)
-      this.effects.ring(rune.pos!, RUNE_BODY_COLOR, 20, outerLayer(rune)!.radius + 20, 0.35, 2)
+    bus.on('piece:cast', ({ piece, rune }) => {
+      this.addPieceView(piece)
+      this.pops.set(piece.id, 0)
+      this.effects.ring(piece.pos, RUNE_BODY_COLOR, 20, piece.layer.radius + 20, 0.35, 2)
       this.sfx.place()
+      // The rune's next layer comes back to hand: its view flies home from
+      // the drop, growing from the size it had inside the cast layer.
+      const next = outerLayer(rune)
+      if (next) this.flights.set(rune.id, { from: { ...piece.pos }, fromScale: (MIDDLE_SCALE * piece.layer.radius) / next.radius, t: 0 })
+      else this.removeView(this.handViews, rune.id)
     })
-    bus.on('mote:held', ({ rune }) => {
+    bus.on('mote:held', ({ piece }) => {
       const motes = this.sim.state.motes
-      this.sfx.nodeFilled(rune.held.filter((id) => id !== null && motes.find((m) => m.id === id)?.state === 'held').length)
+      this.sfx.nodeFilled(piece.held.filter((id) => id !== null && motes.find((m) => m.id === id)?.state === 'held').length)
     })
-    bus.on('rune:full', ({ rune }) => {
-      this.effects.ring(rune.pos!, ACCENT_COLOR, outerLayer(rune)!.radius, outerLayer(rune)!.radius + 26, 0.45, 2)
+    bus.on('piece:full', ({ piece }) => {
+      this.effects.ring(piece.pos, ACCENT_COLOR, piece.layer.radius, piece.layer.radius + 26, 0.45, 2)
       this.sfx.full()
     })
-    bus.on('rune:detonated', ({ rune, info }) => this.onDetonated(rune.id, rune.state === 'spent', info))
+    bus.on('piece:detonated', ({ piece, info }) => this.onDetonated(piece.id, info))
     // Damage lands when the detonation's orb does (the view holds the
     // obstacle until then); a debug collapse has no orb and lands at once.
     bus.on('obstacle:damaged', ({ obstacle }) => {
@@ -442,10 +462,7 @@ export class GameScene {
       this.pendingResult = { kind: 'lost', wait: RESULT_DELAY + delay }
       this.effects.after(delay, () => {
         this.effects.flash(0x8a0f2a, 0.35, 1.4, { x: 0, y: 0, w: VIRTUAL_WIDTH, h: VIRTUAL_HEIGHT })
-        for (const r of this.sim.state.runes) {
-          const outer = outerLayer(r)
-          if (r.pos && outer) this.effects.ring(r.pos, 0x6d6480, outer.radius, outer.radius * 0.4, 1.2, 3)
-        }
+        for (const { pos, layer } of this.sim.state.pieces) this.effects.ring(pos, 0x6d6480, layer.radius, layer.radius * 0.4, 1.2, 3)
         this.sfx.lose()
       })
     })
@@ -461,7 +478,7 @@ export class GameScene {
     return d
   }
 
-  private onDetonated(runeId: string, spent: boolean, info: DetonationInfo): void {
+  private onDetonated(pieceId: string, info: DetonationInfo): void {
     const { pos, outer } = info
     // Fires before the sim damages the obstacle, so it still shows the
     // state to hold on screen until the orb lands.
@@ -479,16 +496,12 @@ export class GameScene {
       sides: outer.sides,
       radius: outer.radius,
       angle: info.outerAngle,
-      liquids: this.runeViews.get(runeId)?.liquids(pos, outer, info.outerAngle) ?? [],
+      liquids: this.pieceViews.get(pieceId)?.liquids(pos, outer, info.outerAngle) ?? [],
       releases: outer.nodes.map((n) => n.release),
       target: target ? { ...target.pos } : null,
     })
-    if (!spent) {
-      // What's left of the rune lingers through the burst, then flies home.
-      const rune = this.sim.rune(runeId)!
-      const newOuter = outerLayer(rune)!
-      this.flights.set(runeId, { from: { ...pos }, fromScale: (MIDDLE_SCALE * outer.radius) / newOuter.radius, t: 0, delay: timing.launch })
-    }
+    // The piece is used up: its glass shatters in the effect above.
+    this.removeView(this.pieceViews, pieceId)
     this.sfx.detonate(timing.launch, target ? timing.impact : null)
   }
 
@@ -526,14 +539,19 @@ export class GameScene {
     this.sfx.unlock() // must run inside a real gesture for iOS Safari
     const rune = this.sim.rune(runeId)
     if (!rune || this.sim.state.status !== 'playing') return
-    if (rune.state === 'full') {
-      this.sim.detonate(runeId)
-    } else if (rune.state === 'idle' && !this.drag && !this.flights.has(runeId)) {
-      this.beginDrag(runeId, e)
-    } else if (rune.state === 'charging') {
-      // A charging rune has nothing to do on tap, so the tap falls through to
-      // kicking a mote under the finger (motes near a rune stay reachable).
-      if (!this.onBoardPointerDown(e)) this.sfx.notReady()
+    if (rune.state === 'idle' && !this.drag && !this.flights.has(runeId)) this.beginDrag(runeId, e)
+  }
+
+  private onPiecePointerDown(pieceId: string, e: FederatedPointerEvent): void {
+    this.sfx.unlock()
+    const piece = this.sim.piece(pieceId)
+    if (!piece || this.sim.state.status !== 'playing') return
+    if (piece.state === 'full') {
+      this.sim.detonate(pieceId)
+    } else if (!this.onBoardPointerDown(e)) {
+      // A charging piece has nothing to do on tap, so the tap falls through
+      // to kicking a mote under the finger (motes near a piece stay reachable).
+      this.sfx.notReady()
     }
   }
 
@@ -542,7 +560,7 @@ export class GameScene {
   // "over" it) and it is reparented mid-press, which made Pixi drop the
   // release on iPhone and leave the rune stuck until a second drag.
   private beginDrag(runeId: string, e: FederatedPointerEvent): void {
-    const view = this.runeViews.get(runeId)
+    const view = this.handViews.get(runeId)
     if (!view) return
     const liftY = e.pointerType === 'touch' ? TOUCH_LIFT : 0
     const pointerId = e.pointerId

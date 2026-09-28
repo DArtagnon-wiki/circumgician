@@ -1,8 +1,8 @@
 import { DRIFT_SPEED, EJECT_TIME, KICK_GAIN, KICK_MAX, KICK_MIN, MOTE_FRICTION, PULL_ACCEL, PULL_RANGE, PUSH_BASE, PUSH_DEPTH, PUSH_INSET, REACH, SETTLE_SPEED, TRAVEL_TIME } from './constants'
-import { dist, nodePositions, outerLayer } from './geometry'
+import { dist, nodePositions } from './geometry'
 import { nextRandom } from './rng'
 import type { SimBus } from './events'
-import type { Mote, Rune, SimState, Vec2 } from './types'
+import type { Mote, Piece, SimState, Vec2 } from './types'
 
 const lerp = (a: Vec2, b: Vec2, t: number): Vec2 => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t })
 const easeIn = (t: number) => t * t
@@ -14,30 +14,30 @@ function pickWander(state: SimState, mote: Mote): Vec2 {
   return { x: mote.home.x + Math.cos(a) * r, y: mote.home.y + Math.sin(a) * r }
 }
 
-// Placed runes act on nearby free motes:
-// - a mote the rune can still catch is pulled toward a nearby matching
+// Pieces on the field act on nearby free motes:
+// - a mote the piece can still catch is pulled toward a nearby matching
 //   hungry node, or (if the only match is across the body) pushed out onto
 //   the ring, where that node sweeps by;
 // - any other mote is pushed fully clear: past the catch ring plus its own
-//   drift radius, so it can't hover inside the rune's outline or wander back.
+//   drift radius, so it can't hover inside the piece's outline or wander back.
 // Kicked, pulled or pushed motes coast with friction, bounce off the field
 // edge, and adopt their resting spot as home. Returns true while coasting.
-function applyPushAndCoast(state: SimState, mote: Mote, pushers: Rune[], nodesOf: (r: Rune) => Vec2[], dt: number): boolean {
+function applyPushAndCoast(state: SimState, mote: Mote, pushers: Piece[], nodesOf: (p: Piece) => Vec2[], dt: number): boolean {
   let ax = 0
   let ay = 0
   const f = state.field
-  for (const rune of pushers) {
-    const layer = outerLayer(rune)!
-    const dx = mote.pos.x - rune.pos!.x
-    const dy = mote.pos.y - rune.pos!.y
+  for (const piece of pushers) {
+    const layer = piece.layer
+    const dx = mote.pos.x - piece.pos.x
+    const dy = mote.pos.y - piece.pos.y
     const d = Math.hypot(dx, dy)
 
     let catchable = false
     let target: Vec2 | null = null
     let best = Infinity
-    if (rune.state === 'charging') {
-      nodesOf(rune).forEach((p, i) => {
-        if (rune.held[i] !== null) return
+    if (piece.state === 'charging') {
+      nodesOf(piece).forEach((p, i) => {
+        if (piece.held[i] !== null) return
         if (mote.color !== 'generic' && mote.color !== layer.nodes[i].catch) return
         catchable = true
         const dn = Math.hypot(p.x - mote.pos.x, p.y - mote.pos.y)
@@ -132,15 +132,15 @@ export function kickMote(mote: Mote, from: Vec2): boolean {
 
 // Tethered drift, claimed-mote travel, held-mote tracking and burst settling.
 export function updateMotion(state: SimState, bus: SimBus, dt: number): void {
-  const runes = new Map(state.runes.map((r) => [r.id, r]))
+  const pieces = new Map(state.pieces.map((p) => [p.id, p]))
   const nodeCache = new Map<string, Vec2[]>()
-  const nodesOf = (rune: Rune) => {
-    let n = nodeCache.get(rune.id)
-    if (!n) nodeCache.set(rune.id, (n = nodePositions(rune, state.time)))
+  const nodesOf = (piece: Piece) => {
+    let n = nodeCache.get(piece.id)
+    if (!n) nodeCache.set(piece.id, (n = nodePositions(piece, state.time)))
     return n
   }
 
-  const pushers = state.runes.filter((r) => r.pos && (r.state === 'charging' || r.state === 'full'))
+  const pushers = state.pieces
 
   for (const mote of state.motes) {
     switch (mote.state) {
@@ -157,24 +157,24 @@ export function updateMotion(state: SimState, bus: SimBus, dt: number): void {
         break
       }
       case 'traveling': {
-        const rune = runes.get(mote.runeId!)!
-        const target = nodesOf(rune)[mote.node!]
+        const piece = pieces.get(mote.pieceId!)!
+        const target = nodesOf(piece)[mote.node!]
         mote.t = Math.min(1, (mote.t ?? 0) + dt / TRAVEL_TIME)
         mote.pos = lerp(mote.travelFrom!, target, easeIn(mote.t))
         if (mote.t >= 1) {
           mote.state = 'held'
           mote.pos = { ...target }
-          bus.emit('mote:held', { mote, rune, node: mote.node! })
-          if (rune.state === 'charging' && rune.held.every((id) => id !== null && state.motes.find((m) => m.id === id)?.state === 'held')) {
-            rune.state = 'full'
-            bus.emit('rune:full', { rune })
+          bus.emit('mote:held', { mote, piece, node: mote.node! })
+          if (piece.state === 'charging' && piece.held.every((id) => id !== null && state.motes.find((m) => m.id === id)?.state === 'held')) {
+            piece.state = 'full'
+            bus.emit('piece:full', { piece })
           }
         }
         break
       }
       case 'held': {
-        const rune = runes.get(mote.runeId!)!
-        mote.pos = { ...nodesOf(rune)[mote.node!] }
+        const piece = pieces.get(mote.pieceId!)!
+        mote.pos = { ...nodesOf(piece)[mote.node!] }
         break
       }
       case 'ejecting': {
@@ -197,13 +197,12 @@ export function updateMotion(state: SimState, bus: SimBus, dt: number): void {
 // claimed by the nearest such node. Motes are resolved in pool order, and a
 // claimed node is no longer hungry, so contention is deterministic per tick.
 export function updateCatching(state: SimState, bus: SimBus): void {
-  const hungry: { rune: Rune; node: number; pos: Vec2; catch: string }[] = []
-  for (const rune of state.runes) {
-    if (rune.state !== 'charging') continue
-    const layer = outerLayer(rune)!
-    const positions = nodePositions(rune, state.time)
-    rune.held.forEach((id, i) => {
-      if (id === null) hungry.push({ rune, node: i, pos: positions[i], catch: layer.nodes[i].catch })
+  const hungry: { piece: Piece; node: number; pos: Vec2; catch: string }[] = []
+  for (const piece of state.pieces) {
+    if (piece.state !== 'charging') continue
+    const positions = nodePositions(piece, state.time)
+    piece.held.forEach((id, i) => {
+      if (id === null) hungry.push({ piece, node: i, pos: positions[i], catch: piece.layer.nodes[i].catch })
     })
   }
   if (!hungry.length) return
@@ -213,7 +212,7 @@ export function updateCatching(state: SimState, bus: SimBus): void {
     let best: (typeof hungry)[number] | null = null
     let bestD = REACH
     for (const h of hungry) {
-      if (h.rune.held[h.node] !== null) continue
+      if (h.piece.held[h.node] !== null) continue
       if (mote.color !== 'generic' && mote.color !== h.catch) continue
       const d = dist(mote.pos, h.pos)
       if (d <= bestD) {
@@ -222,13 +221,13 @@ export function updateCatching(state: SimState, bus: SimBus): void {
       }
     }
     if (!best) continue
-    best.rune.held[best.node] = mote.id
+    best.piece.held[best.node] = mote.id
     mote.state = 'traveling'
-    mote.runeId = best.rune.id
+    mote.pieceId = best.piece.id
     mote.node = best.node
     mote.travelFrom = { ...mote.pos }
     mote.t = 0
     delete mote.vel
-    bus.emit('mote:claimed', { mote, rune: best.rune, node: best.node })
+    bus.emit('mote:claimed', { mote, piece: best.piece, node: best.node })
   }
 }

@@ -1,18 +1,7 @@
 import { BURST_GAP } from './constants'
 import type { DetonationInfo, SimBus } from './events'
-import {
-  circleHitsRect,
-  circleInRect,
-  clampToRect,
-  dist,
-  footprintRadius,
-  middleAngle,
-  middleLayer,
-  outerAngle,
-  outerLayer,
-  placedRunes,
-} from './geometry'
-import type { Obstacle, Rune, SimState, Vec2 } from './types'
+import { circleHitsRect, circleInRect, clampToRect, dist, footprintRadius, middleAngle, middleLayer, outerAngle, outerLayer } from './geometry'
+import type { Obstacle, Piece, Rune, RuneLayerSpec, SimState, Vec2 } from './types'
 
 // Where node i's released mote settles: along that node's REST direction
 // (vertex 0 pointing up), BURST_GAP outside the outer radius. Independent
@@ -29,22 +18,18 @@ export function canPlace(state: SimState, rune: Rune, pos: Vec2): boolean {
   const r = footprintRadius(layer)
   if (!circleInRect(pos, r, state.field)) return false
   if (state.blockers.some((b) => circleHitsRect(pos, r, b))) return false
-  for (const other of placedRunes(state)) {
-    if (other.id === rune.id) continue
-    if (dist(pos, other.pos!) < r + footprintRadius(outerLayer(other)!)) return false
-  }
+  for (const p of state.pieces) if (dist(pos, p.pos) < r + footprintRadius(p.layer)) return false
   return true
 }
 
 // Nearest uncleared obstacle (any distance) whose current layer has as many
-// sides as the rune's middle layer. Ties go to the earlier obstacle.
-export function findLink(state: SimState, rune: Rune, pos: Vec2): Obstacle | null {
-  const middle = middleLayer(rune)
-  if (!middle) return null
+// sides as the energy shape. Ties go to the earlier obstacle.
+export function findLink(state: SimState, energy: RuneLayerSpec | undefined, pos: Vec2): Obstacle | null {
+  if (!energy) return null
   let best: Obstacle | null = null
   let bestD = Infinity
   for (const o of state.obstacles) {
-    if (o.cleared || o.layers[o.index]?.sides !== middle.sides) continue
+    if (o.cleared || o.layers[o.index]?.sides !== energy.sides) continue
     const d = dist(pos, o.pos)
     if (d < bestD) {
       bestD = d
@@ -55,48 +40,65 @@ export function findLink(state: SimState, rune: Rune, pos: Vec2): Obstacle | nul
 }
 
 export function relinkAll(state: SimState, bus: SimBus): void {
-  for (const rune of placedRunes(state)) {
-    const id = findLink(state, rune, rune.pos!)?.id ?? null
-    if (id !== rune.linkedObstacleId) {
-      rune.linkedObstacleId = id
-      bus.emit('rune:linked', { rune })
+  for (const piece of state.pieces) {
+    const id = findLink(state, piece.energy, piece.pos)?.id ?? null
+    if (id !== piece.linkedObstacleId) {
+      piece.linkedObstacleId = id
+      bus.emit('piece:linked', { piece })
     }
   }
-}
-
-export function placeRune(state: SimState, bus: SimBus, rune: Rune, pos: Vec2): void {
-  const layer = outerLayer(rune)!
-  rune.pos = { ...pos }
-  rune.placedAt = state.time
-  rune.state = 'charging'
-  rune.held = Array.from({ length: layer.sides }, () => null)
-  rune.linkedObstacleId = findLink(state, rune, pos)?.id ?? null
-  bus.emit('rune:placed', { rune })
 }
 
 // Called by the Sim before reading a layer that may not exist yet (endless).
 export type EnsureLayers = (state: SimState) => void
 
-export function detonateRune(state: SimState, bus: SimBus, rune: Rune, ensure?: EnsureLayers): void {
-  const outer = outerLayer(rune)!
-  const pos = rune.pos!
-  const obstacle = state.obstacles.find((o) => o.id === rune.linkedObstacleId && !o.cleared) ?? null
+// The layer in hand goes onto the field as a piece, and the rune brings its
+// next layer into hand at once; when that next entry is the stack's last
+// (a target shape only), the rune is spent instead.
+export function castRune(state: SimState, bus: SimBus, rune: Rune, pos: Vec2, ensure?: EnsureLayers): Piece {
+  const layer = outerLayer(rune)!
+  const energy = middleLayer(rune)!
+  const piece: Piece = {
+    id: `piece-${state.nextId++}`,
+    runeId: rune.id,
+    slot: rune.slot,
+    depth: rune.index,
+    layer,
+    energy,
+    pos: { ...pos },
+    placedAt: state.time,
+    state: 'charging',
+    held: Array.from({ length: layer.sides }, () => null),
+    linkedObstacleId: findLink(state, energy, pos)?.id ?? null,
+  }
+  state.pieces.push(piece)
+  rune.index++
+  ensure?.(state)
+  if (!outerLayer(rune)) rune.state = 'spent'
+  bus.emit('piece:cast', { piece, rune })
+  if (rune.state === 'spent') bus.emit('rune:spent', { rune })
+  return piece
+}
+
+export function detonatePiece(state: SimState, bus: SimBus, piece: Piece, ensure?: EnsureLayers): void {
+  const outer = piece.layer
+  const pos = piece.pos
+  const obstacle = state.obstacles.find((o) => o.id === piece.linkedObstacleId && !o.cleared) ?? null
   const info: DetonationInfo = {
     pos: { ...pos },
     outer,
-    middle: middleLayer(rune),
-    outerAngle: outerAngle(rune, state.time),
-    middleAngle: middleAngle(rune, state.time),
+    energy: piece.energy,
+    outerAngle: outerAngle(piece, state.time),
+    energyAngle: middleAngle(piece, state.time),
     damage: obstacle ? outer.sides : 0,
     obstacleId: obstacle?.id ?? null,
     released: [],
     annihilated: [],
   }
 
-
-  // 2. Resolve each node's mote: annihilate, or recolor and burst outward.
+  // 1. Resolve each node's mote: annihilate, or recolor and burst outward.
   const annihilate = new Set<string>()
-  rune.held.forEach((moteId, i) => {
+  piece.held.forEach((moteId, i) => {
     if (moteId === null) return
     const mote = state.motes.find((m) => m.id === moteId)
     if (!mote) return
@@ -112,7 +114,7 @@ export function detonateRune(state: SimState, bus: SimBus, rune: Rune, ensure?: 
     mote.state = 'ejecting'
     mote.ejectFrom = { ...mote.pos }
     mote.t = 0
-    delete mote.runeId
+    delete mote.pieceId
     delete mote.node
     delete mote.travelFrom
     info.released.push(mote.id)
@@ -120,20 +122,13 @@ export function detonateRune(state: SimState, bus: SimBus, rune: Rune, ensure?: 
   if (annihilate.size) state.motes = state.motes.filter((m) => !annihilate.has(m.id))
   state.stats.detonations++
   state.stats.destroyed += annihilate.size
-  if (!obstacle && info.middle) state.stats.unlinked++
+  if (!obstacle) state.stats.unlinked++
 
-  // 3. The rune leaves the field one layer thinner, or is spent.
-  rune.index++
-  rune.pos = undefined
-  rune.placedAt = undefined
-  rune.held = []
-  rune.linkedObstacleId = null
-  ensure?.(state)
-  rune.state = rune.index < rune.layers.length ? 'idle' : 'spent'
-  bus.emit('rune:detonated', { rune, info })
-  if (rune.state === 'spent') bus.emit('rune:spent', { rune })
+  // 2. The piece is used up.
+  state.pieces = state.pieces.filter((p) => p !== piece)
+  bus.emit('piece:detonated', { piece, info })
 
-  // 4. Damage the obstacle (after the rune has left, so relinking sees the
+  // 3. Damage the obstacle (after the piece has left, so relinking sees the
   //    freed field), then relink everything still on the field.
   if (obstacle) damageObstacle(state, bus, obstacle, outer.sides, ensure)
   relinkAll(state, bus)

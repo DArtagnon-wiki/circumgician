@@ -12,7 +12,7 @@ function percent(x: number): string {
   return `${Math.round(x * 100)}%`
 }
 
-const blowLabel = (b: Blow) => moveLabel({ kind: 'fire', rune: b.rune, target: b.target })
+const blowLabel = (b: Blow) => moveLabel({ kind: 'fire', rune: b.rune, layer: b.layer, target: b.target })
 
 export function formatProfile(level: LevelData, p: LevelProfile, maxTraps = 8): string {
   const out = [`${level.name} (${level.id})`]
@@ -21,7 +21,7 @@ export function formatProfile(level: LevelData, p: LevelProfile, maxTraps = 8): 
     out.push('  UNWINNABLE: no order of fills and detonations clears every obstacle')
     return out.join('\n')
   }
-  out.push(`  plans      ${p.plans.length}${p.morePlans ? '+' : ''} (random legal moves win ${percent(p.blindLuck)} of the time)`)
+  out.push(`  plans      ${p.plans.length}${p.morePlans ? '+' : ''} (random legal moves win ${percent(p.blindLuck)} of the time; the cleanest win wastes ${p.cleanest})`)
   for (const plan of p.plans.slice(0, 4)) {
     const notes = [plan.wasted ? `wastes ${plan.wasted}` : '', plan.unlinked ? `${plan.unlinked} unlinked` : ''].filter(Boolean)
     out.push(`    ${plan.blows.map(blowLabel).join('  ')}${notes.length ? `   (${notes.join(', ')})` : ''}`)

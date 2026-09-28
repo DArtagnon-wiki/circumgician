@@ -1,33 +1,37 @@
 import { FOOTPRINT_MARGIN, REACH, SPIN_K } from './constants'
-import type { Rect, Rune, RuneLayerSpec, SimState, Vec2 } from './types'
+import type { Piece, Rect, Rune, RuneLayerSpec, Vec2 } from './types'
 
 export const dist = (a: Vec2, b: Vec2): number => Math.hypot(a.x - b.x, a.y - b.y)
 
+// The layer a rune would cast now. A stack's last entry is only ever a
+// target shape, so it is never in hand.
 export function outerLayer(rune: Rune): RuneLayerSpec | undefined {
-  return rune.layers[rune.index]
+  return rune.index + 1 < rune.layers.length ? rune.layers[rune.index] : undefined
 }
+// What the layer in hand would strike: the next entry of the stack.
 export function middleLayer(rune: Rune): RuneLayerSpec | undefined {
-  return rune.layers[rune.index + 1]
+  return outerLayer(rune) ? rune.layers[rune.index + 1] : undefined
 }
 export function centerLayer(rune: Rune): RuneLayerSpec | undefined {
-  return rune.layers[rune.index + 2]
+  return outerLayer(rune) ? rune.layers[rune.index + 2] : undefined
+}
+// Is this entry the stack's last, the one that only ever strikes? (Endless
+// stacks grow on demand and never have one.)
+export function isFinal(rune: Rune, depth: number): boolean {
+  return rune.endlessSeed === undefined && depth === rune.layers.length - 1
 }
 
 export const angularSpeed = (radius: number): number => SPIN_K / radius
 
-// Outer layer angle (radians, clockwise in screen space). Starts with a
-// vertex pointing up at placement. Purely a function of time since placement.
-export function outerAngle(rune: Rune, time: number): number {
-  const layer = outerLayer(rune)
-  if (!layer || rune.placedAt === undefined) return -Math.PI / 2
-  return -Math.PI / 2 + angularSpeed(layer.radius) * (time - rune.placedAt)
+// A piece's glass angle (radians, clockwise in screen space). Starts with a
+// vertex pointing up when cast. Purely a function of time since casting.
+export function outerAngle(piece: Piece, time: number): number {
+  return -Math.PI / 2 + angularSpeed(piece.layer.radius) * (time - piece.placedAt)
 }
 
-// Middle counter-rotates at the speed its own radius implies.
-export function middleAngle(rune: Rune, time: number): number {
-  const layer = middleLayer(rune)
-  if (!layer || rune.placedAt === undefined) return -Math.PI / 2
-  return -Math.PI / 2 - angularSpeed(layer.radius) * (time - rune.placedAt)
+// Its energy counter-rotates at the speed its own radius implies.
+export function middleAngle(piece: Piece, time: number): number {
+  return -Math.PI / 2 - angularSpeed(piece.energy.radius) * (time - piece.placedAt)
 }
 
 export function polygonPoints(center: Vec2, sides: number, radius: number, angle: number): Vec2[] {
@@ -39,10 +43,8 @@ export function polygonPoints(center: Vec2, sides: number, radius: number, angle
   return pts
 }
 
-export function nodePositions(rune: Rune, time: number): Vec2[] {
-  const layer = outerLayer(rune)
-  if (!layer || !rune.pos) return []
-  return polygonPoints(rune.pos, layer.sides, layer.radius, outerAngle(rune, time))
+export function nodePositions(piece: Piece, time: number): Vec2[] {
+  return polygonPoints(piece.pos, piece.layer.sides, piece.layer.radius, outerAngle(piece, time))
 }
 
 export function footprintRadius(layer: RuneLayerSpec): number {
@@ -71,8 +73,4 @@ export function clampToRect(p: Vec2, rect: Rect, inset = 0): Vec2 {
     x: Math.max(rect.x + inset, Math.min(rect.x + rect.w - inset, p.x)),
     y: Math.max(rect.y + inset, Math.min(rect.y + rect.h - inset, p.y)),
   }
-}
-
-export function placedRunes(state: SimState): Rune[] {
-  return state.runes.filter((r) => r.state === 'charging' || r.state === 'full')
 }

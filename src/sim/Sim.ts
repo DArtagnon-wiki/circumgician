@@ -2,8 +2,9 @@ import { createSimBus, type SimBus } from './events'
 import { loadLevel } from './loadLevel'
 import { kickMote, updateCatching, updateMotion } from './motion'
 import { certainLoss, isWon } from './progress'
-import { canPlace, damageObstacle, detonateRune, findLink, placeRune, relinkAll, type EnsureLayers } from './rules'
-import type { LevelData, Obstacle, Rune, SimState, Vec2 } from './types'
+import { canPlace, castRune, damageObstacle, detonatePiece, findLink, relinkAll, type EnsureLayers } from './rules'
+import { middleLayer } from './geometry'
+import type { LevelData, Obstacle, Piece, Rune, SimState, Vec2 } from './types'
 
 const LOSS_CHECK_INTERVAL = 0.25
 
@@ -18,6 +19,8 @@ export interface SimOptions {
 // The whole rules engine, render-free. The scene (or a headless test) calls
 // step() every frame and place()/detonate()/undo() on player input, and
 // listens on `bus` for animation cues. `state` is plain data throughout.
+// Runes are in hand; placing one casts its current layer onto the field as
+// a piece and brings its next layer into hand. Pieces are what detonate.
 export class Sim {
   state: SimState
   readonly bus: SimBus = createSimBus()
@@ -35,6 +38,10 @@ export class Sim {
 
   rune(id: string): Rune | undefined {
     return this.state.runes.find((r) => r.id === id)
+  }
+
+  piece(id: string): Piece | undefined {
+    return this.state.pieces.find((p) => p.id === id)
   }
 
   get canUndo(): boolean {
@@ -61,24 +68,24 @@ export class Sim {
 
   previewLink(runeId: string, pos: Vec2): Obstacle | null {
     const rune = this.rune(runeId)
-    return rune ? findLink(this.state, rune, pos) : null
+    return rune ? findLink(this.state, middleLayer(rune), pos) : null
   }
 
-  place(runeId: string, pos: Vec2): boolean {
+  // Casts the rune's layer in hand at `pos`; returns the new piece.
+  place(runeId: string, pos: Vec2): Piece | null {
     const rune = this.rune(runeId)
-    if (!rune || !this.canPlace(runeId, pos)) return false
+    if (!rune || !this.canPlace(runeId, pos)) return null
     this.snapshot()
-    placeRune(this.state, this.bus, rune, pos)
-    return true
+    return castRune(this.state, this.bus, rune, pos, this.opts.ensureLayers)
   }
 
-  // `force` (debug only) detonates a charging rune as if it were full.
-  detonate(runeId: string, force = false): boolean {
-    const rune = this.rune(runeId)
-    if (!rune || this.state.status !== 'playing') return false
-    if (rune.state !== 'full' && !(force && rune.state === 'charging')) return false
+  // `force` (debug only) detonates a charging piece as if it were full.
+  detonate(pieceId: string, force = false): boolean {
+    const piece = this.piece(pieceId)
+    if (!piece || this.state.status !== 'playing') return false
+    if (piece.state !== 'full' && !(force && piece.state === 'charging')) return false
     this.snapshot()
-    detonateRune(this.state, this.bus, rune, this.opts.ensureLayers)
+    detonatePiece(this.state, this.bus, piece, this.opts.ensureLayers)
     this.afterAction()
     return true
   }

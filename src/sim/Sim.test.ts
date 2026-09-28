@@ -14,10 +14,12 @@ const mk = (level: LevelData, opts: SimOptions = {}) => new Sim(level, { lossChe
 function stepFor(sim: Sim, seconds: number) {
   for (let t = 0; t < seconds; t += DT) sim.step(DT)
 }
+// Casts the layer in hand from `slot`; returns the new piece's id.
 function placeSlot(sim: Sim, slot: number, at = C) {
   const rune = sim.state.runes.find((r) => r.slot === slot)!
-  expect(sim.place(rune.id, at)).toBe(true)
-  return rune.id
+  const piece = sim.place(rune.id, at)
+  expect(piece).not.toBeNull()
+  return piece!.id
 }
 
 describe('catch ring', () => {
@@ -32,7 +34,7 @@ describe('catch ring', () => {
     stepFor(sim, 8)
     const [onRing, center, beyond, blue] = sim.state.motes
     expect(onRing.state).toBe('held')
-    expect(onRing.runeId).toBe(id)
+    expect(onRing.pieceId).toBe(id)
     expect(center.state).toBe('held') // pushed out of the body, through the ring
     expect(beyond.state).toBe('free')
     expect(blue.state).toBe('free')
@@ -52,17 +54,17 @@ describe('catch ring', () => {
     expect(maxD).toBeLessThanOrEqual(40 + REACH) // never left the body first
   })
 
-  it('a full rune has no hungry nodes, so even matching motes are pushed out', () => {
+  it('a full piece has no hungry nodes, so even matching motes are pushed out', () => {
     const sim = mk(testLevel({ hand: level.hand, motes: [...ring('red', C.x, C.y, 40, 4), mote('red', C.x + 3, C.y + 2)] }))
     const id = placeSlot(sim, 0)
     const inner = sim.state.motes[4]
-    // Fill from the ring first: hold the inner mote still until the rune is full.
-    for (let t = 0; t < 15 && sim.rune(id)!.state !== 'full'; t += DT) {
+    // Fill from the ring first: hold the inner mote still until the piece is full.
+    for (let t = 0; t < 15 && sim.piece(id)!.state !== 'full'; t += DT) {
       inner.pos = { x: C.x + 3, y: C.y + 2 }
       delete inner.vel
       sim.step(DT)
     }
-    expect(sim.rune(id)!.state).toBe('full')
+    expect(sim.piece(id)!.state).toBe('full')
     expect(inner.state).toBe('free')
     stepFor(sim, 6)
     expect(inner.state).toBe('free')
@@ -74,7 +76,7 @@ describe('catch ring', () => {
     const sim = mk(level, { seed: 4 })
     const big = sim.state.runes[1] // 5-gon R66, catches blue; reds sit at r40 under it
     const P = { x: 140, y: 500 }
-    expect(sim.place(big.id, P)).toBe(true)
+    expect(sim.place(big.id, P)).not.toBeNull()
     stepFor(sim, 8)
     for (const m of sim.state.motes) {
       expect(m.vel, 'settled').toBeUndefined()
@@ -158,12 +160,12 @@ describe('contention', () => {
     const idB = placeSlot(sim, 1, b)
     let claimedBy: string | null = null
     let claimNodeDist = { a: Infinity, b: Infinity }
-    sim.bus.on('mote:claimed', ({ rune, node, mote: m }) => {
-      claimedBy = rune.id
-      const other = sim.state.runes.find((r) => r.id !== rune.id)!
-      const own = dist(m.pos, nodePositions(rune, sim.state.time)[node])
+    sim.bus.on('mote:claimed', ({ piece, node, mote: m }) => {
+      claimedBy = piece.id
+      const other = sim.state.pieces.find((p) => p.id !== piece.id)!
+      const own = dist(m.pos, nodePositions(piece, sim.state.time)[node])
       const rival = Math.min(...nodePositions(other, sim.state.time).map((p) => dist(p, m.pos)))
-      claimNodeDist = rune.id === idA ? { a: own, b: rival } : { a: rival, b: own }
+      claimNodeDist = piece.id === idA ? { a: own, b: rival } : { a: rival, b: own }
     })
     stepFor(sim, 20)
     expect(claimedBy).not.toBeNull()
@@ -185,26 +187,49 @@ describe('full, hold and detonation lifecycle', () => {
     const sim = mk(level)
     const id = placeSlot(sim, 0)
     stepFor(sim, 15)
-    const rune = sim.rune(id)!
-    expect(rune.state).toBe('full')
+    const piece = sim.piece(id)!
+    expect(piece.state).toBe('full')
     expect(sim.state.motes.filter((m) => m.state === 'held')).toHaveLength(4)
     expect(sim.state.motes.filter((m) => m.state === 'free')).toHaveLength(1)
     stepFor(sim, 5)
-    expect(rune.state).toBe('full') // never auto-detonates
+    expect(piece.state).toBe('full') // never auto-detonates
   })
 
-  it('links, damages by outer node count, recolors, bursts and returns one layer thinner', () => {
+  it('casting brings the next layer into hand at once', () => {
+    const sim = mk(level)
+    const rune = sim.state.runes[0]
+    const id = placeSlot(sim, 0)
+    const piece = sim.piece(id)!
+    expect(piece.layer.sides).toBe(4)
+    expect(piece.energy.sides).toBe(3) // strikes what was its middle
+    expect(rune.index).toBe(1)
+    expect(rune.state).toBe('idle') // the triangle is in hand already
+    // ...and can be cast while the square still sits on the field.
+    const second = placeSlot(sim, 0, { x: 300, y: 620 })
+    expect(sim.state.pieces.map((p) => p.id)).toEqual([id, second])
+    expect(sim.piece(second)!.energy.sides).toBe(5)
+  })
+
+  it('the final entry is never cast: it is what the layer above it strikes', () => {
+    const sim = mk(level)
+    const rune = sim.state.runes[0]
+    placeSlot(sim, 0)
+    placeSlot(sim, 0, { x: 300, y: 620 }) // the triangle, striking pentagons
+    expect(rune.state).toBe('spent')
+    expect(sim.canPlace(rune.id, { x: 100, y: 620 })).toBe(false)
+  })
+
+  it('links, damages by its node count, recolors, bursts and is used up', () => {
     const sim = mk(level)
     const id = placeSlot(sim, 0)
-    const rune = sim.rune(id)!
-    expect(rune.linkedObstacleId).toBe(sim.state.obstacles[0].id)
+    const piece = sim.piece(id)!
+    expect(piece.linkedObstacleId).toBe(sim.state.obstacles[0].id)
     stepFor(sim, 15)
     expect(sim.detonate(id)).toBe(true)
     expect(sim.state.obstacles[0].hp).toBe(6)
     expect(sim.state.stats).toEqual({ detonations: 1, landed: 4, wasted: 0, unlinked: 0, destroyed: 0 })
-    expect(rune.state).toBe('idle')
-    expect(rune.index).toBe(1)
-    expect(rune.pos).toBeUndefined()
+    expect(sim.piece(id)).toBeUndefined()
+    expect(sim.state.runes[0].index).toBe(1) // unchanged: it moved on when cast
     const released = sim.state.motes.filter((m) => m.state === 'ejecting')
     expect(released).toHaveLength(4)
     for (const m of released) {
@@ -221,21 +246,12 @@ describe('full, hold and detonation lifecycle', () => {
   it('an unlinked detonation deals no damage but still transforms motes', () => {
     const sim = mk({ ...level, obstacles: [obstacle(200, 150, [6, 10])] })
     const id = placeSlot(sim, 0)
-    expect(sim.rune(id)!.linkedObstacleId).toBeNull()
+    expect(sim.piece(id)!.linkedObstacleId).toBeNull()
     stepFor(sim, 15)
     sim.detonate(id)
     expect(sim.state.obstacles[0].hp).toBe(10)
     expect(sim.state.motes.filter((m) => m.color === 'blue')).toHaveLength(4)
     expect(sim.state.stats).toMatchObject({ detonations: 1, landed: 0, unlinked: 1 })
-  })
-
-  it('a rune with no layer left is spent', () => {
-    const sim = mk({ ...level, hand: [{ layers: [layer(4, 40, 'red')] }] })
-    const id = placeSlot(sim, 0)
-    stepFor(sim, 15)
-    sim.detonate(id)
-    expect(sim.rune(id)!.state).toBe('spent')
-    expect(sim.state.stats.unlinked).toBe(0) // a last layer has nothing to aim, so it misses nothing
   })
 
   it('annihilating releases destroy their motes', () => {
@@ -276,27 +292,27 @@ describe('obstacles', () => {
     )
     const a = placeSlot(sim, 0, { x: 110, y: 500 })
     const b = placeSlot(sim, 1, { x: 290, y: 500 })
-    expect(sim.rune(b)!.linkedObstacleId).toBeNull()
+    expect(sim.piece(b)!.linkedObstacleId).toBeNull()
     stepFor(sim, 15)
     sim.detonate(a)
     const o = sim.state.obstacles[0]
     expect(o.index).toBe(1)
     expect(o.hp).toBe(9)
     expect(sim.state.stats).toMatchObject({ landed: 2, wasted: 3 })
-    expect(sim.rune(b)!.linkedObstacleId).toBe(o.id)
+    expect(sim.piece(b)!.linkedObstacleId).toBe(o.id)
   })
 
   it('placement rejects overlap, blockers and the field edge', () => {
     const sim = mk(
       testLevel({
         blockers: [{ x: 0, y: 600, w: 400, h: 20 }],
-        hand: [{ layers: [layer(4, 40, 'red')] }, { layers: [layer(4, 40, 'red')] }],
+        hand: [{ layers: [layer(4, 40, 'red'), layer(3, 30, 'red')] }, { layers: [layer(4, 40, 'red'), layer(3, 30, 'red')] }],
       }),
     )
     const [r0, r1] = sim.state.runes
     expect(sim.canPlace(r0.id, { x: 20, y: 500 })).toBe(false)
     expect(sim.canPlace(r0.id, { x: 200, y: 590 })).toBe(false)
-    expect(sim.place(r0.id, C)).toBe(true)
+    expect(sim.place(r0.id, C)).not.toBeNull()
     expect(sim.canPlace(r1.id, { x: C.x + 60, y: C.y })).toBe(false)
     expect(sim.canPlace(r1.id, { x: C.x + 100, y: C.y })).toBe(true)
   })
@@ -312,11 +328,12 @@ describe('undo', () => {
     const before = structuredClone(sim.state)
     placeSlot(sim, 0)
     stepFor(sim, 15)
-    sim.detonate(sim.state.runes[0].id)
+    sim.detonate(sim.state.pieces[0].id)
     expect(sim.undo()).toBe(true) // undo the detonation
-    expect(sim.state.runes[0].state).toBe('full')
+    expect(sim.state.pieces[0].state).toBe('full')
     expect(sim.state.stats.detonations).toBe(0) // its stats go with it
-    expect(sim.undo()).toBe(true) // undo the placement
+    expect(sim.undo()).toBe(true) // undo the cast, and the promotion with it
+    expect(sim.state.runes[0].index).toBe(0)
     const { rng: _a, ...now } = sim.state
     const { rng: _b, ...was } = before
     expect(now).toEqual(was)
@@ -363,6 +380,23 @@ describe('loss check', () => {
     })
     const res = runScript(level, [{ place: 0, at: { x: 330, y: 650 } }], { settle: 5 })
     expect(res.status).toBe('playing')
+  })
+
+  it('a rune whose layer in hand cannot fill is still alive if a deeper layer can (dig to it)', () => {
+    const level = testLevel({
+      obstacles: [obstacle(200, 150, [3, 3])],
+      hand: [{ layers: [layer(4, 40, 'red'), layer(3, 66, 'blue'), layer(3, 30, 'red')] }],
+      motes: ring('blue', C.x, C.y, 66, 3),
+    })
+    const sim = new Sim(level)
+    sim.checkLoss()
+    expect(sim.state.status).toBe('playing')
+    // Dig: the square goes down empty, away from the blues; the triangle
+    // then catches them and strikes.
+    const res = runScript(level, [{ place: 0, at: { x: 80, y: 400 } }, { place: 0, at: C }, { tap: 0, layer: 1 }])
+    expect(res.error).toBeUndefined()
+    expect(res.status).toBe('won')
+    expect(res.sim.state.pieces.map((p) => p.state)).toEqual(['charging']) // the square still sits there, empty
   })
 
   it('declares a loss when no rune can ever fill from the remaining colors', () => {

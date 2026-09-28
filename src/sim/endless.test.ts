@@ -47,16 +47,17 @@ describe('endless generators', () => {
     const rune = sim.state.runes[0]
     const layer = rune.layers[0]
     layer.nodes.forEach((n) => (n.release = 'teal'))
-    expect(sim.place(rune.id, { x: 200, y: 520 })).toBe(true)
+    const piece = sim.place(rune.id, { x: 200, y: 520 })!
+    expect(piece).not.toBeNull()
     // Hold a mote on every node, then detonate.
     sim.state.motes.slice(0, layer.sides).forEach((m, i) => {
       m.state = 'held'
-      m.runeId = rune.id
+      m.pieceId = piece.id
       m.node = i
-      rune.held[i] = m.id
+      piece.held[i] = m.id
     })
-    rune.state = 'full'
-    sim.detonate(rune.id)
+    piece.state = 'full'
+    sim.detonate(piece.id)
     expect(sim.state.seenHues).toContain('teal')
   })
 

@@ -1,12 +1,13 @@
 import { KICK_GAIN, MOTE_FRICTION } from './constants'
+import { outerLayer } from './geometry'
 import { Sim, type SimOptions } from './Sim'
 import { nextRandom } from './rng'
 import type { Move } from './solver'
 import type { LevelData, SimStatus, Vec2 } from './types'
 
 export type ScriptStep =
-  | { place: number; at: Vec2 } // hand slot -> field position
-  | { tap: number } // wait for that slot's rune to fill, then detonate it
+  | { place: number; at: Vec2 } // cast the layer in that hand slot at a field position
+  | { tap: number; layer?: number } // wait for a piece from that slot (the oldest, or that stack layer) to fill, then detonate it
   | { wait: number } // seconds
   | { flick: number; toward: Vec2 } // kick the level's nth mote so it coasts to a point
 
@@ -20,20 +21,24 @@ export interface RunResult {
 
 const DT = 1 / 30
 
-// The run in the solver's terms (solver.ts): a fill when a rune becomes
+// The run in the solver's terms (solver.ts): a fill when a piece becomes
 // full, a fire at each detonation.
 function recordMoves(sim: Sim): Move[] {
   const moves: Move[] = []
-  sim.bus.on('rune:full', ({ rune }) => moves.push({ kind: 'fill', rune: rune.slot }))
-  sim.bus.on('rune:detonated', ({ rune, info }) => {
+  sim.bus.on('piece:full', ({ piece }) => moves.push({ kind: 'fill', rune: piece.slot, layer: piece.depth }))
+  sim.bus.on('piece:detonated', ({ piece, info }) => {
     const target = info.obstacleId === null ? null : sim.state.obstacles.findIndex((o) => o.id === info.obstacleId)
-    moves.push({ kind: 'fire', rune: rune.slot, target })
+    moves.push({ kind: 'fire', rune: piece.slot, layer: piece.depth, target })
   })
   return moves
 }
 
 function runeInSlot(sim: Sim, slot: number) {
   return sim.state.runes.find((r) => r.slot === slot)
+}
+
+function pieceFrom(sim: Sim, slot: number, layer?: number) {
+  return sim.state.pieces.find((p) => p.slot === slot && (layer === undefined || p.depth === layer))
 }
 
 // Plays a fixed sequence of actions, then lets the board settle until the
@@ -62,15 +67,13 @@ export function runScript(level: LevelData, steps: ScriptStep[], opts: SimOption
       const rune = runeInSlot(sim, step.place)
       if (!rune || !sim.place(rune.id, step.at)) return fail(`cannot place slot ${step.place} at ${step.at.x},${step.at.y}`)
     } else {
-      const rune = runeInSlot(sim, step.tap)
-      if (!rune) return fail(`no rune in slot ${step.tap}`)
+      const piece = pieceFrom(sim, step.tap, step.layer)
+      if (!piece) return fail(`no piece on the field from slot ${step.tap}${step.layer === undefined ? '' : ` layer ${step.layer}`}`)
       const start = sim.state.time
-      while (rune.state === 'charging' && sim.state.status === 'playing' && sim.state.time - start < fillTimeout) sim.step(DT)
+      while (piece.state === 'charging' && sim.state.status === 'playing' && sim.state.time - start < fillTimeout) sim.step(DT)
       if (sim.state.status !== 'playing') break
-      // Re-resolve: undo-free runs keep object identity, but be safe.
-      const live = sim.rune(rune.id)!
-      if (live.state !== 'full') return fail(`slot ${step.tap} did not fill (state ${live.state})`)
-      sim.detonate(live.id)
+      if (piece.state !== 'full') return fail(`slot ${step.tap}'s piece did not fill`)
+      sim.detonate(piece.id)
     }
   }
   const settleEnd = sim.state.time + (opts.settle ?? 20)
@@ -79,7 +82,7 @@ export function runScript(level: LevelData, steps: ScriptStep[], opts: SimOption
 }
 
 // A competent (not optimal) player for tuning endless: taps linked full
-// runes, recycles unlinked ones after a wait, and places a rune only where
+// pieces, recycles unlinked ones after a wait, and casts a rune only where
 // its catch ring covers enough matching motes to fill it, preferring spots
 // that link.
 export function runCompetent(level: LevelData, seed: number, maxSeconds = 600, opts: SimOptions = {}): RunResult {
@@ -94,10 +97,10 @@ export function runCompetent(level: LevelData, seed: number, maxSeconds = 600, o
     cooldown -= DT
     if (cooldown > 0) continue
     cooldown = 0.9
-    for (const r of s().runes) if (r.state === 'full' && !fullSince.has(r.id)) fullSince.set(r.id, s().time)
-    const full = s().runes.filter((r) => r.state === 'full')
-    const linked = full.find((r) => r.linkedObstacleId)
-    const stale = full.find((r) => s().time - (fullSince.get(r.id) ?? 0) > 4)
+    for (const p of s().pieces) if (p.state === 'full' && !fullSince.has(p.id)) fullSince.set(p.id, s().time)
+    const full = s().pieces.filter((p) => p.state === 'full')
+    const linked = full.find((p) => p.linkedObstacleId)
+    const stale = full.find((p) => s().time - (fullSince.get(p.id) ?? 0) > 4)
     const toTap = linked ?? stale
     if (toTap) {
       fullSince.delete(toTap.id)
@@ -107,8 +110,8 @@ export function runCompetent(level: LevelData, seed: number, maxSeconds = 600, o
     let best: { id: string; at: Vec2; score: number } | null = null
     let partial: { id: string; at: Vec2; score: number } | null = null
     for (const rune of s().runes) {
-      if (rune.state !== 'idle') continue
-      const layer = rune.layers[rune.index]
+      const layer = outerLayer(rune)
+      if (rune.state !== 'idle' || !layer) continue
       const f = s().field
       for (let y = f.y + layer.radius; y <= f.y + f.h - layer.radius; y += 12) {
         for (let x = f.x + layer.radius; x <= f.x + f.w - layer.radius; x += 12) {
@@ -136,7 +139,7 @@ export function runCompetent(level: LevelData, seed: number, maxSeconds = 600, o
         }
       }
     }
-    const busy = s().runes.some((r) => r.state === 'full') || s().motes.some((m) => m.state === 'traveling' || m.state === 'ejecting')
+    const busy = s().pieces.some((p) => p.state === 'full') || s().motes.some((m) => m.state === 'traveling' || m.state === 'ejecting')
     if (best) {
       sim.place(best.id, best.at)
       idleWait = 0
@@ -145,12 +148,12 @@ export function runCompetent(level: LevelData, seed: number, maxSeconds = 600, o
       sim.place(partial.id, partial.at)
       idleWait = 0
     } else {
-      // Nudge a mote a charging rune still needs (kicks go in random directions).
-      for (const rune of s().runes) {
-        if (rune.state !== 'charging' || !rune.pos) continue
-        const layer = rune.layers[rune.index]
-        const want = new Set(layer.nodes.filter((_, i) => rune.held[i] === null).map((n) => n.catch as string))
-        const band = (m: { home: Vec2 }) => Math.abs(Math.hypot(m.home.x - rune.pos!.x, m.home.y - rune.pos!.y) - layer.radius)
+      // Nudge a mote a charging piece still needs (kicks go in random directions).
+      for (const piece of s().pieces) {
+        if (piece.state !== 'charging') continue
+        const layer = piece.layer
+        const want = new Set(layer.nodes.filter((_, i) => piece.held[i] === null).map((n) => n.catch as string))
+        const band = (m: { home: Vec2 }) => Math.abs(Math.hypot(m.home.x - piece.pos.x, m.home.y - piece.pos.y) - layer.radius)
         const candidates = s().motes.filter((m) => m.state === 'free' && !m.vel && (want.has(m.color) || m.color === 'generic') && band(m) > 10)
         if (!candidates.length) continue
         candidates.sort((a, b) => band(a) - band(b))
@@ -158,8 +161,8 @@ export function runCompetent(level: LevelData, seed: number, maxSeconds = 600, o
         // point. Coast ~ speed / friction = KICK_GAIN * offset / 3, so an
         // offset of gap * 3 / 9 roughly lands it on the ring.
         const m = candidates[0]
-        const cx = rune.pos.x
-        const cy = rune.pos.y
+        const cx = piece.pos.x
+        const cy = piece.pos.y
         const d = Math.hypot(m.pos.x - cx, m.pos.y - cy) || 1
         const ring = { x: cx + ((m.pos.x - cx) / d) * layer.radius, y: cy + ((m.pos.y - cy) / d) * layer.radius }
         const gap = Math.hypot(ring.x - m.pos.x, ring.y - m.pos.y) || 1
@@ -172,8 +175,8 @@ export function runCompetent(level: LevelData, seed: number, maxSeconds = 600, o
   return { status: s().status, time: s().time, sim, moves }
 }
 
-// A careless player: at human pace, taps any full rune, otherwise drops a
-// random idle rune at a random legal spot. Ignores color, links and order.
+// A careless player: at human pace, taps any full piece, otherwise casts a
+// random rune at a random legal spot. Ignores color, links and order.
 export function runCareless(level: LevelData, seed: number, maxSeconds = 240): RunResult {
   const sim = new Sim(level, { seed })
   const moves = recordMoves(sim)
@@ -184,7 +187,7 @@ export function runCareless(level: LevelData, seed: number, maxSeconds = 240): R
     cooldown -= DT
     if (cooldown > 0) continue
     cooldown = 1 + nextRandom(agent)
-    const full = sim.state.runes.find((r) => r.state === 'full')
+    const full = sim.state.pieces.find((p) => p.state === 'full')
     if (full) {
       sim.detonate(full.id)
       continue

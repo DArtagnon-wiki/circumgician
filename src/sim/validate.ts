@@ -102,7 +102,8 @@ export function validateLevel(data: unknown): string[] {
       const p = `hand[${i}]`
       if (!isObj(r)) return err(p, 'must be an object')
       if (r.insight !== undefined && !INSIGHTS.includes(r.insight as string)) err(`${p}.insight`, `must be one of ${INSIGHTS.join(', ')}`)
-      if (!Array.isArray(r.layers) || (r.layers.length === 0 && !data.endless)) return err(`${p}.layers`, 'needs at least one layer')
+      // A layer to cast and the shape it strikes (endless stacks are generated).
+      if (!Array.isArray(r.layers) || (r.layers.length < 2 && !data.endless)) return err(`${p}.layers`, 'needs at least two layers: one to cast, and the shape it strikes')
       r.layers.forEach((l, j) => {
         const lp = `${p}.layers[${j}]`
         if (!isObj(l)) return err(lp, 'must be an object')

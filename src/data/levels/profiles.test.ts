@@ -22,7 +22,7 @@ describe('pack decision profiles', () => {
     it(`${level.id}: winnable without waste${gate ? ', with a hidden trap' : ''}`, () => {
       const p = profileLevel(level)
       expect(p.winnable).toBe(true)
-      expect(p.plans.some((plan) => plan.wasted === 0)).toBe(true)
+      expect(p.cleanest).toBe(0)
       if (!gate) return
       expect(p.plans).toHaveLength(gate.plans)
       expect(p.traps.some((t) => t.revealedAfter >= 2)).toBe(true)

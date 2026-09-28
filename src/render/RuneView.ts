@@ -1,6 +1,6 @@
 import { Circle, Container, Graphics, Sprite } from 'pixi.js'
-import type { Mote, ReleaseColor, Rune, RuneLayerSpec, Vec2 } from '../sim/types'
-import { centerLayer, middleLayer, outerLayer, polygonPoints } from '../sim/geometry'
+import type { Insight, Mote, Piece, ReleaseColor, Rune, RuneLayerSpec, Vec2 } from '../sim/types'
+import { centerLayer, isFinal, middleLayer, outerLayer, polygonPoints } from '../sim/geometry'
 import { ASH_COLOR, ASH_DARK, RUNE_BODY_COLOR, colorForMote, colorForRelease, lighten, opal } from './Theme'
 import { drawPolygon, localVertices } from './drawPolygon'
 import { sheenBand } from './obsidian'
@@ -40,6 +40,44 @@ interface Swirl {
   nb: number
 }
 
+// What a view draws: a rune in hand (its layer in hand, what that strikes,
+// and the entry after) or a piece on the field (its glass and its energy).
+// A stack's final entry is never cast, so wherever it shows it is drawn as
+// energy lines only.
+export interface RuneLook {
+  key: string // redraw when this changes
+  outer: RuneLayerSpec
+  middle?: RuneLayerSpec
+  middleIsEnergy: boolean
+  center?: RuneLayerSpec
+  centerIsEnergy: boolean
+  insight: Insight
+  state: 'idle' | 'charging' | 'full'
+  held: (string | null)[]
+}
+
+const NONE_HELD: (string | null)[] = []
+
+export function handLook(rune: Rune): RuneLook | null {
+  const outer = outerLayer(rune)
+  if (!outer) return null
+  return {
+    key: `hand:${rune.index}:${rune.insight}`,
+    outer,
+    middle: middleLayer(rune),
+    middleIsEnergy: isFinal(rune, rune.index + 1),
+    center: centerLayer(rune),
+    centerIsEnergy: isFinal(rune, rune.index + 2),
+    insight: rune.insight,
+    state: 'idle',
+    held: NONE_HELD,
+  }
+}
+
+export function pieceLook(piece: Piece): RuneLook {
+  return { key: 'piece', outer: piece.layer, middle: piece.energy, middleIsEnergy: true, centerIsEnergy: false, insight: 'full', state: piece.state, held: piece.held }
+}
+
 interface Bowl {
   c: Container
   glass: Sprite
@@ -57,7 +95,8 @@ interface Bowl {
 // the edge's midpoint, where the two colors swirl together. Annihilating
 // halves are dull ash, still, and cracked. Nodes are glass bowls tinted
 // with what they catch; a caught mote fills its bowl with glowing liquid.
-// The middle layer is a frosted plate, the center faintly etched glass.
+// The middle layer is a frosted plate, the center faintly etched glass; a
+// stack's final entry (never cast) and a piece's energy are lines of light.
 export class RuneView {
   readonly container = new Container() // positioned in world space
   readonly body = new Container() // scaled (icon vs field size)
@@ -76,10 +115,10 @@ export class RuneView {
   private bowls: Bowl[] = []
   private drawnKey = ''
   private hit = new Circle(0, 0, 0)
-  readonly runeId: string
+  readonly id: string
 
-  constructor(rune: Rune) {
-    this.runeId = rune.id
+  constructor(id: string) {
+    this.id = id
     this.aura = new Sprite(textures().glow)
     this.aura.anchor.set(0.5)
     this.aura.blendMode = 'add'
@@ -95,23 +134,21 @@ export class RuneView {
     this.container.cursor = 'pointer'
   }
 
-  // Called every frame. `outerRot`/`middleRot` are the sim's angles; idle
-  // runes pass the resting angle. `motes` resolves the nodes' motes.
-  sync(rune: Rune, outerRot: number, middleRot: number, time: number, dt: number, motes: Map<string, Mote>): void {
-    const outer = outerLayer(rune)
-    if (!outer) return
-    const key = `${rune.index}:${rune.insight}`
-    if (key !== this.drawnKey) this.rebuild(rune, outer)
+  // Called every frame. `outerRot`/`middleRot` are the sim's angles; runes
+  // in hand pass the resting angle. `motes` resolves the nodes' motes.
+  sync(look: RuneLook, outerRot: number, middleRot: number, time: number, dt: number, motes: Map<string, Mote>): void {
+    const outer = look.outer
+    if (look.key !== this.drawnKey) this.rebuild(look)
 
     const base = Math.PI / 2
     this.outerC.rotation = outerRot + base
     this.middleC.rotation = middleRot + base
     this.centerC.rotation = -(outerRot + base) * 0.5
 
-    const full = rune.state === 'full'
+    const full = look.state === 'full'
     const pulse = full ? 0.5 + 0.5 * Math.sin(time * 6) : 0
-    // Inventory icons flow slowly; a full rune's liquid races and glows.
-    const speed = (full ? 40 : 18) * (rune.state === 'idle' ? 0.35 : 1)
+    // Inventory icons flow slowly; a full piece's liquid races and glows.
+    const speed = (full ? 40 : 18) * (look.state === 'idle' ? 0.35 : 1)
     const releaseColor = (r: ReleaseColor, node: number) => (r === 'generic' ? opal(time, node * 0.7) : colorForRelease(r))
 
     for (const h of this.halves) {
@@ -143,7 +180,7 @@ export class RuneView {
     outer.nodes.forEach((_, i) => {
       const b = this.bowls[i]
       b.c.rotation = counter
-      const id = rune.held[i]
+      const id = look.held[i]
       const m = id ? motes.get(id) : undefined
       if (m) {
         b.generic = m.color === 'generic'
@@ -167,7 +204,7 @@ export class RuneView {
     })
 
     this.aura.scale.set(((outer.radius + BOWL_R) * 2.9) / 128)
-    this.aura.alpha = !quality.settings.glows ? 0 : full ? 0.22 + pulse * 0.2 : rune.state === 'charging' ? 0.06 : 0
+    this.aura.alpha = !quality.settings.glows ? 0 : full ? 0.22 + pulse * 0.2 : look.state === 'charging' ? 0.06 : 0
   }
 
   // What the bowls hold right now, in world space, for a detonation's
@@ -189,12 +226,12 @@ export class RuneView {
     if (this.hit.radius !== r) this.hit.radius = r
   }
 
-  private rebuild(rune: Rune, outer: RuneLayerSpec): void {
-    this.drawnKey = `${rune.index}:${rune.insight}`
-    this.buildTubes(outer)
-    this.buildBowls(outer)
-    this.drawMiddle(rune, outer)
-    this.drawCenter(rune, outer)
+  private rebuild(look: RuneLook): void {
+    this.drawnKey = look.key
+    this.buildTubes(look.outer)
+    this.buildBowls(look.outer)
+    this.drawMiddle(look)
+    this.drawCenter(look)
   }
 
   private buildTubes(outer: RuneLayerSpec): void {
@@ -304,13 +341,18 @@ export class RuneView {
   }
 
   // Frosted glass plate: layered pale fills, a sheen streak, a crisp rim
-  // and an inner edge catching the light.
-  private drawMiddle(rune: Rune, outer: RuneLayerSpec): void {
+  // and an inner edge catching the light. Energy (a shape that only
+  // strikes) is lines of light instead.
+  private drawMiddle(look: RuneLook): void {
     const g = this.middleG
     g.clear()
-    const middle = middleLayer(rune)
+    const middle = look.middle
     if (!middle) return
-    const r = outer.radius * MIDDLE_SCALE
+    const r = look.outer.radius * MIDDLE_SCALE
+    if (look.middleIsEnergy) {
+      drawEnergy(g, middle.sides, r)
+      return
+    }
     drawPolygon(g, middle.sides, r, { fillColor: RUNE_BODY_COLOR, fillAlpha: 0.16 })
     drawPolygon(g, middle.sides, r * 0.84, { fillColor: 0xffffff, fillAlpha: 0.07 })
     const band = sheenBand(localVertices(middle.sides, r), -r * 0.28, r * 0.13)
@@ -322,12 +364,11 @@ export class RuneView {
   // Faintly etched glass. Insight keeps its meaning: none = an enigma of
   // arcs, shape = the outline, full = the outline plus each node's catch
   // (ring) and release (dot) in miniature.
-  private drawCenter(rune: Rune, outer: RuneLayerSpec): void {
+  private drawCenter(look: RuneLook): void {
     const g = this.centerG
     g.clear()
-    const middle = middleLayer(rune)
-    const center = centerLayer(rune)
-    const cr = outer.radius * CENTER_SCALE
+    const { middle, center, insight } = look
+    const cr = look.outer.radius * CENTER_SCALE
     const etch = { color: 0xffffff, width: 1.1, alpha: 0.55 }
     if (!middle) {
       // Nothing beneath: the "spent core", an empty etched ring.
@@ -335,13 +376,15 @@ export class RuneView {
       g.circle(0, 0, cr * 0.3).fill({ color: ASH_DARK, alpha: 0.6 })
     } else if (!center) {
       g.circle(0, 0, cr * 0.4).stroke({ ...etch, alpha: 0.3 })
-    } else if (rune.insight === 'none') {
+    } else if (look.centerIsEnergy && insight !== 'none') {
+      drawEnergy(g, center.sides, cr)
+    } else if (insight === 'none') {
       // moveTo first: a bare arc() starts with a line from the current point.
       g.moveTo(cr, 0).arc(0, 0, cr, 0, Math.PI * 1.2).stroke(etch)
       g.moveTo(-cr * 0.55, 0).arc(0, 0, cr * 0.55, Math.PI, Math.PI * 2.4).stroke({ ...etch, alpha: 0.4 })
     } else {
       drawPolygon(g, center.sides, cr, { fillColor: 0xffffff, fillAlpha: 0.07, strokeColor: 0xffffff, strokeWidth: 1.1, strokeAlpha: 0.6 })
-      if (rune.insight === 'full') {
+      if (insight === 'full') {
         localVertices(center.sides, cr).forEach((p, i) => {
           const n = center.nodes[i]
           g.circle(p.x, p.y, 2.5).fill({ color: 0x0b0716, alpha: 0.7 })
@@ -356,6 +399,12 @@ export class RuneView {
       }
     }
   }
+}
+
+// Lines of light: a soft glow under a bright thin outline.
+function drawEnergy(g: Graphics, sides: number, r: number): void {
+  drawPolygon(g, sides, r, { strokeColor: 0xb89cff, strokeWidth: 4.5, strokeAlpha: 0.22 })
+  drawPolygon(g, sides, r, { strokeColor: 0xf3ecff, strokeWidth: 1.3, strokeAlpha: 0.9 })
 }
 
 // One half-tube's glass: a faint body, two walls and an outer highlight.

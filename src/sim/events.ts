@@ -1,14 +1,14 @@
 import mitt from 'mitt'
-import type { Mote, Obstacle, ObstacleLayerSpec, Rune, RuneLayerSpec, Vec2 } from './types'
+import type { Mote, Obstacle, ObstacleLayerSpec, Piece, Rune, RuneLayerSpec, Vec2 } from './types'
 
-// Snapshot of a rune as it was the instant it detonated, so views can
-// animate the outer shattering and the middle flying home.
+// Snapshot of a piece as it was the instant it detonated, so views can
+// animate its glass shattering and its energy striking.
 export interface DetonationInfo {
   pos: Vec2
-  outer: RuneLayerSpec
-  middle?: RuneLayerSpec
+  outer: RuneLayerSpec // the piece's glass
+  energy: RuneLayerSpec // the shape it strikes
   outerAngle: number
-  middleAngle: number
+  energyAngle: number
   damage: number
   obstacleId: string | null
   released: string[]
@@ -16,13 +16,13 @@ export interface DetonationInfo {
 }
 
 export type SimEvents = {
-  'rune:placed': { rune: Rune }
-  'rune:linked': { rune: Rune } // link target changed (possibly to null)
-  'mote:claimed': { mote: Mote; rune: Rune; node: number }
-  'mote:held': { mote: Mote; rune: Rune; node: number }
-  'rune:full': { rune: Rune }
-  'rune:detonated': { rune: Rune; info: DetonationInfo }
-  'rune:spent': { rune: Rune }
+  'piece:cast': { piece: Piece; rune: Rune } // rune: already holding its next layer
+  'rune:spent': { rune: Rune } // nothing left to cast
+  'piece:linked': { piece: Piece } // link target changed (possibly to null)
+  'mote:claimed': { mote: Mote; piece: Piece; node: number }
+  'mote:held': { mote: Mote; piece: Piece; node: number }
+  'piece:full': { piece: Piece }
+  'piece:detonated': { piece: Piece; info: DetonationInfo }
   'obstacle:damaged': { obstacle: Obstacle; damage: number }
   'obstacle:collapsed': { obstacle: Obstacle; previous: ObstacleLayerSpec; cleared: boolean }
   'sim:won': undefined

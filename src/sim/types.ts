@@ -37,7 +37,9 @@ export interface ObstacleLayerSpec {
 export type Insight = 'none' | 'shape' | 'full'
 
 export interface RuneSpec {
-  layers: RuneLayerSpec[] // outermost first
+  // Outermost first. Every layer but the last can be cast; the last is
+  // only ever the shape the layer before it strikes (its nodes are unused).
+  layers: RuneLayerSpec[]
   insight?: Insight // center visibility; default 'full'
 }
 
@@ -87,7 +89,7 @@ export interface Mote {
   vel?: Vec2 // free motes only: coasting after a kick or a rune's push
   state: MoteStateKind
   // traveling / held
-  runeId?: string
+  pieceId?: string
   node?: number
   travelFrom?: Vec2
   // traveling / ejecting progress 0..1
@@ -96,20 +98,39 @@ export interface Mote {
   ejectFrom?: Vec2
 }
 
-export type RuneStateKind = 'idle' | 'charging' | 'full' | 'spent'
+export type RuneStateKind = 'idle' | 'spent'
 
+// A rune in hand: its stack, dug from the outside in. Casting the layer in
+// hand onto the field brings the next layer into hand at once; the stack's
+// last entry is never cast (it is the shape the layer before it strikes),
+// so casting the layer above it leaves the rune spent.
 export interface Rune {
   id: string
   layers: RuneLayerSpec[]
-  index: number // current outer = layers[index]
+  index: number // layer in hand = layers[index]
   insight: Insight
   state: RuneStateKind
   slot: number
-  pos?: Vec2
-  placedAt?: number // sim time of placement; drives rotation
-  held: (string | null)[] // mote id per outer node (traveling or held)
-  linkedObstacleId: string | null
   endlessSeed?: number
+}
+
+export type PieceStateKind = 'charging' | 'full'
+
+// A layer cast onto the field. Its nodes catch motes; tapped when full, it
+// strikes the nearest obstacle shaped like its energy (the stack's next
+// entry when it was cast) and releases what it caught. Then it is gone.
+export interface Piece {
+  id: string
+  runeId: string // the rune it was cast from
+  slot: number
+  depth: number // its index in that rune's stack
+  layer: RuneLayerSpec
+  energy: RuneLayerSpec
+  pos: Vec2
+  placedAt: number // sim time of casting; drives rotation
+  state: PieceStateKind
+  held: (string | null)[] // mote id per node (traveling or held)
+  linkedObstacleId: string | null
 }
 
 export interface Obstacle {
@@ -134,7 +155,7 @@ export interface BoardStats {
   detonations: number
   landed: number // blows that took strength (HP removed)
   wasted: number // blows past a layer's last HP: damage never carries over
-  unlinked: number // detonations whose middle matched nothing, so struck nothing
+  unlinked: number // detonations whose energy matched nothing, so struck nothing
   destroyed: number // motes annihilated
 }
 
@@ -144,6 +165,7 @@ export interface SimState {
   blockers: Rect[]
   motes: Mote[]
   runes: Rune[]
+  pieces: Piece[]
   obstacles: Obstacle[]
   time: number
   rng: number
