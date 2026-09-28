@@ -32,9 +32,9 @@ interface Dying {
 // An obstacle is faceted obsidian: a bevel of light-shaded facets around a
 // dark table, a sharp rim and a specular glint that sweeps across now and
 // then. Its strength is black holes swirling inside (one per HP), and its
-// next layer (if any) a ghostly obsidian outline circumscribed around it.
-// When the current layer collapses, that outline shrinks into place.
-// Bosses carry gilded fractures.
+// next layer (if any) a ghostly obsidian outline circumscribed around it,
+// dotted with that layer's strength. When the current layer collapses, the
+// outline shrinks into place. Bosses carry gilded fractures.
 export class ObstacleView {
   readonly container = new Container()
   private nextC = new Container()
@@ -162,8 +162,23 @@ export class ObstacleView {
       this.nextG.poly(pts).fill({ color: OBSIDIAN.deep, alpha: 0.22 })
       this.nextG.poly(pts).stroke({ color: OBSIDIAN.deep, width: 4, alpha: 0.55 })
       this.nextG.poly(pts).stroke({ color: next.boss ? GILT : 0xb9a2ff, width: 1, alpha: 0.6 })
+      // Its strength: one dark pip per HP, spaced evenly along the rim and
+      // offset half a step so they sit between the vertex glints.
+      const verts = localVertices(next.sides, r)
+      const edge = Math.hypot(verts[1].x - verts[0].x, verts[1].y - verts[0].y)
+      const pip = Math.min(2.6, ((edge * next.sides) / next.hp) * 0.28)
+      for (let k = 0; k < next.hp; k++) {
+        const u = ((k + 0.5) / next.hp) * next.sides
+        const i = Math.floor(u)
+        const a = verts[i]
+        const b = verts[(i + 1) % next.sides]
+        const x = a.x + (b.x - a.x) * (u - i)
+        const y = a.y + (b.y - a.y) * (u - i)
+        this.nextG.circle(x, y, pip + 0.9).fill({ color: next.boss ? GILT : 0xcdb8ff, alpha: 0.6 })
+        this.nextG.circle(x, y, pip).fill({ color: 0x030108 })
+      }
       const star = textures().star
-      for (const p of localVertices(next.sides, r)) {
+      for (const p of verts) {
         const s = new Sprite(star)
         s.anchor.set(0.5)
         s.position.set(p.x, p.y)

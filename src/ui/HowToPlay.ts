@@ -108,9 +108,22 @@ function obsidian(cx: number, cy: number, R: number, sides: number, holes: P[], 
   return s
 }
 
-const ghost = (cx: number, cy: number, R: number, sides: number) =>
-  `<polygon points="${pts(ngon(cx, cy, R, sides))}" fill="#05030a" fill-opacity=".25" stroke="#05030a" stroke-opacity=".6" stroke-width="3.5"/>
-   <polygon points="${pts(ngon(cx, cy, R, sides))}" fill="none" stroke="#b9a2ff" stroke-opacity=".75" stroke-width="1"/>`
+// The next shape's outline, dotted with its strength (as ObstacleView).
+function ghost(cx: number, cy: number, R: number, sides: number, hp = 0): string {
+  const v = ngon(cx, cy, R, sides)
+  let s = `<polygon points="${pts(v)}" fill="#05030a" fill-opacity=".25" stroke="#05030a" stroke-opacity=".6" stroke-width="3.5"/>
+   <polygon points="${pts(v)}" fill="none" stroke="#b9a2ff" stroke-opacity=".75" stroke-width="1"/>`
+  for (let k = 0; k < hp; k++) {
+    const u = ((k + 0.5) / hp) * sides
+    const i = Math.floor(u)
+    const [ax, ay] = v[i]
+    const [bx, by] = v[(i + 1) % sides]
+    const x = ax + (bx - ax) * (u - i)
+    const y = ay + (by - ay) * (u - i)
+    s += `<circle cx="${f(x)}" cy="${f(y)}" r="3.6" fill="#cdb8ff" fill-opacity=".6"/><circle cx="${f(x)}" cy="${f(y)}" r="2.6" fill="#030108"/>`
+  }
+  return s
+}
 
 const label = (x: number, y: number, text: string, anchor = 'start') =>
   `<text x="${x}" y="${y}" fill="#efe8ff" fill-opacity=".85" font-size="10.5" font-style="italic" font-family="Cormorant Garamond, Georgia, serif" text-anchor="${anchor}">${text}</text>`
@@ -129,7 +142,7 @@ const PAGES: { title: string; text: string; svg: string }[] = [
   },
   {
     title: 'Detonate',
-    text: 'When every bowl is full the rune glows. Tap it: the glass implodes, and the gathered liquid strikes the obstacle matching its inner shape, one blow per bowl.',
+    text: 'When every bowl is full the rune glows. Tap it: the glass implodes, and the gathered liquid strikes the nearest obstacle matching its inner shape, one blow per bowl. A thread shows which.',
     svg: `<line x1="72" y1="86" x2="178" y2="34" stroke="#e6dcff" stroke-opacity=".5" stroke-width="1"/>
       ${[0.3, 0.52, 0.74].map((k) => `<circle cx="${f(72 + 106 * k)}" cy="${f(86 - 52 * k)}" r="2" fill="#f1e9ff" opacity=".85"/>`).join('')}
       ${obsidian(182, 34, 21, 3, [[182, 38], [176, 31], [188, 31]])}
@@ -159,8 +172,8 @@ const PAGES: { title: string; text: string; svg: string }[] = [
   },
   {
     title: 'Obstacles',
-    text: "Black holes are an obstacle's strength: each blow swallows one. The ghostly outline around it is the shape it becomes next. Blows left over when a shape breaks are wasted: they never carry into the next.",
-    svg: `${ghost(110, 72, 60, 4)}
+    text: "Black holes are an obstacle's strength: each blow swallows one. The ghostly outline is the shape it becomes next, dotted with its strength. Blows left over when a shape breaks are wasted: they never carry into the next.",
+    svg: `${ghost(110, 72, 60, 4, 6)}
       ${obsidian(110, 76, 37, 3, [[110, 82], [101, 73], [119, 73], [110, 64]])}`,
   },
   {
