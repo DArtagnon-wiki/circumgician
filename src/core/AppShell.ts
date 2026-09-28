@@ -9,7 +9,8 @@ import { showHUD, showRunOver } from '../ui/HUD'
 import { endlessBest, isLevelCompleted, markLevelCompleted, recordEndlessRun } from '../ui/progress'
 import { endlessLevel } from '../sim/endless'
 import { isDebugMode } from '../debug/DebugPanel'
-import { textures } from '../render/textures'
+import { textures, texturesReady } from '../render/textures'
+import { MenuBackdrop } from '../render/ZoneBackground'
 
 // Owns the single PIXI Application for the whole session (menu -> level ->
 // menu round-trips reuse it, avoiding WebGL context churn) and the one
@@ -18,6 +19,8 @@ export class AppShell {
   private app = new Application()
   private scene: GameScene | null = null
   private overlay: HTMLElement | null = null
+  private backdrop: MenuBackdrop | null = null // the sky behind menus
+  private clock = 0
 
   async mount(container: HTMLElement): Promise<void> {
     await this.app.init({
@@ -31,18 +34,27 @@ export class AppShell {
     // `resizeTo` applies on the next animation frame — force the size now.
     this.app.renderer.resize(window.innerWidth, window.innerHeight)
 
-    this.app.ticker.add((ticker) => this.scene?.update(ticker.deltaMS / 1000))
+    this.app.ticker.add((ticker) => {
+      const dt = Math.min(ticker.deltaMS / 1000, 1 / 20)
+      this.clock += dt
+      this.scene?.update(ticker.deltaMS / 1000)
+      this.backdrop?.update(dt, this.clock)
+    })
     this.bindResize()
 
     this.showMenu()
     // Paint the shared textures while the (DOM) menu is up, so the first
-    // level doesn't hitch on it.
-    window.setTimeout(() => textures(), 50)
+    // level doesn't hitch on it; the menu's sky fades in once they exist.
+    window.setTimeout(() => {
+      textures()
+      if (!this.scene) this.showBackdrop()
+    }, 50)
   }
 
   showMenu(): void {
     this.teardownScene()
     this.clearOverlay()
+    this.showBackdrop()
     this.overlay = showMenu({ onPlay: () => this.showLevelSelect(), onEndless: () => this.startEndless(), onHowToPlay: () => this.showHowToPlay() })
   }
 
@@ -54,6 +66,7 @@ export class AppShell {
   startEndless(): void {
     this.teardownScene()
     this.clearOverlay()
+    this.hideBackdrop()
     const seed = (Math.random() * 2 ** 31) >>> 0
     const scene = new GameScene()
     scene.mount(
@@ -82,6 +95,7 @@ export class AppShell {
   showLevelSelect(): void {
     this.teardownScene()
     this.clearOverlay()
+    this.showBackdrop()
     this.overlay = showLevelSelect({
       levels: PACK,
       isCompleted: isLevelCompleted,
@@ -97,6 +111,7 @@ export class AppShell {
   startLevel(pack: LevelData[], index: number): void {
     this.teardownScene()
     this.clearOverlay()
+    this.hideBackdrop()
     const level = pack[index]
     const isReal = pack === PACK
     const scene = new GameScene()
@@ -139,10 +154,25 @@ export class AppShell {
     this.overlay = null
   }
 
+  // Only once the textures exist (mount paints them just after the menu
+  // appears); until then the menu sits on the plain page background.
+  private showBackdrop(): void {
+    if (this.backdrop || !texturesReady()) return
+    this.backdrop = new MenuBackdrop()
+    this.backdrop.fit(window.innerWidth, window.innerHeight)
+    this.app.stage.addChildAt(this.backdrop.container, 0)
+  }
+
+  private hideBackdrop(): void {
+    this.backdrop?.container.destroy({ children: true })
+    this.backdrop = null
+  }
+
   private bindResize(): void {
     const relayout = () => {
       this.app.renderer.resize(window.innerWidth, window.innerHeight)
       this.scene?.relayout()
+      this.backdrop?.fit(window.innerWidth, window.innerHeight)
     }
     window.visualViewport?.addEventListener('resize', relayout)
     window.visualViewport?.addEventListener('scroll', relayout)

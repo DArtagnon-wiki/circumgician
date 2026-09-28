@@ -29,6 +29,8 @@ export function textures(): Textures {
   return (cache ??= build())
 }
 
+export const texturesReady = (): boolean => cache !== null
+
 // ---------------------------------------------------------------------------
 // Noise
 // ---------------------------------------------------------------------------

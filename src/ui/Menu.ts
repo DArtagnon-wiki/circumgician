@@ -1,5 +1,7 @@
+import './ui.css'
 import { audio } from '../audio/engine'
 import { createAudioControl } from './AudioControl'
+import { divider } from './ornament'
 import { endlessBest } from './progress'
 
 export interface MenuActions {
@@ -10,54 +12,40 @@ export interface MenuActions {
 
 export function showMenu(actions: MenuActions): HTMLElement {
   const overlay = document.createElement('div')
-  overlay.style.cssText = `
-    position: fixed; inset: 0; z-index: 2000;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 16px;
-    background: radial-gradient(circle at 50% 30%, #2a1550, #140a24 70%);
-    color: white; font-family: Georgia, 'Times New Roman', serif; text-align: center;
-    padding: 24px;
-  `
+  overlay.className = 'screen menu'
 
-  const title = document.createElement('div')
-  title.style.cssText = 'font-size: 42px; font-style: italic; letter-spacing: 1px; text-shadow: 0 0 24px rgba(190,160,255,0.8); margin-bottom: 8px;'
+  const title = document.createElement('h1')
+  title.className = 'menu-title gilt-text'
   title.textContent = 'Circumgician'
 
   const subtitle = document.createElement('div')
-  subtitle.style.cssText = 'font-size: 15px; opacity: 0.7; max-width: 280px; margin-bottom: 12px;'
+  subtitle.className = 'menu-sub'
   subtitle.textContent = 'Layer your runes, catch the miasma, unravel every obstacle.'
 
   const start = (fn: () => void) => () => {
     audio.unlock() // first real gesture: start the music bed
     fn()
   }
-  const playButton = document.createElement('button')
-  playButton.className = 'btn primary'
-  playButton.style.cssText = 'min-width: 180px; font-size: 18px;'
-  playButton.textContent = 'Play'
-  playButton.addEventListener('click', start(actions.onPlay))
-
-  const endlessButton = document.createElement('button')
-  endlessButton.className = 'btn'
-  endlessButton.style.cssText = 'min-width: 180px; font-size: 18px;'
-  endlessButton.textContent = 'Endless'
-  endlessButton.addEventListener('click', start(actions.onEndless))
-
-  const howButton = document.createElement('button')
-  howButton.className = 'btn'
-  howButton.style.cssText = 'min-width: 180px; font-size: 16px; background: transparent;'
-  howButton.textContent = 'How to play'
-  howButton.addEventListener('click', start(actions.onHowToPlay))
+  const button = (label: string, kind: string, fn: () => void) => {
+    const b = document.createElement('button')
+    b.className = `btn wide ${kind}`
+    b.textContent = label
+    b.addEventListener('click', start(fn))
+    return b
+  }
+  const buttons = document.createElement('div')
+  buttons.className = 'menu-buttons'
+  buttons.append(button('Play', 'primary', actions.onPlay), button('Endless', '', actions.onEndless), button('How to play', 'ghost', actions.onHowToPlay))
 
   const best = endlessBest()
   const bestLine = document.createElement('div')
-  bestLine.style.cssText = 'font-size: 13px; opacity: 0.6; min-height: 1em;'
+  bestLine.className = 'menu-best'
   bestLine.textContent = best.score > 0 ? `Endless best: ${best.score} (${best.depth} layers)` : ''
 
   const sound = createAudioControl()
   sound.classList.add('corner')
 
-  overlay.append(title, subtitle, playButton, endlessButton, howButton, bestLine, sound)
+  overlay.append(title, divider(), subtitle, buttons, bestLine, sound)
   document.body.appendChild(overlay)
   return overlay
 }

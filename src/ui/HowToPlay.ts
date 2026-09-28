@@ -1,89 +1,180 @@
 import './ui.css'
+import { addFiligree } from './ornament'
 
 // Paged "How to play" overlay: one small diagram and a line or two per page.
-// Diagrams are inline SVG drawn in the game's own visual language.
+// Diagrams are inline SVG drawn in the game's own visual language: smoky
+// motes, glass runes (bowl = what a node catches, tube = what its mote
+// becomes, cracked grey tube = destroyed) and obsidian obstacles.
 
-const RED = '#ff4757'
-const BLUE = '#3742fa'
-const GOLD = '#ffa502'
-const BODY = '#d8d0f0'
+const RUBY = '#ec2a52'
+const SAPPHIRE = '#2f6bff'
+const AMBER = '#ffb02e'
+const ASH = '#8a847d'
+const GLASS = '#ece6ff'
+const GILT = '#d9b872'
 
-const tri = (cx: number, cy: number, r: number, rot = -90) =>
-  [0, 1, 2].map((i) => {
-    const a = ((rot + i * 120) * Math.PI) / 180
-    return `${(cx + Math.cos(a) * r).toFixed(1)},${(cy + Math.sin(a) * r).toFixed(1)}`
-  }).join(' ')
-const sq = (cx: number, cy: number, r: number) =>
-  [0, 1, 2, 3].map((i) => {
-    const a = ((-90 + i * 90) * Math.PI) / 180
-    return `${(cx + Math.cos(a) * r).toFixed(1)},${(cy + Math.sin(a) * r).toFixed(1)}`
-  }).join(' ')
-const mote = (x: number, y: number, c: string) => `<circle cx="${x}" cy="${y}" r="9" fill="${c}" opacity=".18"/><circle cx="${x}" cy="${y}" r="4" fill="${c}"/>`
-const node = (x: number, y: number, ring: string, dot: string, filled = false) =>
-  `<circle cx="${x}" cy="${y}" r="5.5" fill="${filled ? ring : '#0d0718'}" stroke="${ring}" stroke-width="2.2"/><circle cx="${x}" cy="${y}" r="2.2" fill="${dot}"/>`
-const hole = (x: number, y: number) => `<circle cx="${x}" cy="${y}" r="7" fill="#b89cff" opacity=".12"/><circle cx="${x}" cy="${y}" r="4.2" fill="none" stroke="#ffd9a0" stroke-width="1.3"/><circle cx="${x}" cy="${y}" r="3" fill="#000"/>`
-
-// A rune: square outer with red nodes, triangle middle.
-const rune = (cx: number, cy: number, filled: boolean) => {
-  const pts = [0, 1, 2, 3].map((i) => {
-    const a = ((-90 + i * 90) * Math.PI) / 180
-    return [cx + Math.cos(a) * 30, cy + Math.sin(a) * 30]
+type P = [number, number]
+const f = (n: number) => n.toFixed(1)
+const pts = (list: P[]) => list.map(([x, y]) => `${f(x)},${f(y)}`).join(' ')
+const ngon = (cx: number, cy: number, r: number, sides: number, rot = -90): P[] =>
+  Array.from({ length: sides }, (_, i) => {
+    const a = ((rot + (i * 360) / sides) * Math.PI) / 180
+    return [cx + Math.cos(a) * r, cy + Math.sin(a) * r]
   })
-  return `<polygon points="${sq(cx, cy, 30)}" fill="${BODY}" fill-opacity=".06" stroke="${BODY}" stroke-width="2.5"/>
-    <polygon points="${tri(cx, cy, 17)}" fill="${BODY}" opacity=".85"/>
-    ${pts.map(([x, y]) => node(x, y, RED, GOLD, filled)).join('')}`
+
+const DEFS = `<defs>
+  <filter id="soft" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="2.2"/></filter>
+  <filter id="softer" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="4"/></filter>
+  <radialGradient id="glass" r="50%"><stop offset="0" stop-color="#fff" stop-opacity=".04"/><stop offset=".72" stop-color="#fff" stop-opacity=".12"/><stop offset="1" stop-color="#fff" stop-opacity=".45"/></radialGradient>
+</defs>`
+
+// A luminous heart shedding a curl of smoke.
+const mote = (x: number, y: number, c: string) =>
+  `<circle cx="${x}" cy="${y}" r="9" fill="${c}" opacity=".32" filter="url(#softer)"/>
+   <ellipse cx="${x + 3}" cy="${y - 7}" rx="4" ry="6" fill="${c}" opacity=".35" filter="url(#soft)"/>
+   <circle cx="${x}" cy="${y}" r="3.8" fill="${c}"/><circle cx="${x}" cy="${y}" r="1.5" fill="#fff" opacity=".7"/>`
+
+// Glass bowl tinted with its catch color; liquid if something is held.
+const bowl = ([x, y]: P, c: string, liquid?: string) =>
+  (liquid ? `<circle cx="${f(x)}" cy="${f(y)}" r="9" fill="${liquid}" opacity=".45" filter="url(#soft)"/>` : '') +
+  `<circle cx="${f(x)}" cy="${f(y)}" r="6" fill="url(#glass)" stroke="${c}" stroke-width="1.6"/>` +
+  (liquid ? `<circle cx="${f(x)}" cy="${f(y)}" r="4.3" fill="${liquid}"/>` : '') +
+  `<ellipse cx="${f(x - 2)}" cy="${f(y - 2.4)}" rx="1.8" ry="1.1" fill="#fff" opacity=".85"/>`
+
+// Half a glass tube from a bowl to the edge midpoint, full of `c`, or
+// cracked and ash-grey when that node destroys its mote.
+function halfTube([x1, y1]: P, [x2, y2]: P, c: string | null): string {
+  const dx = x2 - x1
+  const dy = y2 - y1
+  const len = Math.hypot(dx, dy)
+  const [ux, uy] = [dx / len, dy / len]
+  const [nx, ny] = [-uy, ux]
+  const at = (t: number, o = 0): P => [x1 + dx * t + nx * o, y1 + dy * t + ny * o]
+  const line = (a: P, b: P, attrs: string) => `<line x1="${f(a[0])}" y1="${f(a[1])}" x2="${f(b[0])}" y2="${f(b[1])}" ${attrs}/>`
+  let s = line(at(0.12), at(1), `stroke="${c ? '#fff' : '#3a3531'}" stroke-opacity="${c ? 0.12 : 0.5}" stroke-width="6.5"`)
+  s += line(at(0.12, -3.2), at(1, -3.2), `stroke="${GLASS}" stroke-opacity=".5" stroke-width=".7"`)
+  if (c) {
+    s += line(at(0.12, 3.2), at(1, 3.2), `stroke="${GLASS}" stroke-opacity=".5" stroke-width=".7"`)
+    return s + line(at(0.15), at(0.98), `stroke="${c}" stroke-width="3" stroke-linecap="round"`)
+  }
+  s += line(at(0.12, 3.2), at(0.5, 3.2), `stroke="${GLASS}" stroke-opacity=".5" stroke-width=".7"`)
+  s += line(at(0.64, 3.2), at(1, 3.2), `stroke="${GLASS}" stroke-opacity=".5" stroke-width=".7"`)
+  s += line(at(0.15), at(0.46), `stroke="${ASH}" stroke-width="3" stroke-linecap="round"`)
+  const z = [at(0.52, -3.2), at(0.6, -1), at(0.53, 1), at(0.58, 3.2)]
+  return s + `<polyline points="${pts(z)}" fill="none" stroke="#f4f0ea" stroke-width=".8"/>`
 }
+
+interface RuneNode {
+  c: string // catch
+  r: string | null // release, null = annihilating
+  held?: string
+}
+
+// A glass rune: tubes between bowls, a frosted middle plate.
+function rune(cx: number, cy: number, R: number, nodes: RuneNode[], middleSides: number, glow = false): string {
+  const v = ngon(cx, cy, R, nodes.length)
+  let s = glow ? `<circle cx="${cx}" cy="${cy}" r="${R + 14}" fill="#eadfff" opacity=".18" filter="url(#softer)"/>` : ''
+  s += `<polygon points="${pts(ngon(cx, cy, R * 0.6, middleSides))}" fill="#d8d0f0" fill-opacity=".16" stroke="${GLASS}" stroke-opacity=".85" stroke-width="1.4"/>`
+  nodes.forEach((n, i) => {
+    const a = v[i]
+    const b = v[(i + 1) % v.length]
+    const mid: P = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+    s += halfTube(a, mid, n.r) + halfTube(b, mid, nodes[(i + 1) % nodes.length].r)
+  })
+  nodes.forEach((n, i) => (s += bowl(v[i], n.c, n.held)))
+  return s
+}
+
+// Faceted obsidian with black holes; bosses are veined with gold.
+function obsidian(cx: number, cy: number, R: number, sides: number, holes: P[], boss = false): string {
+  const v = ngon(cx, cy, R, sides)
+  const t = ngon(cx, cy, R * 0.45, sides)
+  const shades = ['#3d2f63', '#1c1432', '#2b2149', '#110b1f', '#241a3d', '#150e26']
+  let s = ''
+  for (let i = 0; i < sides; i++) {
+    const j = (i + 1) % sides
+    s += `<polygon points="${pts([v[i], v[j], t[j], t[i]])}" fill="${shades[i % shades.length]}"/>`
+  }
+  s += `<polygon points="${pts(t)}" fill="#0e0a1a"/>`
+  if (boss) {
+    s += t.map((p, i) => `<polyline points="${pts([p, [(p[0] + v[i][0]) / 2 + 2, (p[1] + v[i][1]) / 2 - 1], v[i]])}" fill="none" stroke="${GILT}" stroke-width="1.2"/>`).join('')
+  }
+  s += `<polygon points="${pts(v)}" fill="none" stroke="${boss ? GILT : '#cdbbff'}" stroke-opacity=".8" stroke-width="1.2"/>`
+  for (const [x, y] of holes) {
+    s += `<circle cx="${x}" cy="${y}" r="5.5" fill="#ffb46e" opacity=".35" filter="url(#soft)"/>
+      <circle cx="${x}" cy="${y}" r="3.9" fill="none" stroke="#e6dcff" stroke-opacity=".7" stroke-width="1"/>
+      <circle cx="${x}" cy="${y}" r="3" fill="#000"/>`
+  }
+  return s
+}
+
+const ghost = (cx: number, cy: number, R: number, sides: number) =>
+  `<polygon points="${pts(ngon(cx, cy, R, sides))}" fill="#05030a" fill-opacity=".25" stroke="#05030a" stroke-opacity=".6" stroke-width="3.5"/>
+   <polygon points="${pts(ngon(cx, cy, R, sides))}" fill="none" stroke="#b9a2ff" stroke-opacity=".75" stroke-width="1"/>`
+
+const label = (x: number, y: number, text: string, anchor = 'start') =>
+  `<text x="${x}" y="${y}" fill="#efe8ff" fill-opacity=".85" font-size="10.5" font-style="italic" font-family="Cormorant Garamond, Georgia, serif" text-anchor="${anchor}">${text}</text>`
+const leader = (x1: number, y1: number, x2: number, y2: number) =>
+  `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${GILT}" stroke-opacity=".7" stroke-width=".7"/><circle cx="${x2}" cy="${y2}" r="1.3" fill="${GILT}"/>`
+
+const allRuby = (held?: string): RuneNode[] => Array.from({ length: 4 }, () => ({ c: RUBY, r: RUBY, held }))
 
 const PAGES: { title: string; text: string; svg: string }[] = [
   {
     title: 'Cast a rune',
-    text: 'Drag a rune from your hand into the field. It spins, and each node on its rim catches motes of its ring color as it sweeps past.',
-    svg: `${rune(110, 70, false)}
-      <circle cx="110" cy="70" r="30" fill="none" stroke="#7cffb2" stroke-width="18" opacity=".08"/>
-      ${mote(150, 62, RED)}${mote(84, 100, RED)}${mote(200, 40, BLUE)}`,
+    text: 'Drag a rune from your hand into the field. It spins, and each glass bowl on its rim catches motes of its own color as it sweeps past.',
+    svg: `<circle cx="110" cy="68" r="31" fill="none" stroke="#7cffb2" stroke-width="16" opacity=".06"/>
+      ${rune(110, 68, 31, allRuby(), 3)}
+      ${mote(150, 58, RUBY)}${mote(82, 100, RUBY)}${mote(196, 34, SAPPHIRE)}`,
   },
   {
     title: 'Detonate',
-    text: 'When every node holds a mote the rune glows. Tap it: its outer shape shatters and strikes the obstacle matching its inner shape, one blow per node.',
-    svg: `<polygon points="${tri(190, 34, 22)}" fill="#4a3d6b" stroke="#fff" stroke-width="2"/>
-      <line x1="110" y1="80" x2="186" y2="40" stroke="#fff" stroke-width="2" opacity=".5"/>
-      <circle cx="110" cy="80" r="42" fill="#fff" opacity=".12"/>${rune(110, 80, true)}`,
+    text: 'When every bowl is full the rune glows. Tap it: the glass implodes, and the gathered liquid strikes the obstacle matching its inner shape, one blow per bowl.',
+    svg: `<line x1="72" y1="86" x2="178" y2="34" stroke="#e6dcff" stroke-opacity=".5" stroke-width="1"/>
+      ${[0.3, 0.52, 0.74].map((k) => `<circle cx="${f(72 + 106 * k)}" cy="${f(86 - 52 * k)}" r="2" fill="#f1e9ff" opacity=".85"/>`).join('')}
+      ${obsidian(182, 34, 21, 3, [[182, 38], [176, 31], [188, 31]])}
+      <circle cx="140" cy="54" r="9" fill="${RUBY}" opacity=".6" filter="url(#softer)"/><circle cx="140" cy="54" r="4.6" fill="#ff9fb3"/>
+      ${rune(72, 86, 30, allRuby(RUBY), 3, true)}`,
   },
   {
     title: 'Transmute',
-    text: "Each caught mote becomes the color of its node's inner dot and bursts outward. The rune returns to your hand one layer thinner.",
-    svg: `<polygon points="${tri(110, 70, 22)}" fill="${BODY}" fill-opacity=".06" stroke="${BODY}" stroke-width="2.5" stroke-dasharray="6 5"/>
-      ${mote(110, 12, GOLD)}${mote(160, 98, GOLD)}${mote(60, 98, GOLD)}
-      <path d="M110 44 L110 22 M132 82 L152 94 M88 82 L68 94" stroke="${GOLD}" stroke-width="2" opacity=".5"/>`,
+    text: 'Bowl color is what a node catches; tube color is what its mote becomes when the glass breaks. A cracked grey tube destroys its mote instead. The rune returns one layer thinner.',
+    svg: `${rune(78, 70, 36, [
+      { c: RUBY, r: AMBER },
+      { c: RUBY, r: null },
+      { c: RUBY, r: AMBER },
+    ], 4)}
+      ${leader(150, 27, 84.5, 33)}${label(153, 30, 'catches')}
+      ${leader(150, 55, 89.5, 52)}${label(153, 58, 'becomes')}
+      ${leader(150, 91, 103, 75)}${label(153, 94, 'destroyed')}`,
   },
   {
     title: 'Flick and push',
     text: 'Tap beside a mote to flick it away from your finger. Runes push stray motes out of their bodies, so nothing stays trapped inside.',
-    svg: `${mote(120, 70, BLUE)}<path d="M120 70 L70 70" stroke="${BLUE}" stroke-width="3" opacity=".4"/>
-      <circle cx="146" cy="70" r="12" fill="#fff" opacity=".15"/><circle cx="146" cy="70" r="4" fill="#fff" opacity=".7"/>
-      <text x="146" y="100" fill="#cfc4ee" font-size="11" text-anchor="middle" font-family="Georgia">tap</text>`,
+    svg: `<ellipse cx="92" cy="70" rx="30" ry="6" fill="${SAPPHIRE}" opacity=".35" filter="url(#softer)"/>
+      <ellipse cx="72" cy="69" rx="16" ry="4" fill="${SAPPHIRE}" opacity=".3" filter="url(#soft)"/>
+      ${mote(120, 70, SAPPHIRE)}
+      <circle cx="148" cy="70" r="12" fill="#fff" opacity=".12"/><circle cx="148" cy="70" r="4" fill="#fff" opacity=".75"/>
+      ${label(148, 98, 'tap', 'middle')}`,
   },
   {
     title: 'Obstacles',
-    text: "Black holes are an obstacle's strength: each blow swallows one. The outline around it is the shape it becomes next.",
-    svg: `<polygon points="${sq(110, 70, 58)}" fill="#9b7bff" fill-opacity=".05" stroke="#d8c8ff" stroke-width="1.5" opacity=".6"/>
-      <polygon points="${tri(110, 76, 36)}" fill="#4a3d6b" stroke="#fff" stroke-width="2"/>
-      ${hole(110, 80)}${hole(98, 70)}${hole(122, 70)}${hole(110, 60)}`,
+    text: "Black holes are an obstacle's strength: each blow swallows one. The ghostly outline around it is the shape it becomes next.",
+    svg: `${ghost(110, 72, 60, 4)}
+      ${obsidian(110, 76, 37, 3, [[110, 82], [101, 73], [119, 73], [110, 64]])}`,
   },
   {
     title: 'Order matters',
     text: 'Every puzzle has a way through. Think about what each rune makes, where its motes will land, and what it leaves room for. Undo and restart are always there.',
-    svg: `<circle cx="110" cy="70" r="40" fill="none" stroke="${BODY}" stroke-width="1.5" opacity=".4"/>
-      <circle cx="110" cy="70" r="26" fill="none" stroke="${BODY}" stroke-width="1.5" opacity=".6"/>
-      ${mote(110, 30, RED)}${mote(150, 70, BLUE)}${mote(110, 110, GOLD)}${mote(70, 70, RED)}`,
+    svg: `<circle cx="110" cy="68" r="42" fill="none" stroke="${GLASS}" stroke-width="1" opacity=".35"/>
+      <circle cx="110" cy="68" r="27" fill="none" stroke="${GLASS}" stroke-width="1" opacity=".55" stroke-dasharray="3 4"/>
+      ${mote(110, 27, RUBY)}${mote(151, 68, SAPPHIRE)}${mote(110, 109, AMBER)}${mote(69, 68, RUBY)}`,
   },
   {
     title: 'Endless',
-    text: 'One life, no undo. Obstacles and runes never run out and slowly grow stranger. Breaking a gilded boss reveals more of each rune’s future.',
-    svg: `<polygon points="${tri(110, 72, 34)}" fill="#4a3d6b" stroke="#fff" stroke-width="2"/>
-      <polygon points="${tri(110, 72, 40)}" fill="none" stroke="#ffc857" stroke-width="2.5"/>
-      <circle cx="101" cy="22" r="2.5" fill="#ffc857"/><circle cx="110" cy="22" r="2.5" fill="#ffc857"/><circle cx="119" cy="22" r="2.5" fill="#ffc857"/>
-      ${hole(110, 80)}${hole(100, 70)}${hole(120, 70)}`,
+    text: 'One life, no undo. Obstacles and runes never run out and slowly grow stranger. Breaking a boss veined with gold reveals more of each rune’s future.',
+    svg: `${ghost(110, 72, 52, 5)}
+      ${obsidian(110, 74, 36, 3, [[110, 80], [101, 71], [119, 71]], true)}`,
   },
 ]
 
@@ -93,11 +184,12 @@ export function showHowToPlay(onClose: () => void): HTMLElement {
   let page = 0
 
   const card = document.createElement('div')
-  card.className = 'howto-card'
+  card.className = 'howto-card panel'
+  addFiligree(card)
   const art = document.createElement('div')
   art.className = 'howto-art'
   const title = document.createElement('div')
-  title.className = 'howto-title'
+  title.className = 'howto-title gilt-text'
   const text = document.createElement('div')
   text.className = 'howto-text'
   const dots = document.createElement('div')
@@ -116,7 +208,7 @@ export function showHowToPlay(onClose: () => void): HTMLElement {
 
   const render = () => {
     const p = PAGES[page]
-    art.innerHTML = `<svg viewBox="0 0 220 130" width="100%" height="100%">${p.svg}</svg>`
+    art.innerHTML = `<svg viewBox="0 0 220 130" width="100%" height="100%">${DEFS}${p.svg}</svg>`
     title.textContent = p.title
     text.textContent = p.text
     dots.innerHTML = PAGES.map((_, i) => `<span class="${i === page ? 'on' : ''}"></span>`).join('')

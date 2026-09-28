@@ -196,25 +196,15 @@ function shelf(): Graphics {
   return g
 }
 
-// Backdrop for a level: nebula, drifting stars, faint arcane circles and
-// constellations, the field and its etched ring, blocker slabs and the
-// inventory shelf. update() drifts the stars and turns the circles.
-export class ZoneBackground {
+// Slowly drifting, twinkling stars at parallax depths.
+export class Starfield {
   readonly container = new Container()
   private stars: Star[] = []
-  private skyCircle: Graphics
-  private fieldCircle: Graphics
-  private starCount = MAX_STARS
+  private count = MAX_STARS
 
-  constructor(field: Rect, blockers: Rect[]) {
-    this.container.eventMode = 'none'
+  constructor(seed: number) {
     const t = textures()
-    const nebula = new Sprite(t.nebula)
-    nebula.setSize(VIRTUAL_W, VIRTUAL_H)
-    this.container.addChild(nebula)
-
-    const starLayer = new Container()
-    const rand = seeded(1234)
+    const rand = seeded(seed)
     for (let i = 0; i < MAX_STARS; i++) {
       const depth = rand() // 0 far .. 1 near
       const bright = depth > 0.75
@@ -225,17 +215,57 @@ export class ZoneBackground {
       s.tint = STAR_TINTS[Math.floor(rand() * STAR_TINTS.length)]
       s.rotation = bright ? rand() * 0.6 - 0.3 : 0
       this.stars.push({ s, speed: 1.2 + depth * 3.6, base: 0.35 + depth * 0.55, phase: rand() * TAU, freq: 0.6 + rand() * 1.8 })
-      starLayer.addChild(s)
+      this.container.addChild(s)
     }
-    this.container.addChild(starLayer)
+  }
 
-    const lines = new Graphics()
-    for (const c of CONSTELLATIONS) {
-      for (const [a, b] of c.edges) lines.moveTo(...c.pts[a]).lineTo(...c.pts[b])
+  // Quality governor hook: fewer live stars on slower devices.
+  setCount(n: number): void {
+    this.count = Math.max(0, Math.min(MAX_STARS, n))
+    this.stars.forEach((st, i) => (st.s.visible = i < this.count))
+  }
+
+  update(dt: number, time: number): void {
+    for (let i = 0; i < this.count; i++) {
+      const st = this.stars[i]
+      const s = st.s
+      s.x += DRIFT.x * st.speed * dt
+      s.y += DRIFT.y * st.speed * dt
+      if (s.y > VIRTUAL_H + 6) s.y -= VIRTUAL_H + 12
+      if (s.x < -6) s.x += VIRTUAL_W + 12
+      s.alpha = st.base * (0.6 + 0.4 * Math.sin(time * st.freq + st.phase))
     }
-    lines.stroke({ color: ZONE_COLORS.etch, width: 0.6, alpha: 0.2 })
-    for (const c of CONSTELLATIONS) for (const [x, y] of c.pts) lines.circle(x, y, 1.3).fill({ color: 0xffffff, alpha: 0.55 })
-    this.container.addChild(lines)
+  }
+}
+
+function constellations(): Graphics {
+  const g = new Graphics()
+  for (const c of CONSTELLATIONS) {
+    for (const [a, b] of c.edges) g.moveTo(...c.pts[a]).lineTo(...c.pts[b])
+  }
+  g.stroke({ color: ZONE_COLORS.etch, width: 0.6, alpha: 0.2 })
+  for (const c of CONSTELLATIONS) for (const [x, y] of c.pts) g.circle(x, y, 1.3).fill({ color: 0xffffff, alpha: 0.55 })
+  return g
+}
+
+function nebulaSprite(): Sprite {
+  const s = new Sprite(textures().nebula)
+  s.setSize(VIRTUAL_W, VIRTUAL_H)
+  return s
+}
+
+// Backdrop for a level: nebula, drifting stars, faint arcane circles and
+// constellations, the field and its etched ring, blocker slabs and the
+// inventory shelf. update() drifts the stars and turns the circles.
+export class ZoneBackground {
+  readonly container = new Container()
+  private stars = new Starfield(1234)
+  private skyCircle: Graphics
+  private fieldCircle: Graphics
+
+  constructor(field: Rect, blockers: Rect[]) {
+    this.container.eventMode = 'none'
+    this.container.addChild(nebulaSprite(), this.stars.container, constellations())
 
     this.skyCircle = arcaneCircle(128, 7)
     this.skyCircle.position.set(VIRTUAL_W / 2, 150)
@@ -255,24 +285,47 @@ export class ZoneBackground {
     this.container.addChild(this.skyCircle, veil, this.fieldCircle, fieldRing(field), blockerSlabs(blockers), shelf())
   }
 
-  // Quality governor hook: fewer live stars on slower devices.
   setStarCount(n: number): void {
-    this.starCount = Math.max(0, Math.min(MAX_STARS, n))
-    this.stars.forEach((st, i) => (st.s.visible = i < this.starCount))
+    this.stars.setCount(n)
   }
 
   update(dt: number, time: number): void {
-    for (let i = 0; i < this.starCount; i++) {
-      const st = this.stars[i]
-      const s = st.s
-      s.x += DRIFT.x * st.speed * dt
-      s.y += DRIFT.y * st.speed * dt
-      if (s.y > VIRTUAL_H + 6) s.y -= VIRTUAL_H + 12
-      if (s.x < -6) s.x += VIRTUAL_W + 12
-      s.alpha = st.base * (0.6 + 0.4 * Math.sin(time * st.freq + st.phase))
-    }
+    this.stars.update(dt, time)
     this.skyCircle.rotation = time * 0.012
     this.fieldCircle.rotation = -time * 0.008
+  }
+}
+
+// The sky behind the menus: the same nebula, stars and constellations, with
+// a large arcane circle turning slowly behind the title. Fitted to cover
+// the whole window, and faded in once the textures are ready.
+export class MenuBackdrop {
+  readonly container = new Container()
+  private stars = new Starfield(4321)
+  private outer = arcaneCircle(176, 3)
+  private inner = arcaneCircle(104, 5)
+
+  constructor() {
+    this.container.eventMode = 'none'
+    this.container.alpha = 0
+    for (const [c, a] of [[this.outer, 0.17], [this.inner, 0.12]] as const) {
+      c.position.set(VIRTUAL_W / 2, 330)
+      c.alpha = a
+    }
+    this.container.addChild(nebulaSprite(), this.stars.container, constellations(), this.outer, this.inner)
+  }
+
+  update(dt: number, time: number): void {
+    this.stars.update(dt, time)
+    this.outer.rotation = time * 0.01
+    this.inner.rotation = -time * 0.016
+    this.container.alpha = Math.min(1, this.container.alpha + dt * 1.6)
+  }
+
+  fit(screenW: number, screenH: number): void {
+    const s = Math.max(screenW / VIRTUAL_W, screenH / VIRTUAL_H)
+    this.container.scale.set(s)
+    this.container.position.set((screenW - VIRTUAL_W * s) / 2, (screenH - VIRTUAL_H * s) / 2)
   }
 }
 

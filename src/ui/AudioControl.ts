@@ -15,7 +15,7 @@ export function createAudioControl(): HTMLElement {
   button.setAttribute('aria-label', 'Sound')
 
   const panel = document.createElement('div')
-  panel.className = 'audio-panel'
+  panel.className = 'audio-panel panel'
   const slider = document.createElement('input')
   slider.type = 'range'
   slider.min = '0'

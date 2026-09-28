@@ -44,7 +44,7 @@ export function createGameHud(actions: GameHudActions): GameHud {
   let score: HTMLElement | null = null
   if (actions.showScore) {
     score = document.createElement('div')
-    score.className = 'endless-score'
+    score.className = 'endless-score gilt-text'
     document.body.appendChild(score)
   }
 

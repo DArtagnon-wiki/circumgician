@@ -2,8 +2,43 @@
   box-sizing: border-box;
 }
 
+/* Self-hosted OFL fonts (public/fonts, licenses alongside): Cinzel for
+   display, Cormorant Garamond for text. Latin subsets, variable weight. */
+@font-face {
+  font-family: 'Cinzel';
+  src: url('/fonts/cinzel-latin.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Cormorant Garamond';
+  src: url('/fonts/cormorant-garamond-latin.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Cormorant Garamond';
+  src: url('/fonts/cormorant-garamond-italic-latin.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: italic;
+  font-display: swap;
+}
+
 :root {
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --font-display: 'Cinzel', 'Trajan Pro', Georgia, serif;
+  --font-text: 'Cormorant Garamond', Cormorant, Garamond, Georgia, 'Times New Roman', serif;
+  --ink: #efe8ff;
+  --ink-soft: rgba(239, 232, 255, 0.74);
+  --gilt: #d9b872;
+  --gilt-bright: #f6e3a8;
+  --gilt-line: rgba(217, 184, 114, 0.42);
+  --gilt-faint: rgba(217, 184, 114, 0.16);
+  --glass-top: rgba(48, 30, 92, 0.5);
+  --glass-bottom: rgba(14, 8, 30, 0.76);
+  --shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
 }
 
 html,
@@ -15,7 +50,9 @@ body {
   overflow: hidden;
   overscroll-behavior: none;
   touch-action: none;
-  background: #140a24;
+  background: #0d0719;
+  font-family: var(--font-text);
+  font-variant-numeric: lining-nums; /* Cormorant's old-style 0 reads as "o" */
   -webkit-user-select: none;
   user-select: none;
   /* Our core interaction is press-and-drag — without these, iOS Safari
