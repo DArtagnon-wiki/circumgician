@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { ECONOMY_COLORS, EconomySolver, damageShort, economyWon, initialEconomy, moveLabel, profileLevel, replay, transitions, type Economy } from './solver'
+import { ECONOMY_COLORS, EconomySolver, damageShort, economyWon, initialEconomy, moveLabel, profileLevel, replay, tensionAlong, transitions, type Economy } from './solver'
+import { tensionShape } from './solverReport'
 import { loadLevel } from './loadLevel'
 import { isCertainLoss } from './progress'
 import { layer, mote, obstacle, testLevel } from './testFixtures'
@@ -149,5 +150,43 @@ describe('solver queries', () => {
     ])
     expect(won && economyWon(WEIGHING, won)).toBe(true)
     expect(replay(WEIGHING, [{ kind: 'fire', rune: 1, layer: 0, target: 0 }])).toBeNull() // nothing full yet
+  })
+})
+
+describe('tension', () => {
+  // One triangle to break with a red square; spare reds make it relaxed.
+  const board = (reds: number) => testLevel({ obstacles: [obstacle(200, 150, [3, 4])], motes: motes({ red: reds, blue: 2 }), hand: [{ layers: [layer(4, 40, 'red'), layer(3, 36, 'red')] }] })
+
+  it('scarcity: exactly enough of a color is as tense as it gets; spares ease it; unneeded colors do not count', () => {
+    const tight = new EconomySolver(board(4)).tension(initialEconomy(board(4)))
+    expect(tight).toMatchObject({ margin: 0, tight: 'red', scarcity: 1, tension: 1 })
+    const easy = new EconomySolver(board(6)).tension(initialEconomy(board(6)))
+    expect(easy).toMatchObject({ margin: 2, tight: 'red', peril: 0 })
+    expect(easy.tension).toBeCloseTo(1 / 3)
+  })
+
+  it('peril: the share of moves that lose', () => {
+    // Two squares strike the triangle; one of them annihilates the reds the other needs.
+    const level = testLevel({
+      obstacles: [obstacle(200, 150, [3, 4], [3, 4])],
+      motes: motes({ red: 8 }),
+      hand: [{ layers: [layer(4, 40, 'red'), layer(3, 36, 'red')] }, { layers: [layer(4, 40, 'red', 'annihilating'), layer(3, 36, 'red')] }],
+    })
+    const t = new EconomySolver(level).tension(initialEconomy(level))
+    expect(t.moves).toBe(2)
+    expect(t.losing).toBe(0) // either order still wins: 8 reds feed both
+    const first = after(level, after(level, initialEconomy(level), 'fill R1.0'), 'R1.0->O0')
+    expect(new EconomySolver(level).tension(first)).toMatchObject({ margin: 0, tension: 1 }) // four reds left for the last square
+  })
+
+  it('is sampled at the start and after each detonation, and releases are counted', () => {
+    const level = board(6)
+    const moves = [{ kind: 'fill', rune: 0, layer: 0 } as const, { kind: 'fire', rune: 0, layer: 0, target: 0 } as const]
+    const points = tensionAlong(level, moves)!
+    expect(points.map((p) => p.after && moveLabel(p.after))).toEqual([null, 'R0.0->O0'])
+    expect(points[1].tension.tension).toBe(0) // won
+    const fake = (ts: number[]) => ts.map((t) => ({ after: null, tension: { ...points[0].tension, tension: t } }))
+    expect(tensionShape(fake([0.3, 1, 0.5, 0.9, 0.2, 0]))).toEqual({ peaks: [1, 0.9], releases: 2 })
+    expect(tensionShape(fake([1, 1, 1, 0]))).toEqual({ peaks: [1], releases: 0 })
   })
 })

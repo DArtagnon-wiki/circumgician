@@ -298,6 +298,74 @@ export class EconomySolver {
       return ms.length ? ms.reduce((sum, t) => sum + this.blindLuck(t.next), 0) / ms.length : 0
     })
   }
+
+  // How tense a winnable state is (see Tension).
+  tension(s: Economy): Tension {
+    const ms = this.moves(s)
+    const losing = ms.filter((t) => !this.canWin(t.next)).length
+    let margin = Infinity
+    let tight: MoteColor | null = null
+    s.pool.forEach((n, c) => {
+      let spare = 0
+      while (spare < n && this.canWin(without(s, c, spare + 1))) spare++
+      // A color a win can do without entirely doesn't count.
+      if (spare < n && spare < margin) {
+        margin = spare
+        tight = ECONOMY_COLORS[c]
+      }
+    })
+    const peril = ms.length ? losing / ms.length : 0
+    const scarcity = 1 / (1 + margin)
+    return { tension: 1 - (1 - peril) * (1 - scarcity), peril, losing, moves: ms.length, scarcity, margin, tight, luck: this.blindLuck(s) }
+  }
+}
+
+const without = (s: Economy, color: number, n: number): Economy => ({ ...s, pool: s.pool.map((v, i) => (i === color ? v - n : v)) })
+
+// Tension, for pacing a level: what a player feels at a state on a winning
+// line, from two pressures, each 0..1.
+//   peril     the share of the legal moves here that lose (the win is gone
+//             after them, whether or not the game says so yet);
+//   scarcity  how little can be spared: 1 / (1 + margin), where margin is
+//             the most free motes of the tightest color that could go
+//             missing (a stray catch, an annihilation) with a win still
+//             possible. Exactly enough of a color is 1; colors a win can do
+//             without don't count; nothing tight is 0.
+// tension = 1 - (1 - peril)(1 - scarcity): either pressure alone can max it.
+// Levels should ebb and flow: build toward a crunch, release, build again.
+export interface Tension {
+  tension: number
+  peril: number
+  losing: number
+  moves: number
+  scarcity: number
+  margin: number // Infinity when no color is tight
+  tight: MoteColor | null // the color with the least to spare
+  luck: number // blindLuck from here, for reference
+}
+
+export interface TensionPoint {
+  after: Move | null // the move that led here (null: the start)
+  tension: Tension
+}
+
+// Tension along a line of moves (a real run's, say): at the start and after
+// each detonation, the beats of a level. (Right after a fill, the motes it
+// needed are locked in the piece and nothing is at risk for a moment; that
+// says little about the level's arc.) Null if a move is impossible in the
+// model; the line need not win, but tension only means something while a
+// win is possible.
+export function tensionAlong(level: LevelData, moves: Move[], opts: SolverOptions = {}): TensionPoint[] | null {
+  const solver = new EconomySolver(level, opts)
+  let s = initialEconomy(level)
+  const out: TensionPoint[] = [{ after: null, tension: solver.tension(s) }]
+  for (const m of moves) {
+    const t = solver.moves(s).find((x) => moveLabel(x.move) === moveLabel(m))
+    if (!t) return null
+    s = t.next
+    if (m.kind === 'fire') out.push({ after: m, tension: solver.tension(s) })
+  }
+  return out
 }
 
 export interface Plan {
