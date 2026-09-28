@@ -1,6 +1,6 @@
-import { BURST_GAP } from './constants'
+import { BURST_GAP, FOOTPRINT_MARGIN } from './constants'
 import type { DetonationInfo, SimBus } from './events'
-import { circleHitsRect, circleInRect, clampToRect, dist, footprintRadius, middleAngle, middleLayer, outerAngle, outerLayer } from './geometry'
+import { circleHitsRect, circleInRect, clampToRect, dist, footprintRadius, middleAngle, middleLayer, outerAngle, outerLayer, polygonPoints } from './geometry'
 import type { Obstacle, Piece, Rune, RuneLayerSpec, SimState, Vec2 } from './types'
 
 // Where node i's released mote settles: along that node's REST direction
@@ -19,6 +19,7 @@ export function canPlace(state: SimState, rune: Rune, pos: Vec2): boolean {
   if (!circleInRect(pos, r, state.field)) return false
   if (state.blockers.some((b) => circleHitsRect(pos, r, b))) return false
   for (const p of state.pieces) if (dist(pos, p.pos) < r + footprintRadius(p.layer)) return false
+  for (const o of state.obstacles) if (o.frozen && !o.cleared && dist(pos, o.pos) < r + o.layers[0].radius + FOOTPRINT_MARGIN) return false
   return true
 }
 
@@ -55,7 +56,7 @@ export type EnsureLayers = (state: SimState) => void
 // The layer in hand goes onto the field as a piece, and the rune brings its
 // next layer into hand at once; when that next entry is the stack's last
 // (a target shape only), the rune is spent instead.
-export function castRune(state: SimState, bus: SimBus, rune: Rune, pos: Vec2, ensure?: EnsureLayers): Piece {
+export function castRune(state: SimState, bus: SimBus, rune: Rune, pos: Vec2, ensure?: EnsureLayers, fuse?: number): Piece {
   const layer = outerLayer(rune)!
   const energy = middleLayer(rune)!
   const piece: Piece = {
@@ -70,6 +71,7 @@ export function castRune(state: SimState, bus: SimBus, rune: Rune, pos: Vec2, en
     state: 'charging',
     held: Array.from({ length: layer.sides }, () => null),
     linkedObstacleId: findLink(state, energy, pos)?.id ?? null,
+    ...(fuse !== undefined ? { freezeAt: state.time + fuse } : {}),
   }
   state.pieces.push(piece)
   rune.index++
@@ -134,6 +136,39 @@ export function detonatePiece(state: SimState, bus: SimBus, piece: Piece, ensure
   relinkAll(state, bus)
 }
 
+// Frozen motes sit just inside the vertices of the obstacle they are locked in.
+const FROZEN_INSET = 0.78
+
+// A piece that outlives its fuse freezes where it stands: an obstacle of its
+// own shape, with strength equal to its sides, holding the motes it caught
+// (and any still on their way) until it is broken.
+export function freezePiece(state: SimState, bus: SimBus, piece: Piece): Obstacle {
+  const id = `frozen-${state.nextId++}`
+  const { sides, radius } = piece.layer
+  const spots = polygonPoints(piece.pos, sides, radius * FROZEN_INSET, -Math.PI / 2)
+  const motes: string[] = []
+  piece.held.forEach((moteId, i) => {
+    const mote = moteId === null ? undefined : state.motes.find((m) => m.id === moteId)
+    if (!mote) return
+    mote.state = 'frozen'
+    mote.frozenIn = id
+    mote.pos = { ...spots[i] }
+    mote.home = { ...spots[i] }
+    delete mote.pieceId
+    delete mote.node
+    delete mote.travelFrom
+    delete mote.t
+    delete mote.vel
+    motes.push(mote.id)
+  })
+  const obstacle: Obstacle = { id, pos: { ...piece.pos }, layers: [{ sides, radius, hp: sides }], index: 0, hp: sides, cleared: false, frozen: { motes } }
+  state.obstacles.push(obstacle)
+  state.pieces = state.pieces.filter((p) => p !== piece)
+  bus.emit('piece:frozen', { piece, obstacle })
+  relinkAll(state, bus)
+  return obstacle
+}
+
 // Damage never overflows into the next layer. Does not relink; callers do.
 export function damageObstacle(state: SimState, bus: SimBus, obstacle: Obstacle, amount: number, ensure?: EnsureLayers): void {
   const landed = Math.min(obstacle.hp, amount)
@@ -148,6 +183,22 @@ export function damageObstacle(state: SimState, bus: SimBus, obstacle: Obstacle,
   const next = obstacle.layers[obstacle.index]
   if (next) obstacle.hp = next.hp
   else obstacle.cleared = true
+  if (obstacle.frozen) {
+    // A broken frozen piece lets its motes go, unchanged, the way a
+    // detonation bursts them. It is not a layer broken: no score.
+    obstacle.frozen.motes.forEach((id, i) => {
+      const mote = state.motes.find((m) => m.id === id)
+      if (!mote) return
+      mote.state = 'ejecting'
+      mote.ejectFrom = { ...mote.pos }
+      mote.t = 0
+      mote.home = clampToRect(landingPoint(obstacle.pos, previous.sides, previous.radius, i), state.field, Math.min(mote.tether + 2, state.field.w / 2, state.field.h / 2))
+      delete mote.frozenIn
+    })
+    obstacle.frozen.motes = []
+    bus.emit('obstacle:collapsed', { obstacle, previous, cleared: obstacle.cleared })
+    return
+  }
   state.broken++
   state.score += Math.round((previous.hp * previous.radius) / 30)
   if (previous.boss) {

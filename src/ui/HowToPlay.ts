@@ -135,14 +135,14 @@ const allRuby = (held?: string): RuneNode[] => Array.from({ length: 4 }, () => (
 const PAGES: { title: string; text: string; svg: string }[] = [
   {
     title: 'Cast a rune',
-    text: 'Drag a rune from your hand into the field. It spins, and each glass bowl on its rim catches motes of its own color as it sweeps past.',
+    text: 'Drag a rune into the field: its next layer comes to your hand at once. The cast layer spins, and each glass bowl on its rim catches motes of its own color as it sweeps past.',
     svg: `<circle cx="110" cy="68" r="31" fill="none" stroke="#7cffb2" stroke-width="16" opacity=".06"/>
       ${rune(110, 68, 31, allRuby(), 3)}
       ${mote(150, 58, RUBY)}${mote(82, 100, RUBY)}${mote(196, 34, SAPPHIRE)}`,
   },
   {
     title: 'Detonate',
-    text: 'When every bowl is full the rune glows. Tap it: the glass implodes, and the gathered liquid strikes the nearest obstacle matching its inner shape, one blow per bowl. A thread shows which.',
+    text: 'When every bowl is full it glows. Tap it: the glass implodes, and the gathered liquid strikes the nearest obstacle matching the shape of light inside, one blow per bowl. A thread shows which.',
     svg: `<line x1="72" y1="86" x2="178" y2="34" stroke="#e6dcff" stroke-opacity=".5" stroke-width="1"/>
       ${[0.3, 0.52, 0.74].map((k) => `<circle cx="${f(72 + 106 * k)}" cy="${f(86 - 52 * k)}" r="2" fill="#f1e9ff" opacity=".85"/>`).join('')}
       ${obsidian(182, 34, 21, 3, [[182, 38], [176, 31], [188, 31]])}
@@ -151,7 +151,7 @@ const PAGES: { title: string; text: string; svg: string }[] = [
   },
   {
     title: 'Transmute',
-    text: 'Bowl color is what a node catches; tube color is what its mote becomes when the glass breaks. A cracked grey tube destroys its mote instead. The rune returns one layer thinner.',
+    text: 'Bowl color is what a node catches; tube color is what its mote becomes when the glass breaks. A cracked grey tube destroys its mote instead. A shape drawn only in light is never cast: it is what the layer around it strikes.',
     svg: `${rune(78, 70, 36, [
       { c: RUBY, r: AMBER },
       { c: RUBY, r: null },
@@ -185,7 +185,7 @@ const PAGES: { title: string; text: string; svg: string }[] = [
   },
   {
     title: 'Endless',
-    text: 'One life, no undo. Obstacles and runes never run out and slowly grow stranger. Breaking a boss veined with gold reveals more of each rune’s future.',
+    text: 'One life, no undo. Runes and obstacles never run out. A cast layer has ten seconds to detonate, or it freezes into an obstacle holding its motes until broken. Gold-veined bosses reveal more of each rune’s future.',
     svg: `${ghost(110, 72, 52, 5)}
       ${obsidian(110, 74, 36, 3, [[110, 80], [101, 71], [119, 71]], true)}`,
   },

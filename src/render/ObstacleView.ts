@@ -8,6 +8,7 @@ const NEXT_PAD = 3 // gap between the current polygon and the next-shape outline
 const REVEAL_TIME = 0.45 // next outline shrinking into place after a collapse
 const IMPLODE_TIME = 0.35
 const GILT = 0xe6c170
+const FROST = 0x9fd4ff // a frozen piece's ice (endless)
 const GLINT_EVERY = 4.2 // seconds between specular sweeps
 const GLINT_TIME = 0.9
 
@@ -34,7 +35,8 @@ interface Dying {
 // then. Its strength is black holes swirling inside (one per HP), and its
 // next layer (if any) a ghostly obsidian outline circumscribed around it,
 // dotted with that layer's strength. When the current layer collapses, the
-// outline shrinks into place. Bosses carry gilded fractures.
+// outline shrinks into place. Bosses carry gilded fractures; a frozen piece
+// (endless) is rimed in ice.
 export class ObstacleView {
   readonly container = new Container()
   private nextC = new Container()
@@ -43,6 +45,8 @@ export class ObstacleView {
   private nextGlints: Sprite[] = []
   private body = new Container()
   private facetsG = new Graphics()
+  private frostG = new Graphics()
+  private frozen: boolean
   private flashG = new Graphics()
   private glintG = new Graphics()
   // Holes by blend: glowing swirls and lensing rings, then the black cores.
@@ -65,11 +69,13 @@ export class ObstacleView {
 
   constructor(obstacle: Obstacle) {
     this.glintOffset = (obstacle.pos.x * 0.013 + obstacle.pos.y * 0.007) % GLINT_EVERY
+    this.frozen = !!obstacle.frozen
     this.nextC.addChild(this.nextG, this.glintC)
     this.glintG.blendMode = 'add'
+    this.frostG.blendMode = 'add'
     this.flashG.blendMode = 'add'
     this.holeGlowC.blendMode = 'add'
-    this.body.addChild(this.facetsG, this.glintG, this.holeGlowC, this.holeCoreC, this.flashG)
+    this.body.addChild(this.facetsG, this.frostG, this.glintG, this.holeGlowC, this.holeCoreC, this.flashG)
     this.container.addChild(this.nextC, this.body)
     this.container.position.set(obstacle.pos.x, obstacle.pos.y)
   }
@@ -148,6 +154,14 @@ export class ObstacleView {
     g.clear()
     this.table = drawObsidian(g, outline, { inset: R * 0.34, rimAlpha: 0.9 })
     if (layer.boss) drawGildedFractures(g, outline, this.table, R)
+    this.frostG.clear()
+    if (this.frozen) {
+      // A frozen piece: rimed in ice, with frost creeping in from each corner.
+      const pts = outline.flatMap((p) => [p.x, p.y])
+      this.frostG.poly(pts).fill({ color: FROST, alpha: 0.14 })
+      this.frostG.poly(pts).stroke({ color: FROST, width: 2.5, alpha: 0.8 })
+      for (const p of outline) this.frostG.moveTo(p.x * 0.9, p.y * 0.9).lineTo(p.x * 0.5, p.y * 0.5).stroke({ color: 0xeaf7ff, width: 1.2, alpha: 0.45 })
+    }
 
     this.flashG.clear()
     this.flashG.poly(outline.flatMap((p) => [p.x, p.y])).fill({ color: 0xe9ddff })

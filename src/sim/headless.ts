@@ -82,9 +82,9 @@ export function runScript(level: LevelData, steps: ScriptStep[], opts: SimOption
 }
 
 // A competent (not optimal) player for tuning endless: taps linked full
-// pieces, recycles unlinked ones after a wait, and casts a rune only where
-// its catch ring covers enough matching motes to fill it, preferring spots
-// that link.
+// pieces, recycles unlinked ones after a wait (or before their fuse runs
+// out), and casts a rune only where its catch ring covers enough matching
+// motes to fill it, preferring spots that link.
 export function runCompetent(level: LevelData, seed: number, maxSeconds = 600, opts: SimOptions = {}): RunResult {
   const sim = new Sim(level, { seed, ...opts })
   const moves = recordMoves(sim)
@@ -100,7 +100,7 @@ export function runCompetent(level: LevelData, seed: number, maxSeconds = 600, o
     for (const p of s().pieces) if (p.state === 'full' && !fullSince.has(p.id)) fullSince.set(p.id, s().time)
     const full = s().pieces.filter((p) => p.state === 'full')
     const linked = full.find((p) => p.linkedObstacleId)
-    const stale = full.find((p) => s().time - (fullSince.get(p.id) ?? 0) > 4)
+    const stale = full.find((p) => s().time - (fullSince.get(p.id) ?? 0) > 4 || (p.freezeAt !== undefined && p.freezeAt - s().time < 2))
     const toTap = linked ?? stale
     if (toTap) {
       fullSince.delete(toTap.id)

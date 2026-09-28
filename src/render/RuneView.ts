@@ -20,6 +20,7 @@ const FLOWS = 2 // traveling glints per half-tube
 const CAPSULE_W = 64 // capsule texture size
 const CAPSULE_H = 16
 const GLASS_LINE = 0xece6ff
+const FROST = 0x9fd4ff
 
 interface Half {
   node: number
@@ -115,6 +116,7 @@ export class RuneView {
   private bowls: Bowl[] = []
   private drawnKey = ''
   private hit = new Circle(0, 0, 0)
+  private fuseG = new Graphics()
   readonly id: string
 
   constructor(id: string) {
@@ -127,7 +129,7 @@ export class RuneView {
     this.centerC.addChild(this.centerG)
     this.bowlGlowC.blendMode = 'add'
     this.outerC.addChild(this.glassG, this.liquidC, this.bowlGlowC, this.bowlC)
-    this.body.addChild(this.aura, this.middleC, this.centerC, this.outerC)
+    this.body.addChild(this.aura, this.fuseG, this.middleC, this.centerC, this.outerC)
     this.container.addChild(this.body)
     this.container.hitArea = this.hit
     this.container.eventMode = 'static'
@@ -216,6 +218,22 @@ export class RuneView {
       if (b.held && pts[i]) out.push({ x: pts[i].x, y: pts[i].y, color: b.color, generic: b.generic })
     })
     return out
+  }
+
+  // Endless: the share of a piece's fuse still left, as a thin icy arc that
+  // burns down around it and flickers near the end (null: no fuse).
+  setFuse(left: number | null, radius: number, time: number): void {
+    const g = this.fuseG
+    g.clear()
+    if (left === null) return
+    const r = radius + BOWL_R + 7
+    const urgent = left < 0.3
+    g.circle(0, 0, r).stroke({ color: FROST, width: 1, alpha: 0.12 })
+    if (left <= 0) return
+    const alpha = urgent ? 0.55 + 0.45 * Math.abs(Math.sin(time * 9)) : 0.5
+    g.moveTo(0, -r)
+      .arc(0, 0, r, -Math.PI / 2, -Math.PI / 2 + left * Math.PI * 2)
+      .stroke({ color: urgent ? 0xeaf7ff : FROST, width: 2.2, alpha })
   }
 
   // The tap area lives in unscaled container space while only `body` is

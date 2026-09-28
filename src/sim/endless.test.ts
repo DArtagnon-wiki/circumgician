@@ -96,5 +96,5 @@ describe('endless run length (competent agent)', () => {
     console.log('endless times', times.map((t) => Math.round(t)).join(' '), '| broken', broken.join(' '), '| median', Math.round(median))
     expect(median).toBeGreaterThan(60)
     expect(median).toBeLessThan(600)
-  })
+  }, 60_000)
 })

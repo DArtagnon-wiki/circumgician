@@ -229,6 +229,14 @@ export class Sfx {
     this.noise(0.25, { type: 'lowpass', freq: 240, peak: hit ? 0.22 : 0.08 }, at)
   }
 
+  // Frost: a brittle crackle climbing into high glassy chimes, over a dull
+  // thud as the piece locks.
+  freeze(): void {
+    this.noise(0.35, { type: 'highpass', freq: 3000, to: 7000, q: 0.9, peak: 0.12, reverb: 0.3 })
+    for (let k = 0; k < 6; k++) this.ping(2600 + k * 380 + Math.random() * 200, 0.3, 0.025, k * 0.035, 0.4)
+    this.tone(160, 0.25, 0.12, 0, 'sine', 90)
+  }
+
   // Deep obsidian crack: a sharp snap over a falling rumble, and stone
   // chips; clearing an obstacle adds a rising glass flourish.
   obstacleCleared(cleared: boolean): void {

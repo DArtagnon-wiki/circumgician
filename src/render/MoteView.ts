@@ -98,7 +98,13 @@ export class MoteView {
     let alpha = 1
     let stretched = false
 
-    if (mote.state === 'traveling' && mote.travelFrom) {
+    if (mote.state === 'frozen') {
+      // Locked in a frozen piece: a small, still ember glowing through the
+      // ice. No smoke.
+      heart = 0.8
+      alpha = 0.85 + 0.15 * Math.sin(time * 1.3 + this.phase)
+      this.halo.tint = lighten(color, 0.2)
+    } else if (mote.state === 'traveling' && mote.travelFrom) {
       // Condensing: the heart tightens and a spiral stream pours after it.
       const t = mote.t ?? 0
       heart = 1 - 0.45 * t

@@ -77,7 +77,7 @@ export interface LevelData {
 // snapshots. Nothing here holds functions, class instances or Pixi objects.
 // ---------------------------------------------------------------------------
 
-export type MoteStateKind = 'free' | 'traveling' | 'held' | 'ejecting'
+export type MoteStateKind = 'free' | 'traveling' | 'held' | 'ejecting' | 'frozen'
 
 export interface Mote {
   id: string
@@ -91,6 +91,8 @@ export interface Mote {
   // traveling / held
   pieceId?: string
   node?: number
+  // frozen: locked in a frozen piece (an obstacle) until it is broken
+  frozenIn?: string
   travelFrom?: Vec2
   // traveling / ejecting progress 0..1
   t?: number
@@ -131,6 +133,7 @@ export interface Piece {
   state: PieceStateKind
   held: (string | null)[] // mote id per node (traveling or held)
   linkedObstacleId: string | null
+  freezeAt?: number // sim time its fuse runs out (endless)
 }
 
 export interface Obstacle {
@@ -141,6 +144,7 @@ export interface Obstacle {
   hp: number
   cleared: boolean
   endlessSeed?: number
+  frozen?: { motes: string[] } // a piece that froze where it stood, and the motes it holds
 }
 
 export type SimStatus = 'playing' | 'won' | 'lost'

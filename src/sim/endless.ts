@@ -12,6 +12,7 @@ export const ENDLESS_TUNING = {
   primaryCatch: 0.8,
   keepColor: 0.5,
   tether: 18,
+  fuse: 10, // seconds a cast piece has to detonate before it freezes
 }
 
 function huesAt(depth: number): Hue[] {

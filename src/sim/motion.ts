@@ -8,6 +8,12 @@ const lerp = (a: Vec2, b: Vec2, t: number): Vec2 => ({ x: a.x + (b.x - a.x) * t,
 const easeIn = (t: number) => t * t
 const easeOut = (t: number) => 1 - (1 - t) * (1 - t)
 
+// A frozen piece (endless): a disc every free mote is pushed out of.
+interface Block {
+  pos: Vec2
+  radius: number
+}
+
 function pickWander(state: SimState, mote: Mote): Vec2 {
   const a = nextRandom(state) * Math.PI * 2
   const r = Math.sqrt(nextRandom(state)) * mote.tether
@@ -22,15 +28,38 @@ function pickWander(state: SimState, mote: Mote): Vec2 {
 //   drift radius, so it can't hover inside the piece's outline or wander back.
 // Kicked, pulled or pushed motes coast with friction, bounce off the field
 // edge, and adopt their resting spot as home. Returns true while coasting.
-function applyPushAndCoast(state: SimState, mote: Mote, pushers: Piece[], nodesOf: (p: Piece) => Vec2[], dt: number): boolean {
+function applyPushAndCoast(state: SimState, mote: Mote, pushers: Piece[], nodesOf: (p: Piece) => Vec2[], blocks: Block[], dt: number): boolean {
   let ax = 0
   let ay = 0
   const f = state.field
+  // Push the mote directly away from `center`, harder the deeper it sits
+  // inside `limit` (d is its distance from the center).
+  const pushAway = (center: Vec2, d: number, limit: number) => {
+    let ux = (mote.pos.x - center.x) / d
+    let uy = (mote.pos.y - center.y) / d
+    if (!(d > 0.01)) {
+      const a = nextRandom(state) * Math.PI * 2
+      ux = Math.cos(a)
+      uy = Math.sin(a)
+    }
+    // Against a field wall, drop the part of the push that points into it,
+    // so the mote slides along the wall instead of pinning there forever.
+    if ((mote.pos.x <= f.x + 0.5 && ux < 0) || (mote.pos.x >= f.x + f.w - 0.5 && ux > 0)) ux = 0
+    if ((mote.pos.y <= f.y + 0.5 && uy < 0) || (mote.pos.y >= f.y + f.h - 0.5 && uy > 0)) uy = 0
+    if (ux === 0 && uy === 0) return
+    const strength = PUSH_BASE + PUSH_DEPTH * Math.max(0, 1 - d / limit)
+    ax += ux * strength
+    ay += uy * strength
+  }
+  // Frozen pieces catch nothing: every free mote is pushed fully clear.
+  for (const b of blocks) {
+    const d = dist(mote.pos, b.pos)
+    const limit = b.radius + REACH + mote.tether
+    if (d < limit) pushAway(b.pos, d, limit)
+  }
   for (const piece of pushers) {
     const layer = piece.layer
-    const dx = mote.pos.x - piece.pos.x
-    const dy = mote.pos.y - piece.pos.y
-    const d = Math.hypot(dx, dy)
+    const d = dist(mote.pos, piece.pos)
 
     let catchable = false
     let target: Vec2 | null = null
@@ -67,22 +96,7 @@ function applyPushAndCoast(state: SimState, mote: Mote, pushers: Piece[], nodesO
       limit = layer.radius + REACH + mote.tether
       if (d >= limit) continue
     }
-
-    let ux = dx / d
-    let uy = dy / d
-    if (!(d > 0.01)) {
-      const a = nextRandom(state) * Math.PI * 2
-      ux = Math.cos(a)
-      uy = Math.sin(a)
-    }
-    // Against a field wall, drop the part of the push that points into it,
-    // so the mote slides along the wall instead of pinning there forever.
-    if ((mote.pos.x <= f.x + 0.5 && ux < 0) || (mote.pos.x >= f.x + f.w - 0.5 && ux > 0)) ux = 0
-    if ((mote.pos.y <= f.y + 0.5 && uy < 0) || (mote.pos.y >= f.y + f.h - 0.5 && uy > 0)) uy = 0
-    if (ux === 0 && uy === 0) continue
-    const strength = PUSH_BASE + PUSH_DEPTH * Math.max(0, 1 - d / limit)
-    ax += ux * strength
-    ay += uy * strength
+    pushAway(piece.pos, d, limit)
   }
   const pushed = ax !== 0 || ay !== 0
   if (pushed) {
@@ -141,11 +155,12 @@ export function updateMotion(state: SimState, bus: SimBus, dt: number): void {
   }
 
   const pushers = state.pieces
+  const blocks: Block[] = state.obstacles.filter((o) => o.frozen && !o.cleared).map((o) => ({ pos: o.pos, radius: o.layers[0].radius }))
 
   for (const mote of state.motes) {
     switch (mote.state) {
       case 'free': {
-        if (applyPushAndCoast(state, mote, pushers, nodesOf, dt)) break
+        if (applyPushAndCoast(state, mote, pushers, nodesOf, blocks, dt)) break
         const d = dist(mote.pos, mote.wander)
         const step = DRIFT_SPEED * dt
         if (d <= step) {
@@ -177,6 +192,8 @@ export function updateMotion(state: SimState, bus: SimBus, dt: number): void {
         mote.pos = { ...nodesOf(piece)[mote.node!] }
         break
       }
+      case 'frozen':
+        break // locked in a frozen piece until it breaks
       case 'ejecting': {
         mote.t = Math.min(1, (mote.t ?? 0) + dt / EJECT_TIME)
         mote.pos = lerp(mote.ejectFrom!, mote.home, easeOut(mote.t))

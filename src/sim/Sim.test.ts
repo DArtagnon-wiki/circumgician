@@ -318,6 +318,93 @@ describe('obstacles', () => {
   })
 })
 
+describe('fuse (endless)', () => {
+  // A square that only half fills, and a pentagon whose energy is a square.
+  const B = { x: 300, y: 640 }
+  const level = testLevel({
+    hand: [{ layers: [layer(4, 40, 'red'), layer(3, 30, 'red'), layer(6, 20, 'red')] }, { layers: [layer(5, 40, 'blue'), layer(4, 30, 'blue')] }],
+    motes: [...ring('red', C.x, C.y, 40, 4).slice(0, 2), ...ring('blue', B.x, B.y, 40, 5)],
+  })
+
+  it('without a fuse (puzzle levels) a piece waits forever', () => {
+    const sim = mk(level)
+    const id = placeSlot(sim, 0)
+    expect(sim.piece(id)!.freezeAt).toBeUndefined()
+    stepFor(sim, 30)
+    expect(sim.piece(id)!.state).toBe('charging')
+  })
+
+  it('a piece not detonated in time freezes into an obstacle of its shape, holding its motes', () => {
+    const sim = mk(level, { fuse: 10 })
+    const frozen: string[] = []
+    sim.bus.on('piece:frozen', ({ piece }) => frozen.push(piece.id))
+    const id = placeSlot(sim, 0)
+    stepFor(sim, 9.5)
+    expect(sim.piece(id)).toBeDefined()
+    stepFor(sim, 1)
+    expect(frozen).toEqual([id])
+    expect(sim.piece(id)).toBeUndefined()
+    const o = sim.state.obstacles.find((x) => x.frozen)!
+    expect(o.pos).toEqual(C)
+    expect(o.layers).toEqual([{ sides: 4, radius: 40, hp: 4 }])
+    expect(o.hp).toBe(4)
+    expect(o.frozen!.motes).toHaveLength(2)
+    for (const m of sim.state.motes.filter((x) => x.color === 'red')) {
+      expect(m.state).toBe('frozen')
+      expect(m.frozenIn).toBe(o.id)
+      expect(dist(m.pos, C)).toBeLessThan(40)
+    }
+    stepFor(sim, 5)
+    expect(sim.state.motes.filter((x) => x.state === 'frozen')).toHaveLength(2) // held until broken
+    // It blocks casting like a piece does.
+    const r1 = sim.state.runes.find((r) => r.slot === 1)!
+    expect(sim.canPlace(r1.id, { x: C.x + 70, y: C.y })).toBe(false)
+    expect(sim.canPlace(r1.id, { x: C.x + 100, y: C.y })).toBe(true)
+  })
+
+  it('a full piece freezes too if it is never tapped', () => {
+    const sim = mk({ ...level, motes: ring('red', C.x, C.y, 40, 4) }, { fuse: 10 })
+    const id = placeSlot(sim, 0)
+    stepFor(sim, 5)
+    expect(sim.piece(id)!.state).toBe('full')
+    stepFor(sim, 6)
+    expect(sim.piece(id)).toBeUndefined()
+    expect(sim.state.obstacles.find((o) => o.frozen)!.frozen!.motes).toHaveLength(4)
+  })
+
+  it('free motes are pushed clear of a frozen piece', () => {
+    const sim = mk({ ...level, motes: [...level.motes, mote('gold', C.x + 30, C.y)] }, { fuse: 1 })
+    placeSlot(sim, 0)
+    stepFor(sim, 6)
+    const gold = sim.state.motes.find((m) => m.color === 'gold')!
+    expect(dist(gold.pos, C)).toBeGreaterThanOrEqual(40 + REACH)
+  })
+
+  it('a matching energy links to it; breaking it frees its motes unchanged, for no score', () => {
+    const sim = mk(level, { fuse: 10 })
+    placeSlot(sim, 0)
+    stepFor(sim, 10.5)
+    const o = sim.state.obstacles.find((x) => x.frozen)!
+    const id = placeSlot(sim, 1, B)
+    expect(sim.piece(id)!.linkedObstacleId).toBe(o.id)
+    stepFor(sim, 5)
+    expect(sim.detonate(id)).toBe(true)
+    expect(o.cleared).toBe(true)
+    expect(sim.state.stats).toMatchObject({ landed: 4, wasted: 1 })
+    expect(sim.state.broken).toBe(0)
+    expect(sim.state.score).toBe(0)
+    stepFor(sim, 1)
+    const red = sim.state.motes.filter((m) => m.color === 'red')
+    expect(red).toHaveLength(2)
+    for (const m of red) {
+      expect(m.state).toBe('free')
+      expect(m.frozenIn).toBeUndefined()
+      expect(dist(m.pos, C)).toBeCloseTo(40 + BURST_GAP, 0)
+    }
+    expect(sim.canPlace(sim.state.runes.find((r) => r.slot === 0)!.id, C)).toBe(true) // the ground is clear again
+  })
+})
+
 describe('undo', () => {
   it('restores the exact prior board, keeping fresh randomness', () => {
     const sim = mk(

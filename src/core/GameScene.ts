@@ -12,10 +12,10 @@ import { detonationTiming, playDetonation } from '../render/Detonation'
 import { governor, quality, type Tier } from '../render/Quality'
 import { VIRTUAL_WIDTH, VIRTUAL_HEIGHT, computeFit } from './VirtualScreen'
 import { Sim } from '../sim/Sim'
-import { ensureEndlessLayers } from '../sim/endless'
+import { ENDLESS_TUNING, ensureEndlessLayers } from '../sim/endless'
 import { INVENTORY_ZONE, REACH } from '../sim/constants'
 import { middleAngle, outerAngle, outerLayer } from '../sim/geometry'
-import type { LevelData, Mote, Piece, Rune, Vec2 } from '../sim/types'
+import type { LevelData, Mote, Obstacle, Piece, Rune, Vec2 } from '../sim/types'
 import type { DetonationInfo } from '../sim/events'
 import { createDebugPanel, isDebugMode } from '../debug/DebugPanel'
 import { createGameHud, type GameHud } from '../ui/GameHud'
@@ -58,6 +58,7 @@ const TOUCH_LIFT = 56
 const KICK_TOUCH_RADIUS = 26 // fingers are blunt
 const KICK_MOUSE_RADIUS = 16
 const NO_MOTES = new Map<string, Mote>()
+const FROST_COLOR = 0x9fd4ff
 
 // One instance per level attempt. The Sim owns all rules; this class only
 // renders its state, turns input into sim actions and adds juice.
@@ -107,7 +108,11 @@ export class GameScene {
     this.applyFit()
 
     const seed = opts.seed ?? (Math.random() * 2 ** 32) >>> 0
-    this.sim = new Sim(level, { seed, ensureLayers: opts.endless ? ensureEndlessLayers : undefined })
+    this.sim = new Sim(level, {
+      seed,
+      ensureLayers: opts.endless ? ensureEndlessLayers : undefined,
+      fuse: opts.endless ? ENDLESS_TUNING.fuse : undefined,
+    })
     this.zoneBg = new ZoneBackground(level.field, level.blockers)
     this.layers.background.addChild(this.zoneBg.container)
     this.applyQuality()
@@ -331,6 +336,7 @@ export class GameScene {
       view.container.position.set(piece.pos.x, piece.pos.y)
       view.body.scale.set(scale)
       view.setHitRadius(piece.layer.radius * scale + 10)
+      view.setFuse(piece.freezeAt === undefined ? null : Math.max(0, (piece.freezeAt - s.time) / ENDLESS_TUNING.fuse), piece.layer.radius, s.time)
       view.sync(pieceLook(piece), outerAngle(piece, s.time), middleAngle(piece, s.time), s.time, dt, motes)
     }
   }
@@ -377,13 +383,15 @@ export class GameScene {
     this.pendingResult = null
 
     const s = this.sim.state
-    for (const o of s.obstacles) {
-      const view = new ObstacleView(o)
-      this.obstacleViews.set(o.id, view)
-      this.layers.obstacles.addChild(view.container)
-    }
+    for (const o of s.obstacles) this.addObstacleView(o)
     for (const r of s.runes) if (r.state === 'idle') this.addHandView(r)
     for (const p of s.pieces) this.addPieceView(p)
+  }
+
+  private addObstacleView(o: Obstacle): void {
+    const view = new ObstacleView(o)
+    this.obstacleViews.set(o.id, view)
+    this.layers.obstacles.addChild(view.container)
   }
 
   private addHandView(rune: Rune): void {
@@ -433,6 +441,16 @@ export class GameScene {
       this.sfx.full()
     })
     bus.on('piece:detonated', ({ piece, info }) => this.onDetonated(piece.id, info))
+    // Endless: a piece whose fuse ran out turns to frosted obsidian in place.
+    bus.on('piece:frozen', ({ piece, obstacle }) => {
+      this.removeView(this.pieceViews, piece.id)
+      this.addObstacleView(obstacle)
+      const r = piece.layer.radius
+      this.effects.ring(obstacle.pos, FROST_COLOR, r * 1.35, r * 0.85, 0.5, 2.5)
+      this.effects.ring(obstacle.pos, 0xffffff, r * 0.4, r * 1.1, 0.35, 1.2)
+      this.effects.addShake(4)
+      this.sfx.freeze()
+    })
     // Damage lands when the detonation's orb does (the view holds the
     // obstacle until then); a debug collapse has no orb and lands at once.
     bus.on('obstacle:damaged', ({ obstacle }) => {
