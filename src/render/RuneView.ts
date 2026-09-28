@@ -69,6 +69,7 @@ export class RuneView {
   private outerC = new Container()
   private glassG = new Graphics()
   private liquidC = new Container()
+  private bowlGlowC = new Container() // additive, apart from the bowls: one batch
   private bowlC = new Container()
   private halves: Half[] = []
   private swirls: Swirl[] = []
@@ -85,7 +86,8 @@ export class RuneView {
     this.aura.tint = 0xeadfff
     this.middleC.addChild(this.middleG)
     this.centerC.addChild(this.centerG)
-    this.outerC.addChild(this.glassG, this.liquidC, this.bowlC)
+    this.bowlGlowC.blendMode = 'add'
+    this.outerC.addChild(this.glassG, this.liquidC, this.bowlGlowC, this.bowlC)
     this.body.addChild(this.aura, this.middleC, this.centerC, this.outerC)
     this.container.addChild(this.body)
     this.container.hitArea = this.hit
@@ -273,6 +275,7 @@ export class RuneView {
   private buildBowls(outer: RuneLayerSpec): void {
     const t = textures()
     this.bowlC.removeChildren().forEach((c) => c.destroy({ children: true }))
+    this.bowlGlowC.removeChildren().forEach((c) => c.destroy())
     this.bowls = localVertices(outer.sides, outer.radius).map((p, i) => {
       const c = new Container()
       c.position.set(p.x, p.y)
@@ -283,9 +286,12 @@ export class RuneView {
         c.addChild(s)
         return s
       }
-      const glow = sprite(t.glow, BOWL_R * 5)
-      glow.blendMode = 'add'
+      const glow = new Sprite(t.glow)
+      glow.anchor.set(0.5)
+      glow.position.set(p.x, p.y)
+      glow.scale.set((BOWL_R * 5) / t.glow.width)
       glow.alpha = 0
+      this.bowlGlowC.addChild(glow)
       const liquid = sprite(t.meniscus, 0)
       liquid.visible = false
       const glass = sprite(t.bowl, BOWL_R * 2)

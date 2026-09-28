@@ -4,7 +4,7 @@ import { ACCENT_COLOR, HUE_COLORS, INVALID_TINT, RUNE_BODY_COLOR, colorForMote, 
 import { ZoneBackground } from '../render/ZoneBackground'
 import { ObstacleView } from '../render/ObstacleView'
 import { MIDDLE_SCALE, RuneView } from '../render/RuneView'
-import { MoteView } from '../render/MoteView'
+import { MoteView, createMoteLayers, type MoteLayers } from '../render/MoteView'
 import { SmokeSystem } from '../render/SmokeSystem'
 import { LinkThreads, type Link } from '../render/LinkThreads'
 import { Effects } from '../render/Effects'
@@ -76,6 +76,7 @@ export class GameScene {
   private links = new LinkThreads()
   private effects!: Effects
   private smoke!: SmokeSystem
+  private moteLayers!: MoteLayers
   private zoneBg!: ZoneBackground
   private clock = 0 // monotonic scene time for decoration (sim time rewinds on undo)
   private drag: DragState | null = null
@@ -93,7 +94,8 @@ export class GameScene {
     this.app.stage.addChild(this.layers.root)
     this.layers.links.addChild(this.links.container)
     this.smoke = new SmokeSystem()
-    this.layers.motes.addChild(this.smoke.container)
+    this.moteLayers = createMoteLayers()
+    this.layers.motes.addChild(this.smoke.container, this.moteLayers.halos, this.moteLayers.bodies, this.moteLayers.hearts)
     this.effects = new Effects(this.layers.effects)
     this.applyFit()
 
@@ -215,9 +217,8 @@ export class GameScene {
       alive.add(m.id)
       let view = this.moteViews.get(m.id)
       if (!view) {
-        view = new MoteView(this.smoke)
+        view = new MoteView(this.smoke, this.moteLayers)
         this.moteViews.set(m.id, view)
-        this.layers.motes.addChild(view.container)
       }
       view.sync(m, dt, time)
     }

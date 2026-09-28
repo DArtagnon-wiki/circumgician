@@ -14,8 +14,11 @@ export interface PuffOptions {
   add?: boolean // additive (glowing) rather than normal blending
 }
 
+type Blend = 'add' | 'normal'
+
 interface Puff {
   s: Sprite
+  blend: Blend
   fx: number // current flow velocity, for the streak direction
   fy: number
   age: number
@@ -40,8 +43,11 @@ const STRETCH = 0.035 // elongation per px/s of flow speed: wisps streak along i
 // growing and fading. Quality tiers scale the emission rate and the cap.
 export class SmokeSystem {
   readonly container = new Container()
+  // Normal and additive puffs live in separate layers (and pools), so the
+  // whole system draws in two batches however they interleave.
+  private layers: Record<Blend, Container> = { normal: new Container(), add: new Container() }
+  private pools: Record<Blend, Puff[]> = { normal: [], add: [] }
   private puffs: Puff[] = []
-  private pool: Puff[] = []
   private textures: Texture[]
   private time = 0
   rate = 1 // emission multiplier (callers scale their spawn intervals)
@@ -49,6 +55,8 @@ export class SmokeSystem {
 
   constructor() {
     this.container.eventMode = 'none'
+    this.layers.add.blendMode = 'add'
+    this.container.addChild(this.layers.normal, this.layers.add)
     this.textures = textures().smoke
   }
 
@@ -58,17 +66,17 @@ export class SmokeSystem {
 
   emit(x: number, y: number, color: number, o: PuffOptions): void {
     if (this.puffs.length >= this.cap) return
-    let p = this.pool.pop()
+    const blend: Blend = o.add ? 'add' : 'normal'
+    let p = this.pools[blend].pop()
     if (!p) {
       const s = new Sprite(this.textures[0])
       s.anchor.set(0.5)
-      this.container.addChild(s)
-      p = { s, fx: 0, fy: 0, age: 0, life: 1, x: 0, y: 0, vx: 0, vy: 0, size0: 1, grow: 2, alpha: 1, skew: 0, opal: NaN }
+      this.layers[blend].addChild(s)
+      p = { s, blend, fx: 0, fy: 0, age: 0, life: 1, x: 0, y: 0, vx: 0, vy: 0, size0: 1, grow: 2, alpha: 1, skew: 0, opal: NaN }
     }
     p.s.texture = this.textures[(Math.random() * this.textures.length) | 0]
     p.s.visible = true
     p.s.tint = color
-    p.s.blendMode = o.add ? 'add' : 'normal'
     p.age = 0
     p.life = o.life
     p.x = x
@@ -95,7 +103,7 @@ export class SmokeSystem {
       p.age += dt
       if (p.age >= p.life) {
         p.s.visible = false
-        this.pool.push(p)
+        this.pools[p.blend].push(p)
         this.puffs[i] = this.puffs[this.puffs.length - 1]
         this.puffs.pop()
         continue

@@ -45,7 +45,9 @@ export class ObstacleView {
   private facetsG = new Graphics()
   private flashG = new Graphics()
   private glintG = new Graphics()
-  private holesC = new Container()
+  // Holes by blend: glowing swirls and lensing rings, then the black cores.
+  private holeGlowC = new Container()
+  private holeCoreC = new Container()
   private holes: Hole[] = []
   private spare: Hole[] = []
   private table: Vec2[] = []
@@ -66,7 +68,8 @@ export class ObstacleView {
     this.nextC.addChild(this.nextG, this.glintC)
     this.glintG.blendMode = 'add'
     this.flashG.blendMode = 'add'
-    this.body.addChild(this.facetsG, this.glintG, this.holesC, this.flashG)
+    this.holeGlowC.blendMode = 'add'
+    this.body.addChild(this.facetsG, this.glintG, this.holeGlowC, this.holeCoreC, this.flashG)
     this.container.addChild(this.nextC, this.body)
     this.container.position.set(obstacle.pos.x, obstacle.pos.y)
   }
@@ -221,19 +224,17 @@ export class ObstacleView {
       return h
     }
     const t = textures()
-    const make = (tex: typeof t.disc) => {
+    const make = (tex: typeof t.disc, layer: Container) => {
       const s = new Sprite(tex)
       s.anchor.set(0.5)
-      this.holesC.addChild(s)
+      layer.addChild(s)
       return s
     }
-    const swirl = make(t.swirl)
-    swirl.blendMode = 'add'
+    const swirl = make(t.swirl, this.holeGlowC)
     swirl.tint = 0xffb46e
-    const lens = make(t.ring)
-    lens.blendMode = 'add'
+    const lens = make(t.ring, this.holeGlowC)
     lens.tint = 0xe6dcff
-    const core = make(t.disc)
+    const core = make(t.disc, this.holeCoreC)
     core.tint = 0x000000
     return { swirl, lens, core }
   }

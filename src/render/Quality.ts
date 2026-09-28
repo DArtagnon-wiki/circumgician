@@ -23,16 +23,18 @@ export const quality = { tier: 2 as Tier, settings: TIERS[2] }
 
 const SLOW_MS = 18 // average frame interval that counts as missing 60fps
 const FAST_MS = 17.5 // ...and as holding it (vsync caps a 60Hz screen at 16.7)
-const DROP_AFTER = 2 // seconds of slow average before stepping down
-const CLIMB_AFTER = 8 // seconds of fast average before trying a step up
-const SMOOTHING = 0.5 // seconds, time constant of the moving average
+const DROP_AFTER = 2 // seconds of slow (short) average before stepping down
+const CLIMB_AFTER = 5 // seconds of fast (long) average before trying a step up
+const SHORT = 0.5 // seconds, time constant of the average that drops tiers
+const LONG = 3 // ...and of the one that climbs: occasional hitches barely move it
 const HITCH_MS = 100 // longer frames (tab switches, GC) are ignored
 const WARMUP = 1 // seconds ignored after a (re)start: uploads and JIT
 const FAILED_CLIMB = 6 // a drop this soon after a climb means it failed
 const MAX_CLIMB_AFTER = 120
 
 export class QualityGovernor {
-  avgMs = 1000 / 60
+  avgMs = 1000 / 60 // short moving average
+  private longMs = 1000 / 60
   private slowFor = 0
   private fastFor = 0
   private climbAfter = CLIMB_AFTER
@@ -63,25 +65,25 @@ export class QualityGovernor {
       this.warmup -= dt
       return
     }
-    this.avgMs += (frameMs - this.avgMs) * (1 - Math.exp(-dt / SMOOTHING))
+    this.avgMs += (frameMs - this.avgMs) * (1 - Math.exp(-dt / SHORT))
+    this.longMs += (frameMs - this.longMs) * (1 - Math.exp(-dt / LONG))
     this.sinceClimb += dt
     if (this.pinned !== null) return
-    if (this.avgMs > SLOW_MS) {
-      this.slowFor += dt
-      this.fastFor = 0
-      if (this.slowFor >= DROP_AFTER && quality.tier > 0) {
-        // Failing soon after a climb means that tier is too rich here:
-        // wait twice as long before trying it again.
-        if (this.sinceClimb < FAILED_CLIMB) this.climbAfter = Math.min(MAX_CLIMB_AFTER, this.climbAfter * 2)
-        this.set((quality.tier - 1) as Tier)
-      }
-    } else {
-      this.slowFor = 0
-      if (this.avgMs < FAST_MS) this.fastFor += dt
-      if (this.fastFor >= this.climbAfter && quality.tier < 2) {
-        this.sinceClimb = 0
-        this.set((quality.tier + 1) as Tier)
-      }
+    // Down quickly on sustained slowness (the short average)...
+    this.slowFor = this.avgMs > SLOW_MS ? this.slowFor + dt : 0
+    if (this.slowFor >= DROP_AFTER && quality.tier > 0) {
+      // Failing soon after a climb means that tier is too rich here:
+      // wait twice as long before trying it again.
+      if (this.sinceClimb < FAILED_CLIMB) this.climbAfter = Math.min(MAX_CLIMB_AFTER, this.climbAfter * 2)
+      this.set((quality.tier - 1) as Tier)
+      return
+    }
+    // ...and up slowly on a long average that holds 60fps, which a GC
+    // pause now and then doesn't disturb.
+    this.fastFor = this.longMs < FAST_MS ? this.fastFor + dt : 0
+    if (this.fastFor >= this.climbAfter && quality.tier < 2) {
+      this.sinceClimb = 0
+      this.set((quality.tier + 1) as Tier)
     }
   }
 

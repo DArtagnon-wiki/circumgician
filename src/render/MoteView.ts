@@ -21,13 +21,27 @@ const smooth = (a: number, b: number, v: number) => {
   return t * t * (3 - 2 * t)
 }
 
+// Scene-wide layers the motes' sprites live in, grouped by blend mode so
+// all motes draw in three batches rather than several each.
+export interface MoteLayers {
+  halos: Container // additive
+  bodies: Container // normal: bodies and droplets
+  hearts: Container // additive
+}
+
+export function createMoteLayers(): MoteLayers {
+  const layers = { halos: new Container(), bodies: new Container(), hearts: new Container() }
+  layers.halos.blendMode = 'add'
+  layers.hearts.blendMode = 'add'
+  return layers
+}
+
 // A mote is smoke with a luminous heart: an additive halo, a saturated
 // body and a hot center, shedding lazy wisps into the shared SmokeSystem.
 // Traveling motes tighten into a spiraling stream; ejecting motes fly as a
 // liquid droplet that congeals back into smoke where they land; coasting
 // motes stretch and trail. Held motes are drawn by their rune's bowl.
 export class MoteView {
-  readonly container = new Container()
   private halo: Sprite
   private body: Sprite
   private hot: Sprite
@@ -37,31 +51,38 @@ export class MoteView {
   private emitAcc = Math.random() * 0.1
   private prevState: MoteStateKind | null = null
 
-  constructor(smoke: SmokeSystem) {
+  constructor(smoke: SmokeSystem, layers: MoteLayers) {
     this.smoke = smoke
     const t = textures()
     this.halo = new Sprite(t.glow)
-    this.halo.blendMode = 'add'
     this.body = new Sprite(t.glow)
     this.hot = new Sprite(t.glow)
-    this.hot.blendMode = 'add'
     this.drop = new Sprite(t.droplet)
     for (const s of [this.halo, this.body, this.hot, this.drop]) s.anchor.set(0.5)
-    this.container.addChild(this.halo, this.body, this.drop, this.hot)
+    layers.halos.addChild(this.halo)
+    layers.bodies.addChild(this.body, this.drop)
+    layers.hearts.addChild(this.hot)
   }
 
   destroy(): void {
-    this.container.destroy({ children: true })
+    for (const s of [this.halo, this.body, this.hot, this.drop]) s.destroy()
+  }
+
+  private show(on: boolean): void {
+    this.body.visible = on
+    this.hot.visible = on
+    this.halo.visible = on && quality.settings.glows
+    if (!on) this.drop.visible = false
   }
 
   sync(mote: Mote, dt: number, time: number): void {
     const prev = this.prevState
     this.prevState = mote.state
     if (mote.state === 'held') {
-      this.container.visible = false
+      this.show(false)
       return
     }
-    this.container.visible = true
+    this.show(true)
     const generic = mote.color === 'generic'
     const color = generic ? opal(time, this.phase) : colorForMote(mote.color)
     const wisp = generic ? color : lighten(color, 0.12)
@@ -162,7 +183,6 @@ export class MoteView {
     if (!stretched) this.halo.scale.set((44 / GLOW) * breathe * heart)
     this.body.scale.set((19 / GLOW) * heart)
     this.hot.scale.set((7 / GLOW) * heart * breathe)
-    this.halo.visible = quality.settings.glows
     this.halo.alpha = 0.3 * alpha
     this.body.alpha = alpha
     this.hot.alpha = 0.75 * alpha
