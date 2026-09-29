@@ -4,7 +4,7 @@ import { BURST_GAP, REACH } from './constants'
 import { dist, nodePositions } from './geometry'
 import { layer, mote, obstacle, ring, testLevel } from './testFixtures'
 import { runScript } from './headless'
-import { DEBUG_PACK, PACK } from '../data/levels/pack'
+import { DEBUG_PACK } from '../data/levels/pack'
 import type { LevelData } from './types'
 
 const DT = 1 / 30
@@ -72,7 +72,12 @@ describe('catch ring', () => {
   })
 
   it('regression: motes a rune cannot catch are pushed fully clear of it (Hungry Circle softlock)', () => {
-    const level = PACK.find((l) => l.id === 'the-hungry-circle')!
+    // The board that softlocked: five reds on a 40px ring, and a blue pentagon of radius 66 over them.
+    const level = testLevel({
+      field: { x: 40, y: 380, w: 320, h: 250 },
+      motes: [mote('red', 178.2, 511.8, 8), mote('red', 140.6, 540, 8), mote('red', 102.1, 512.9, 8), mote('red', 116, 468, 8), mote('red', 163.1, 467.3, 8)],
+      hand: [{ layers: [layer(3, 40, 'red'), layer(3, 30, 'red')] }, { layers: [layer(5, 66, 'blue', 'teal'), layer(5, 92, 'teal')] }],
+    })
     const sim = mk(level, { seed: 4 })
     const big = sim.state.runes[1] // 5-gon R66, catches blue; reds sit at r40 under it
     const P = { x: 140, y: 500 }

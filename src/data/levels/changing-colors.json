@@ -12,38 +12,68 @@
   "motes": [
     {
       "color": "red",
-      "x": 158.3,
-      "y": 508.3
+      "x": 169.2,
+      "y": 487.9
     },
     {
       "color": "red",
-      "x": 101.7,
-      "y": 508.3
+      "x": 148.2,
+      "y": 515.6
     },
     {
       "color": "red",
-      "x": 101.7,
-      "y": 451.7
+      "x": 113.5,
+      "y": 516.5
     },
     {
       "color": "red",
-      "x": 158.3,
-      "y": 451.7
+      "x": 91.2,
+      "y": 489.8
+    },
+    {
+      "color": "red",
+      "x": 98.1,
+      "y": 455.8
+    },
+    {
+      "color": "red",
+      "x": 129,
+      "y": 440
+    },
+    {
+      "color": "red",
+      "x": 160.7,
+      "y": 454.3
     },
     {
       "color": "blue",
-      "x": 316,
-      "y": 560
+      "x": 313.2,
+      "y": 574
     },
     {
       "color": "blue",
-      "x": 262,
-      "y": 591.2
+      "x": 284.4,
+      "y": 595.7
     },
     {
       "color": "blue",
-      "x": 262,
-      "y": 528.8
+      "x": 251.3,
+      "y": 581.7
+    },
+    {
+      "color": "blue",
+      "x": 246.8,
+      "y": 546
+    },
+    {
+      "color": "blue",
+      "x": 275.6,
+      "y": 524.3
+    },
+    {
+      "color": "blue",
+      "x": 308.7,
+      "y": 538.3
     }
   ],
   "obstacles": [
@@ -54,12 +84,17 @@
         {
           "sides": 3,
           "radius": 30,
-          "hp": 4
+          "hp": 5
         },
         {
           "sides": 4,
           "radius": 30,
-          "hp": 6
+          "hp": 4
+        },
+        {
+          "sides": 5,
+          "radius": 30,
+          "hp": 3
         }
       ]
     }
@@ -68,9 +103,13 @@
     {
       "layers": [
         {
-          "sides": 4,
+          "sides": 5,
           "radius": 40,
           "nodes": [
+            {
+              "catch": "red",
+              "release": "gold"
+            },
             {
               "catch": "red",
               "release": "gold"
@@ -108,9 +147,13 @@
           ]
         },
         {
-          "sides": 4,
-          "radius": 40,
+          "sides": 5,
+          "radius": 30,
           "nodes": [
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
             {
               "catch": "gold",
               "release": "gold"
@@ -134,9 +177,13 @@
     {
       "layers": [
         {
-          "sides": 3,
+          "sides": 4,
           "radius": 36,
           "nodes": [
+            {
+              "catch": "blue",
+              "release": "blue"
+            },
             {
               "catch": "blue",
               "release": "blue"
@@ -154,6 +201,28 @@
         {
           "sides": 4,
           "radius": 62,
+          "nodes": [
+            {
+              "catch": "blue",
+              "release": "blue"
+            },
+            {
+              "catch": "blue",
+              "release": "blue"
+            },
+            {
+              "catch": "blue",
+              "release": "blue"
+            },
+            {
+              "catch": "blue",
+              "release": "blue"
+            }
+          ]
+        },
+        {
+          "sides": 4,
+          "radius": 30,
           "nodes": [
             {
               "catch": "blue",

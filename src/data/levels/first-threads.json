@@ -12,48 +12,78 @@
   "motes": [
     {
       "color": "red",
-      "x": 148.3,
-      "y": 498.3
+      "x": 159.2,
+      "y": 477.9
     },
     {
       "color": "red",
-      "x": 91.7,
-      "y": 498.3
+      "x": 138.2,
+      "y": 505.6
     },
     {
       "color": "red",
-      "x": 91.7,
-      "y": 441.7
+      "x": 103.5,
+      "y": 506.5
     },
     {
       "color": "red",
-      "x": 148.3,
-      "y": 441.7
+      "x": 81.2,
+      "y": 479.8
+    },
+    {
+      "color": "red",
+      "x": 88.1,
+      "y": 445.8
+    },
+    {
+      "color": "red",
+      "x": 119,
+      "y": 430
+    },
+    {
+      "color": "red",
+      "x": 150.7,
+      "y": 444.3
     },
     {
       "color": "blue",
-      "x": 322,
-      "y": 603
+      "x": 320.5,
+      "y": 607.1
     },
     {
       "color": "blue",
-      "x": 280.6,
-      "y": 634
+      "x": 296.5,
+      "y": 630.8
     },
     {
       "color": "blue",
-      "x": 238.4,
-      "y": 604.2
+      "x": 262.9,
+      "y": 630.5
     },
     {
       "color": "blue",
-      "x": 253.6,
-      "y": 554.8
+      "x": 239.2,
+      "y": 606.5
     },
     {
       "color": "blue",
-      "x": 305.4,
-      "y": 554
+      "x": 239.5,
+      "y": 572.9
+    },
+    {
+      "color": "blue",
+      "x": 263.5,
+      "y": 549.2
+    },
+    {
+      "color": "blue",
+      "x": 297.1,
+      "y": 549.5
+    },
+    {
+      "color": "blue",
+      "x": 320.8,
+      "y": 573.5
     }
   ],
   "obstacles": [
@@ -107,30 +137,8 @@
         },
         {
           "sides": 3,
-          "radius": 66,
+          "radius": 30,
           "nodes": [
-            {
-              "catch": "red",
-              "release": "red"
-            },
-            {
-              "catch": "red",
-              "release": "red"
-            },
-            {
-              "catch": "red",
-              "release": "red"
-            }
-          ]
-        },
-        {
-          "sides": 4,
-          "radius": 36,
-          "nodes": [
-            {
-              "catch": "red",
-              "release": "red"
-            },
             {
               "catch": "red",
               "release": "red"
@@ -177,30 +185,12 @@
         },
         {
           "sides": 4,
-          "radius": 70,
+          "radius": 30,
           "nodes": [
             {
               "catch": "blue",
               "release": "blue"
             },
-            {
-              "catch": "blue",
-              "release": "blue"
-            },
-            {
-              "catch": "blue",
-              "release": "blue"
-            },
-            {
-              "catch": "blue",
-              "release": "blue"
-            }
-          ]
-        },
-        {
-          "sides": 3,
-          "radius": 36,
-          "nodes": [
             {
               "catch": "blue",
               "release": "blue"

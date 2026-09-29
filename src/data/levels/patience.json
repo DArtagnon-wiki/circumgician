@@ -11,65 +11,110 @@
   "blockers": [],
   "motes": [
     {
-      "color": "gold",
-      "x": 110,
-      "y": 400
-    },
-    {
-      "color": "gold",
-      "x": 150,
-      "y": 440
-    },
-    {
-      "color": "gold",
-      "x": 110,
-      "y": 480
-    },
-    {
-      "color": "gold",
-      "x": 70,
-      "y": 440
+      "color": "red",
+      "x": 153.1,
+      "y": 448.7
     },
     {
       "color": "red",
-      "x": 140,
-      "y": 564
+      "x": 141.6,
+      "y": 470.7
     },
     {
       "color": "red",
-      "x": 179.8,
-      "y": 587
+      "x": 120,
+      "y": 482.9
     },
     {
       "color": "red",
-      "x": 179.8,
-      "y": 633
+      "x": 95.2,
+      "y": 481.4
     },
     {
       "color": "red",
-      "x": 140,
-      "y": 656
+      "x": 75.2,
+      "y": 466.9
     },
     {
       "color": "red",
-      "x": 100.2,
-      "y": 633
+      "x": 66.2,
+      "y": 443.8
     },
     {
       "color": "red",
-      "x": 100.2,
-      "y": 587
+      "x": 71.1,
+      "y": 419.5
+    },
+    {
+      "color": "red",
+      "x": 88.4,
+      "y": 401.7
+    },
+    {
+      "color": "red",
+      "x": 112.5,
+      "y": 396.1
+    },
+    {
+      "color": "red",
+      "x": 135.9,
+      "y": 404.4
+    },
+    {
+      "color": "red",
+      "x": 151,
+      "y": 424
+    },
+    {
+      "color": "blue",
+      "x": 326.8,
+      "y": 455.6
+    },
+    {
+      "color": "blue",
+      "x": 294.9,
+      "y": 479.7
+    },
+    {
+      "color": "blue",
+      "x": 258.1,
+      "y": 464.1
+    },
+    {
+      "color": "blue",
+      "x": 253.2,
+      "y": 424.4
+    },
+    {
+      "color": "blue",
+      "x": 285.1,
+      "y": 400.3
+    },
+    {
+      "color": "blue",
+      "x": 321.9,
+      "y": 415.9
     }
   ],
   "obstacles": [
     {
       "x": 110,
-      "y": 150,
+      "y": 160,
       "layers": [
         {
-          "sides": 4,
+          "sides": 3,
+          "radius": 30,
+          "hp": 3
+        },
+        {
+          "sides": 6,
           "radius": 30,
           "hp": 4
+        },
+        {
+          "sides": 5,
+          "radius": 30,
+          "hp": 3
         },
         {
           "sides": 3,
@@ -80,12 +125,17 @@
     },
     {
       "x": 290,
-      "y": 150,
+      "y": 160,
       "layers": [
         {
-          "sides": 3,
+          "sides": 4,
           "radius": 30,
-          "hp": 3
+          "hp": 6
+        },
+        {
+          "sides": 5,
+          "radius": 30,
+          "hp": 4
         }
       ]
     }
@@ -94,46 +144,138 @@
     {
       "layers": [
         {
+          "sides": 3,
+          "radius": 40,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            }
+          ]
+        },
+        {
+          "sides": 3,
+          "radius": 40,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            }
+          ]
+        },
+        {
+          "sides": 5,
+          "radius": 30,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "layers": [
+        {
           "sides": 4,
           "radius": 40,
           "nodes": [
             {
-              "catch": "gold",
+              "catch": "blue",
               "release": "blue"
             },
             {
-              "catch": "gold",
+              "catch": "blue",
               "release": "blue"
             },
             {
-              "catch": "gold",
+              "catch": "blue",
               "release": "blue"
             },
             {
-              "catch": "gold",
+              "catch": "blue",
               "release": "blue"
             }
           ]
         },
         {
-          "sides": 4,
-          "radius": 66,
+          "sides": 6,
+          "radius": 50,
           "nodes": [
             {
-              "catch": "teal",
-              "release": "teal"
+              "catch": "red",
+              "release": "gold"
             },
             {
-              "catch": "teal",
-              "release": "teal"
+              "catch": "red",
+              "release": "gold"
             },
             {
-              "catch": "teal",
-              "release": "teal"
+              "catch": "red",
+              "release": "gold"
             },
             {
-              "catch": "teal",
-              "release": "teal"
+              "catch": "red",
+              "release": "gold"
+            },
+            {
+              "catch": "red",
+              "release": "gold"
+            },
+            {
+              "catch": "red",
+              "release": "gold"
+            }
+          ]
+        },
+        {
+          "sides": 3,
+          "radius": 30,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
             }
           ]
         }
@@ -143,38 +285,68 @@
       "layers": [
         {
           "sides": 6,
-          "radius": 46,
+          "radius": 66,
           "nodes": [
             {
-              "catch": "red",
+              "catch": "gold",
               "release": "teal"
             },
             {
-              "catch": "red",
+              "catch": "gold",
               "release": "teal"
             },
             {
-              "catch": "red",
+              "catch": "gold",
               "release": "teal"
             },
             {
-              "catch": "red",
+              "catch": "gold",
               "release": "teal"
             },
             {
-              "catch": "red",
+              "catch": "gold",
               "release": "teal"
             },
             {
-              "catch": "red",
+              "catch": "gold",
               "release": "teal"
             }
           ]
         },
         {
-          "sides": 3,
-          "radius": 72,
+          "sides": 4,
+          "radius": 44,
           "nodes": [
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            }
+          ]
+        },
+        {
+          "sides": 5,
+          "radius": 30,
+          "nodes": [
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
             {
               "catch": "teal",
               "release": "teal"
@@ -195,37 +367,89 @@
       "layers": [
         {
           "sides": 3,
-          "radius": 66,
+          "radius": 40,
           "nodes": [
             {
-              "catch": "blue",
-              "release": "red"
+              "catch": "gold",
+              "release": "annihilating"
             },
             {
-              "catch": "blue",
-              "release": "red"
+              "catch": "gold",
+              "release": "annihilating"
             },
             {
-              "catch": "blue",
-              "release": "red"
+              "catch": "gold",
+              "release": "annihilating"
             }
           ]
         },
         {
-          "sides": 3,
-          "radius": 92,
+          "sides": 4,
+          "radius": 30,
           "nodes": [
             {
-              "catch": "red",
-              "release": "red"
+              "catch": "gold",
+              "release": "gold"
             },
             {
-              "catch": "red",
-              "release": "red"
+              "catch": "gold",
+              "release": "gold"
             },
             {
-              "catch": "red",
-              "release": "red"
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "layers": [
+        {
+          "sides": 4,
+          "radius": 40,
+          "nodes": [
+            {
+              "catch": "gold",
+              "release": "annihilating"
+            },
+            {
+              "catch": "gold",
+              "release": "annihilating"
+            },
+            {
+              "catch": "gold",
+              "release": "annihilating"
+            },
+            {
+              "catch": "gold",
+              "release": "annihilating"
+            }
+          ]
+        },
+        {
+          "sides": 4,
+          "radius": 30,
+          "nodes": [
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
             }
           ]
         }

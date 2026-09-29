@@ -15,10 +15,31 @@ export interface Line {
 const at = (x: number, y: number) => ({ x, y })
 const place = (slot: number, p: { x: number; y: number }): ScriptStep => ({ place: slot, at: p })
 const tap = (slot: number): ScriptStep => ({ tap: slot })
-const wait = (seconds: number): ScriptStep => ({ wait: seconds })
-const flick = (mote: number, toward: { x: number; y: number }): ScriptStep => ({ flick: mote, toward })
 const feed = (slot: number, layer?: number): ScriptStep => (layer === undefined ? { feed: slot } : { feed: slot, layer })
 const tapLayer = (slot: number, layer: number): ScriptStep => ({ tap: slot, layer })
+// Cast the layer in hand at a spot, kick in the motes it needs, detonate it.
+const cast = (slot: number, p: { x: number; y: number }): ScriptStep[] => [place(slot, p), feed(slot), tap(slot)]
+
+// Levels 5-10: each rune cast on its color's pool (even slots on the first,
+// odd on the second); the maker of the crux batch, the crux and the clean-up
+// at a well.
+type Spot = { x: number; y: number }
+const LAYOUT: Record<string, { pools: [Spot, Spot]; well: Spot }> = {
+  patience: { pools: [at(110, 440), at(290, 440)], well: at(200, 590) },
+  'crowded-circle': { pools: [at(100, 630), at(300, 630)], well: at(200, 475) },
+  'the-sacrifice': { pools: [at(100, 420), at(100, 630)], well: at(260, 530) },
+  'the-wildcard': { pools: [at(300, 420), at(300, 630)], well: at(140, 530) },
+  'the-price': { pools: [at(110, 420), at(290, 640)], well: at(220, 520) },
+  circumgician: { pools: [at(100, 640), at(300, 640)], well: at(200, 470) },
+}
+const toCrux = (id: string, slots: number[], maker: number): ScriptStep[] => [
+  ...slots.flatMap((slot) => cast(slot, LAYOUT[id].pools[slot % 2])),
+  ...cast(maker, LAYOUT[id].well),
+]
+const atWell = (id: string, ...slots: number[]): ScriptStep[] => slots.flatMap((slot) => cast(slot, LAYOUT[id].well))
+// Hungry Circle: everything at one pool.
+const HUNGRY = at(200, 520)
+const hungryToCrux: ScriptStep[] = [...cast(0, HUNGRY), ...cast(1, HUNGRY), ...cast(0, HUNGRY), ...cast(1, HUNGRY)]
 
 // The Crux: satellites A, B, C around the well P, where D and E dig in, the
 // hexagons rise and the clean-up runs.
@@ -47,102 +68,86 @@ const toTheCrux: ScriptStep[] = [
 ]
 
 export const LINES: Record<string, Line[]> = {
+  // Levels 1-3 are calm: plenty of every color, nothing that loses for good.
   'first-threads': [
-    { name: 'intended', expect: 'won', steps: [place(0, at(120, 470)), tap(0), place(1, at(280, 590)), tap(1)] },
+    { name: 'intended', expect: 'won', steps: [...cast(0, at(120, 470)), ...cast(1, at(280, 590))] },
     // Recoverable by kicking motes into the rings, so only "not won" untouched.
     { name: 'both runes off their motes', expect: 'not-won', steps: [place(0, at(300, 420)), place(1, at(110, 630))] },
   ],
+  // The blue square fills at once and waits, unlinked, until the pentagon's
+  // blow breaks the triangle. A spare blue layer forgives an early tap.
   'changing-colors': [
-    { name: 'intended', expect: 'won', steps: [place(0, at(130, 480)), place(1, at(280, 560)), tap(0), tap(1), place(0, at(130, 480)), tap(0)] },
-    { name: 'blue detonated before the triangle falls', expect: 'lost', steps: [place(1, at(280, 560)), tap(1)] },
+    {
+      name: 'intended',
+      expect: 'won',
+      steps: [place(0, at(130, 480)), place(1, at(280, 560)), feed(0), tap(0), feed(1), tap(1), ...cast(0, at(130, 480))],
+    },
+    { name: 'blue tapped with nothing to hit', expect: 'not-won', steps: [...cast(1, at(280, 560))] },
   ],
-  // Aim is where you drop: left of the pools strikes the seven, right the
-  // five. Only 5 = 5 and 4 + 3 = 7 waste nothing.
+  // Where you drop picks the triangle a blow strikes: match 5, 4 and 3 to the
+  // strengths. A spare blue triangle forgives a mis-aim.
   'the-weighing': [
-    { name: 'intended', expect: 'won', steps: [place(0, at(218, 410)), tap(0), place(1, at(182, 520)), tap(1), place(2, at(182, 630)), tap(2)] },
-    { name: 'small blows first', expect: 'won', steps: [place(2, at(182, 630)), tap(2), place(1, at(182, 520)), tap(1), place(0, at(218, 410)), tap(0)] },
-    { name: 'greedy: the five into the seven', expect: 'lost', steps: [place(0, at(182, 410)), tap(0), place(1, at(218, 520)), tap(1), place(2, at(218, 630)), tap(2)] },
-    { name: 'every rune dropped dead center', expect: 'lost', steps: [place(0, at(200, 410)), tap(0), place(1, at(200, 520)), tap(1)] },
+    { name: 'intended', expect: 'won', steps: [...cast(0, at(290, 430)), ...cast(1, at(110, 480)), ...cast(2, at(160, 610)), ...cast(3, at(290, 430))] },
+    { name: 'the pentagon to the left', expect: 'not-won', steps: [...cast(0, at(110, 470))] },
   ],
+  // From level 4 on, a crux: a batch made exactly (every line meets it), a
+  // rune that needs all of it, and tempting runes that would take some. It
+  // starts at the end and moves back toward two thirds as levels grow.
+  // Hungry Circle, crux at the last blow: the pentagon makes exactly four gold,
+  // the square needs all four, the hungry triangle would eat three.
   'the-hungry-circle': [
-    { name: 'intended', expect: 'won', steps: [place(0, at(140, 500)), tap(0), place(1, at(140, 500)), tap(1)] },
-    { name: 'big rune first steals the space', expect: 'not-won', steps: [place(1, at(140, 500)), place(0, at(290, 510))] },
-    { name: 'annihilator on the reds', expect: 'not-won', steps: [place(2, at(140, 500)), tap(2)] },
+    { name: 'intended', expect: 'won', steps: [...hungryToCrux, ...cast(2, HUNGRY)] },
+    { name: 'the hungry triangle first', expect: 'lost', steps: [...hungryToCrux, ...cast(3, HUNGRY)] },
   ],
-  // The six-blow rune is ready at once, linked to the three. Hold it until
-  // the square breaks into the six (the ghost shows its strength).
+  // Patience, crux at blow 5 of 6: the big gold hexagon needs all six; two
+  // quicker gold runes are linked to its square right now.
   patience: [
-    { name: 'intended', expect: 'won', steps: [place(1, at(140, 610)), place(0, at(110, 440)), tap(0), tap(1), place(2, at(110, 440)), tap(2)] },
-    { name: 'the big blow at once', expect: 'lost', steps: [place(1, at(140, 610)), tap(1)] },
-    {
-      name: 'the small blow takes the six first',
-      expect: 'lost',
-      steps: [place(1, at(140, 610)), place(0, at(110, 440)), tap(0), place(2, at(110, 440)), tap(2), tap(1)],
-    },
+    { name: 'intended', expect: 'won', steps: [...toCrux('patience', [0, 1, 0], 1), ...atWell('patience', 2, 2)] },
+    { name: 'a quick gold rune first', expect: 'lost', steps: [...toCrux('patience', [0, 1, 0], 1), ...atWell('patience', 3)] },
   ],
+  // Crowded Circle, crux at blow 6 of 7: amethyst from two squares, six gold,
+  // and a hand crowded with smaller gold runes linked to the hexagon's layer.
   'crowded-circle': [
-    {
-      name: 'intended',
-      expect: 'won',
-      steps: [place(0, at(120, 450)), tap(0), place(1, at(186, 516)), tap(1), place(0, at(120, 450)), tap(0), place(1, at(186, 576)), tap(1)],
-    },
-    { name: 're-placing R1 early swallows the gold', expect: 'not-won', steps: [place(0, at(120, 450)), tap(0), place(0, at(120, 450)), place(1, at(186, 516))] },
+    { name: 'intended', expect: 'won', steps: [...toCrux('crowded-circle', [0, 1, 2, 3], 0), ...atWell('crowded-circle', 1, 2)] },
+    { name: 'a crowding gold square first', expect: 'lost', steps: [...toCrux('crowded-circle', [0, 1, 2, 3], 0), ...atWell('crowded-circle', 3)] },
   ],
-  // Only slot 2 makes the gold the bridge needs, and it has nothing to hit
-  // yet: fire it anyway. The linked decoy spends the reds on a perfect hit.
+  // The Sacrifice, crux at blow 6 of 8 (amber and jade pools): the only way to
+  // the sapphire the ending needs is a ruby hexagon with nothing to hit; two
+  // ruby runes offer perfect, linked blows that spend the rubies instead.
   'the-sacrifice': [
-    { name: 'intended', expect: 'won', steps: [place(2, at(200, 500)), tap(2), place(1, at(200, 500)), tap(1), place(2, at(200, 500)), tap(2)] },
-    { name: 'the linked rune takes the reds', expect: 'lost', steps: [place(0, at(200, 500)), tap(0), place(0, at(200, 500)), tap(0)] },
+    { name: 'intended', expect: 'won', steps: [...toCrux('the-sacrifice', [0, 1, 2, 3], 0), ...atWell('the-sacrifice', 1, 2, 3)] },
+    { name: 'the perfect blow instead', expect: 'lost', steps: [...toCrux('the-sacrifice', [0, 1, 2, 3], 0), ...atWell('the-sacrifice', 4)] },
   ],
-  // The generic is the only violet there will ever be. The blue the square
-  // waits for lands in its empty bowl once the triangle bursts.
+  // The Wildcard, crux at blow 7 of 9 (jade and ruby pools): five amber and one
+  // wildcard, and the hexagon needs all six; a triangle with an amethyst bowl
+  // (no amethyst exists yet) wants the wildcard.
   'the-wildcard': [
-    { name: 'intended', expect: 'won', steps: [place(0, at(200, 430)), place(1, at(200, 536)), tap(1), tap(0), place(2, at(200, 430)), tap(2)] },
+    { name: 'intended', expect: 'won', steps: [...toCrux('the-wildcard', [0, 1, 2, 3, 4], 0), ...atWell('the-wildcard', 1, 2, 3)] },
+    { name: 'a gold square first', expect: 'lost', steps: [...toCrux('the-wildcard', [0, 1, 2, 3, 4], 0), ...atWell('the-wildcard', 5)] },
+    // Its amber bowl may take the wildcard before its amethyst bowl can: jammed either way.
     {
-      name: 'the wildcard flicked in for the blue',
-      expect: 'lost',
-      steps: [place(0, at(200, 430)), wait(2), flick(6, at(228.3, 401.7)), tap(0), place(1, at(200, 536)), tap(1)],
-    },
-  ],
-  // Every blow has a price: each phase runs on the color the last one made,
-  // red (two to spare) > gold (exact) > blue (two to spare) > teal (exact).
-  // The ash triangle clears the square cleanly with reds, and so starves
-  // the square rune that turns reds into gold; the loss shows only after
-  // the blues and teals are spent.
-  'the-price': [
-    { name: 'intended', expect: 'won', steps: [place(0, at(200, 505)), tap(0), place(1, at(200, 505)), tap(1), place(2, at(200, 505)), tap(2), place(3, at(200, 505)), tap(3)] },
-    {
-      name: 'the clean one-shot',
-      expect: 'lost',
-      steps: [place(4, at(200, 505)), tap(4), place(2, at(200, 505)), tap(2), place(3, at(200, 505)), tap(3)],
-    },
-  ],
-  circumgician: [
-    {
-      name: 'intended',
-      expect: 'won',
-      steps: [
-        place(0, at(200, 520)),
-        place(2, at(110, 430)),
-        tap(0),
-        tap(2),
-        place(2, at(110, 430)),
-        tap(2),
-        place(1, at(200, 520)),
-        tap(1),
-        place(0, at(200, 520)),
-        tap(0),
-        place(1, at(200, 520)),
-        tap(1),
-        place(0, at(200, 520)),
-        tap(0),
-      ],
-    },
-    { name: 'chain rune Y first', expect: 'not-won', steps: [place(1, at(200, 520)), place(0, at(300, 420))] },
-    {
-      name: 'side rune finished too late',
+      name: 'the wildcard in the triangle',
       expect: 'not-won',
-      steps: [place(0, at(200, 520)), place(2, at(110, 430)), tap(0), tap(2), place(1, at(200, 520)), place(2, at(110, 430))],
+      steps: [...toCrux('the-wildcard', [0, 1, 2, 3, 4], 0), place(4, LAYOUT['the-wildcard'].well), feed(4)],
+    },
+  ],
+  // The Price, crux at blow 7 of 10 (sapphire and amber pools): most blows burn
+  // a mote, twenty dwindle; the ash hexagon offers the same perfect blow as the
+  // jade one and burns the rubies the ending needs.
+  'the-price': [
+    { name: 'intended', expect: 'won', steps: [...toCrux('the-price', [0, 1, 2, 3, 4], 0), ...atWell('the-price', 1, 2, 4, 3)] },
+    { name: 'the ash hexagon', expect: 'lost', steps: [...toCrux('the-price', [0, 1, 2, 3, 4], 0), ...atWell('the-price', 5)] },
+  ],
+  // Circumgician, crux at blow 8 of 12 (ruby and jade pools): four gating
+  // triangles in any order, five amber and a wildcard, the ash hexagon and the
+  // wildcard thief at once.
+  circumgician: [
+    { name: 'intended', expect: 'won', steps: [...toCrux('circumgician', [0, 1, 2, 3, 2, 3], 0), ...atWell('circumgician', 1, 2, 3, 0, 2)] },
+    { name: 'the ash hexagon', expect: 'lost', steps: [...toCrux('circumgician', [0, 1, 2, 3, 2, 3], 0), ...atWell('circumgician', 4)] },
+    {
+      name: 'the wildcard in the triangle',
+      expect: 'not-won',
+      steps: [...toCrux('circumgician', [0, 1, 2, 3, 2, 3], 0), place(5, LAYOUT.circumgician.well), feed(5)],
     },
   ],
   // 20 motes, 30 moves in every winning line. Act 1 turns ruby and jade into
