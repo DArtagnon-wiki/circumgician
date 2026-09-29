@@ -1,16 +1,17 @@
 import { KICK_GAIN, MOTE_FRICTION } from './constants'
-import { outerLayer } from './geometry'
+import { dist, outerLayer } from './geometry'
 import { colorsCanCover } from './progress'
 import { Sim, type SimOptions } from './Sim'
 import { nextRandom } from './rng'
 import type { Move } from './solver'
-import type { LevelData, RuneLayerSpec, SimStatus, Vec2 } from './types'
+import type { LevelData, Mote, Piece, RuneLayerSpec, SimStatus, Vec2 } from './types'
 
 export type ScriptStep =
   | { place: number; at: Vec2 } // cast the layer in that hand slot at a field position
   | { tap: number; layer?: number } // wait for a piece from that slot (the oldest, or that stack layer) to fill, then detonate it
   | { wait: number } // seconds
   | { flick: number; toward: Vec2 } // kick the level's nth mote so it coasts to a point
+  | { feed: number; layer?: number } // kick the free motes a charging piece from that slot can use into it, nearest first, until it fills
 
 export interface RunResult {
   status: SimStatus
@@ -42,6 +43,30 @@ function pieceFrom(sim: Sim, slot: number, layer?: number) {
   return sim.state.pieces.find((p) => p.slot === slot && (layer === undefined || p.depth === layer))
 }
 
+// A kicked mote coasts speed / MOTE_FRICTION, and a tap d away kicks at
+// KICK_GAIN * d, so tap that far behind it (kicks are clamped, so a far
+// target is only approached).
+function kickTo(sim: Sim, mote: Mote, to: Vec2): void {
+  const dx = to.x - mote.pos.x
+  const dy = to.y - mote.pos.y
+  const d = Math.hypot(dx, dy) || 1
+  const back = (d * MOTE_FRICTION) / KICK_GAIN
+  sim.kick(mote.id, { x: mote.pos.x - (dx / d) * back, y: mote.pos.y - (dy / d) * back })
+}
+
+// Kicks the nearest resting free mote the piece can still hold at its
+// center; one reaching the catch ring is drawn to a node. False if none.
+function feedOne(sim: Sim, piece: Piece): boolean {
+  const want = new Set<string>(piece.layer.nodes.filter((_, i) => piece.held[i] === null).map((n) => n.catch))
+  let best: Mote | null = null
+  for (const m of sim.state.motes) {
+    if (m.state !== 'free' || m.vel || (m.color !== 'generic' && !want.has(m.color))) continue
+    if (!best || dist(m.pos, piece.pos) < dist(best.pos, piece.pos)) best = m
+  }
+  if (best) kickTo(sim, best, piece.pos)
+  return !!best
+}
+
 // Plays a fixed sequence of actions, then lets the board settle until the
 // sim decides (or `settle` seconds pass). Drift randomness comes from `seed`.
 export function runScript(level: LevelData, steps: ScriptStep[], opts: SimOptions & { fillTimeout?: number; settle?: number } = {}): RunResult {
@@ -55,15 +80,17 @@ export function runScript(level: LevelData, steps: ScriptStep[], opts: SimOption
     if ('wait' in step) {
       for (let t = 0; t < step.wait; t += DT) sim.step(DT)
     } else if ('flick' in step) {
-      // A kicked mote coasts speed / MOTE_FRICTION, and a tap d away
-      // kicks at KICK_GAIN * d, so tap that far behind it.
       const mote = sim.state.motes.find((m) => m.id === `mote-${step.flick}`)
       if (!mote || mote.state !== 'free') return fail(`mote ${step.flick} cannot be flicked`)
-      const dx = step.toward.x - mote.pos.x
-      const dy = step.toward.y - mote.pos.y
-      const d = Math.hypot(dx, dy) || 1
-      const back = (d * MOTE_FRICTION) / KICK_GAIN
-      sim.kick(mote.id, { x: mote.pos.x - (dx / d) * back, y: mote.pos.y - (dy / d) * back })
+      kickTo(sim, mote, step.toward)
+    } else if ('feed' in step) {
+      const piece = pieceFrom(sim, step.feed, step.layer)
+      if (!piece) return fail(`no piece on the field from slot ${step.feed}${step.layer === undefined ? '' : ` layer ${step.layer}`} to feed`)
+      const start = sim.state.time
+      while (piece.state === 'charging' && sim.state.status === 'playing' && sim.state.time - start < fillTimeout) {
+        if (!sim.state.motes.some((m) => m.vel || m.state === 'traveling')) feedOne(sim, piece)
+        sim.step(DT)
+      }
     } else if ('place' in step) {
       const rune = runeInSlot(sim, step.place)
       if (!rune || !sim.place(rune.id, step.at)) return fail(`cannot place slot ${step.place} at ${step.at.x},${step.at.y}`)

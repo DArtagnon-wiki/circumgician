@@ -368,6 +368,67 @@ export function tensionAlong(level: LevelData, moves: Move[], opts: SolverOption
   return out
 }
 
+// Tension across every winning line at once, to check that a moment is
+// tense whatever path led to it. States are banded by depth, the moves made
+// so far (a fill or a detonation is one move each).
+export interface TensionBand {
+  depth: number
+  states: number // winning-line states at this depth
+  min: number // the calmest of them
+  mean: number
+  max: number
+  minPeril: number
+}
+
+export interface TensionBands {
+  bands: TensionBand[]
+  fewestMoves: number // the shortest win
+  mostMoves: number // the longest win
+}
+
+export function economyDepth(s: Economy): number {
+  const fired = s.hand.reduce((a, b) => a + b, 0) - s.pieces.length
+  return 2 * fired + s.pieces.filter((p) => p.full).length
+}
+
+export function tensionBands(level: LevelData, opts: SolverOptions = {}): TensionBands {
+  const solver = new EconomySolver(level, opts)
+  const start = initialEconomy(level)
+  const bands = new Map<number, TensionBand>()
+  const fewest = new Map<string, number>()
+  const most = new Map<string, number>()
+  // Returns [fewest, most] moves to a win from s; s is on a winning line.
+  const walk = (s: Economy): [number, number] => {
+    if (economyWon(level, s)) return [0, 0]
+    const k = solver.key(s)
+    const known = fewest.get(k)
+    if (known !== undefined) return [known, most.get(k)!]
+    const t = solver.tension(s)
+    const d = economyDepth(s)
+    const b = bands.get(d) ?? { depth: d, states: 0, min: 1, mean: 0, max: 0, minPeril: 1 }
+    b.mean = (b.mean * b.states + t.tension) / (b.states + 1)
+    b.states++
+    b.min = Math.min(b.min, t.tension)
+    b.max = Math.max(b.max, t.tension)
+    b.minPeril = Math.min(b.minPeril, t.peril)
+    bands.set(d, b)
+    let lo = Infinity
+    let hi = 0
+    for (const m of solver.moves(s)) {
+      if (!solver.canWin(m.next)) continue
+      const [a, z] = walk(m.next)
+      lo = Math.min(lo, a + 1)
+      hi = Math.max(hi, z + 1)
+    }
+    fewest.set(k, lo)
+    most.set(k, hi)
+    return [lo, hi]
+  }
+  if (!solver.canWin(start)) return { bands: [], fewestMoves: Infinity, mostMoves: 0 }
+  const [fewestMoves, mostMoves] = walk(start)
+  return { bands: [...bands.values()].sort((a, b) => a.depth - b.depth), fewestMoves, mostMoves }
+}
+
 export interface Plan {
   blows: Blow[] // one winning order
   wasted: number

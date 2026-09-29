@@ -17,6 +17,34 @@ const place = (slot: number, p: { x: number; y: number }): ScriptStep => ({ plac
 const tap = (slot: number): ScriptStep => ({ tap: slot })
 const wait = (seconds: number): ScriptStep => ({ wait: seconds })
 const flick = (mote: number, toward: { x: number; y: number }): ScriptStep => ({ flick: mote, toward })
+const feed = (slot: number, layer?: number): ScriptStep => (layer === undefined ? { feed: slot } : { feed: slot, layer })
+const tapLayer = (slot: number, layer: number): ScriptStep => ({ tap: slot, layer })
+
+// The Crux: satellites A, B, C around the well P, where D and E dig in, the
+// hexagons rise and the clean-up runs.
+const P = at(200, 525)
+const PA = at(100, 400)
+const PB = at(300, 400)
+const PC = at(200, 650)
+const toTheCrux: ScriptStep[] = [
+  ...[
+    [0, PA],
+    [1, PB],
+    [2, PC],
+    [3, P],
+  ].flatMap(([slot, p]) => [place(slot as number, p as { x: number; y: number }), tap(slot as number)]),
+  place(4, P),
+  feed(4), // the fifth triangle's motes were pushed off the ring by the fourth: kick them in
+  tap(4),
+  place(0, PA),
+  tap(0),
+  place(1, PB),
+  tap(1),
+  place(3, PC),
+  tap(3),
+  place(2, P),
+  tap(2), // six amber
+]
 
 export const LINES: Record<string, Line[]> = {
   'first-threads': [
@@ -116,6 +144,33 @@ export const LINES: Record<string, Line[]> = {
       expect: 'not-won',
       steps: [place(0, at(200, 520)), place(2, at(110, 430)), tap(0), tap(2), place(1, at(200, 520)), place(2, at(110, 430))],
     },
+  ],
+  // 20 motes, 30 moves in every winning line. Act 1 turns ruby and jade into
+  // amethyst, act 2 spends it on the right obstacle's squares, and blow 9
+  // makes exactly six amber. The crux (move 18 of 30, every line passes
+  // through it): the big hexagon needs all six, while two amber squares in
+  // hand could each strike something now. Its six sapphire then feed the
+  // clean-up, where nothing can go wrong.
+  'the-crux': [
+    {
+      name: 'intended',
+      expect: 'won',
+      steps: [
+        ...toTheCrux,
+        place(4, P),
+        tap(4), // the crux: all six amber into the hexagon
+        ...[1, 1, 2].flatMap((slot) => [place(slot, P), feed(slot), tap(slot)]),
+        place(0, at(78, 672)), // dig past the amber square, empty
+        place(0, P),
+        feed(0, 3),
+        tapLayer(0, 3),
+        place(3, at(322, 672)),
+        place(3, P),
+        feed(3, 3),
+        tapLayer(3, 3),
+      ],
+    },
+    { name: 'an amber square first', expect: 'lost', steps: [...toTheCrux, place(0, P), feed(0), tap(0)] },
   ],
 }
 

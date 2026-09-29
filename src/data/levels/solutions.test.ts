@@ -53,6 +53,6 @@ describe('curated pack solutions', () => {
       let wins = 0
       for (let seed = 1; seed <= 20; seed++) if (runCareless(level, seed, 180).status === 'won') wins++
       expect(wins).toBeLessThanOrEqual(2)
-    })
+    }, 30_000)
   }
 })

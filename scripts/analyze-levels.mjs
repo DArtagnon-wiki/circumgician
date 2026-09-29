@@ -18,8 +18,8 @@ const server = await createServer({
 try {
   const { PACK, DEBUG_PACK } = await server.ssrLoadModule('/src/data/levels/pack.ts')
   const { parseLevel } = await server.ssrLoadModule('/src/sim/validate.ts')
-  const { profileLevel, tensionAlong } = await server.ssrLoadModule('/src/sim/solver.ts')
-  const { formatProfile, formatTension } = await server.ssrLoadModule('/src/sim/solverReport.ts')
+  const { profileLevel, tensionAlong, tensionBands } = await server.ssrLoadModule('/src/sim/solver.ts')
+  const { formatBands, formatProfile, formatTension } = await server.ssrLoadModule('/src/sim/solverReport.ts')
   const { intendedLine } = await server.ssrLoadModule('/src/data/levels/lines.ts')
   const { runScript } = await server.ssrLoadModule('/src/sim/headless.ts')
   const known = [...PACK, ...DEBUG_PACK]
@@ -46,6 +46,7 @@ try {
       const points = tensionAlong(level, run.moves, opts)
       report += `\n${points ? formatTension(points) : '  tension    the intended line is impossible in the model'}`
     }
+    report += `\n${formatBands(tensionBands(level, opts))}`
     console.log(`${report}\n`)
   }
 } finally {

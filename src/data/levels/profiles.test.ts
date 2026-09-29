@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { PACK } from './pack'
 import { intendedLine } from './lines'
 import { runScript } from '../../sim/headless'
-import { profileLevel, tensionAlong } from '../../sim/solver'
+import { profileLevel, tensionAlong, tensionBands } from '../../sim/solver'
 import { tensionShape } from '../../sim/solverReport'
 
 // Design gates, checked with the economy solver (src/sim/solver.ts; see
@@ -25,6 +25,14 @@ const ARCS: Record<string, { releases: number }> = {
   'the-price': { releases: 1 },
 }
 
+// Levels built around a crux: at least this many moves in every winning
+// line, and about two thirds of the way in, a depth where even the calmest
+// winning line is tense (tension .9+) and at least half the moves lose;
+// after it, clean-up (tension .35 at most on any winning line).
+const CRUXES: Record<string, { moves: number }> = {
+  'the-crux': { moves: 30 },
+}
+
 describe('pack decision profiles', () => {
   for (const level of PACK) {
     const gate = DILEMMAS[level.id]
@@ -45,5 +53,15 @@ describe('pack decision profiles', () => {
       const points = tensionAlong(level, run.moves)!
       expect(tensionShape(points).releases).toBeGreaterThanOrEqual(arc.releases)
     })
+  }
+
+  for (const [id, gate] of Object.entries(CRUXES)) {
+    it(`${id}: a crux about two thirds in, whatever the path, then clean-up`, () => {
+      const { bands, fewestMoves } = tensionBands(PACK.find((l) => l.id === id)!)
+      expect(fewestMoves).toBeGreaterThanOrEqual(gate.moves)
+      const crux = bands.find((b) => b.depth >= fewestMoves * 0.55 && b.depth <= fewestMoves * 0.75 && b.min >= 0.9 && b.minPeril >= 0.5)
+      expect(crux).toBeDefined()
+      for (const b of bands.filter((x) => x.depth >= crux!.depth + 2)) expect(b.max, `move ${b.depth}`).toBeLessThanOrEqual(0.35)
+    }, 60_000)
   }
 })

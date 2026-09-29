@@ -1,4 +1,4 @@
-import { moveLabel, type Blow, type LevelProfile, type TensionPoint } from './solver'
+import { moveLabel, type Blow, type LevelProfile, type TensionBand, type TensionBands, type TensionPoint } from './solver'
 import type { LevelData } from './types'
 
 // Plain-text decision profile of a level, for `npm run analyze-levels`.
@@ -79,4 +79,19 @@ export function formatTension(points: TensionPoint[], title = 'the intended line
     out.push(`    ${label} ${bar} ${two(t.tension)}  ${notes.join(', ')}`)
   }
   return out.join('\n')
+}
+
+// Tension by move over every winning line: the calmest state at each depth
+// (a high value there is tense whatever path led to it) and the tensest.
+export function formatBands({ bands, fewestMoves, mostMoves }: TensionBands): string {
+  if (!bands.length) return '  by move    (unwinnable)'
+  const last = bands[bands.length - 1].depth
+  const at = (d: number) => bands.find((b) => b.depth === d)
+  const row = (pick: (b: TensionBand) => number) =>
+    Array.from({ length: last + 1 }, (_, d) => {
+      const b = at(d)
+      return b ? SPARK[Math.round(pick(b) * 8)] : ' '
+    }).join('')
+  const moves = fewestMoves === mostMoves ? `${fewestMoves}` : `${fewestMoves}-${mostMoves}`
+  return [`  by move    ${moves} moves to win, over every winning line:`, `    calmest  ${row((b) => b.min)}`, `    tensest  ${row((b) => b.max)}`].join('\n')
 }
