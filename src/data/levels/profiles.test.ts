@@ -46,6 +46,7 @@ const PROGRESSION: Record<string, { blows: number; crux?: number; arc?: true; mo
   'borrowed-light': { blows: 9, crux: 7 },
   'the-aegis': { blows: 10, crux: 8 },
   'the-ashen-key': { blows: 11, crux: 9 },
+  'the-crown': { blows: 12, crux: 10, moves: 25 },
 }
 
 describe('pack tension progression', () => {
@@ -70,7 +71,8 @@ describe('pack tension progression', () => {
       const { bands, fewestMoves } = tensionBands(level)
       expect(fewestMoves).toBe(step.moves ?? 2 * step.blows)
       const run = runScript(level, intendedLine(level.id)!.steps, { seed: 1 })
-      const beats = tensionAlong(level, run.moves)!.map((b) => b.tension.tension)
+      const points = tensionAlong(level, run.moves)!
+      const beats = points.map((b) => b.tension.tension)
       if (step.crux === undefined) {
         for (const t of beats) expect(t).toBeLessThanOrEqual(0.35)
         return
@@ -83,7 +85,14 @@ describe('pack tension progression', () => {
         if (b.depth < depth) expect(b.min, `move ${b.depth} comes before the crux`).toBeLessThan(0.9)
         if (b.depth >= depth + 2) expect(b.max, `move ${b.depth} is clean-up`).toBeLessThanOrEqual(0.35)
       }
-      for (const t of beats.slice(0, step.crux - 1)) expect(t, 'building up to the crux').toBeLessThanOrEqual(0.5)
+      // The build-up: the beats after at most crux - 2 blows (a pair's
+      // burst is two).
+      let blows = 0
+      for (const b of points) {
+        if (b.after?.kind === 'fire') blows += b.after.with ? 2 : 1
+        if (blows > step.crux - 2) break
+        expect(b.tension.tension, 'building up to the crux').toBeLessThanOrEqual(0.5)
+      }
     }, 60_000)
   }
 })

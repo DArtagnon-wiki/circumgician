@@ -289,8 +289,9 @@ export const LINES: Record<string, Line[]> = {
   ],
 }
 
-// Levels 24-28: nulls, a pair, borrowed cups, a shield, a void. Rubies on
-// the left, sapphires on the right, the later stages made at a well below.
+// Levels 24-29: nulls, a pair, borrowed cups, a shield, a void, and all of
+// them at once. Rubies on the left, sapphires on the right, the later
+// stages made at a well below.
 const ARC = { ruby: at(100, 440), sapphire: at(300, 440), well: at(200, 600), left: at(100, 605), right: at(300, 605), hollowWell: at(200, 590) }
 const hollowToCrux = [...cast(0, ARC.ruby), ...cast(1, ARC.sapphire), ...cast(2, ARC.ruby), ...cast(3, ARC.sapphire), ...cast(4, ARC.hollowWell)]
 const twoHandsToCrux = [...cast(0, ARC.ruby), ...cast(1, ARC.sapphire), ...cast(2, ARC.ruby), ...cast(3, ARC.sapphire), ...cast(4, ARC.well), ...cast(3, ARC.well)]
@@ -298,6 +299,9 @@ const borrowedToCrux = [...cast(0, ARC.ruby), ...cast(1, ARC.sapphire), ...cast(
 const aegisToCrux = [...cast(0, ARC.ruby), ...cast(1, ARC.sapphire), ...cast(2, ARC.ruby), ...cast(3, ARC.sapphire), ...cast(2, ARC.well), ...cast(4, ARC.well), ...cast(4, ARC.well)]
 // The jade triangle cast at the shielded boss latches on and pulls.
 const aegisPull = [place(5, ARC.well), feed(5)]
+// The Crown's amber squares go into stasis side by side and burst as a pair.
+const crownToCrux = [...cast(0, ARC.ruby), ...cast(1, ARC.sapphire), place(2, ARC.ruby), feed(2), place(3, ARC.sapphire), feed(3), tap(2), ...cast(2, ARC.well), ...cast(4, ARC.well), ...cast(4, ARC.right), ...cast(4, ARC.well), ...cast(4, ARC.well)]
+const crownPull = [place(5, ARC.well), feed(5)]
 const ashenToCrux = [...cast(0, ARC.ruby), ...cast(1, ARC.sapphire), ...cast(2, ARC.ruby), ...cast(3, ARC.sapphire), ...cast(2, ARC.well), ...cast(4, ARC.well), ...cast(4, ARC.right), ...cast(4, ARC.well)]
 Object.assign(LINES, {
   'hollow-bowls': [
@@ -321,6 +325,12 @@ Object.assign(LINES, {
   'the-ashen-key': [
     { name: 'intended', expect: 'won', steps: [...ashenToCrux, ...cast(5, ARC.well), ...cast(3, ARC.well), ...cast(5, ARC.well)] },
     { name: 'an amber square burns the void', expect: 'not-won', steps: [...ashenToCrux, ...cast(0, ARC.well), ...cast(5, ARC.well)] },
+  ],
+  'the-crown': [
+    { name: 'intended', expect: 'won', steps: [...crownToCrux, ...crownPull, ...cast(3, ARC.left), ...castLayer(5, ARC.right, 1), tapLayer(5, 0)] },
+    { name: 'a jade decoy', expect: 'not-won', steps: [...crownToCrux, ...cast(0, ARC.well)] },
+    { name: 'the striker first: its ash cup takes a jade', expect: 'not-won', steps: [...crownToCrux, place(3, ARC.left), feed(3), ...crownPull, tap(3)] },
+    { name: 'the second striker first', expect: 'not-won', steps: [...crownToCrux, ...crownPull, ...castLayer(5, ARC.right, 1), ...cast(3, ARC.left)] },
   ],
 } satisfies Record<string, Line[]>)
 
