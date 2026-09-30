@@ -12,8 +12,9 @@ import { profileLevel, tensionAlong, tensionBands } from '../../sim/solver'
 // every winning line is tense (.9+) with at least half its moves losing,
 // and after it only clean-up (.35 at most on any line). The crux starts at
 // the last blow and moves back toward two thirds; everything else has
-// motes to spare.
-const PROGRESSION: Record<string, { blows: number; crux?: number }> = {
+// motes to spare. The ice and frost levels start a second arc (`arc`): back
+// to the sixth level's length, building to the eleventh's.
+const PROGRESSION: Record<string, { blows: number; crux?: number; arc?: true }> = {
   'first-threads': { blows: 2 },
   'changing-colors': { blows: 3 },
   'the-weighing': { blows: 4 },
@@ -25,13 +26,20 @@ const PROGRESSION: Record<string, { blows: number; crux?: number }> = {
   'the-price': { blows: 10, crux: 7 },
   circumgician: { blows: 12, crux: 8 },
   'the-crux': { blows: 15, crux: 10 },
+  'amber-in-ice': { blows: 7, crux: 6, arc: true },
+  frostbite: { blows: 9, crux: 7 },
+  'the-rescue': { blows: 10, crux: 7 },
+  'two-winters': { blows: 12, crux: 8 },
+  'deep-winter': { blows: 13, crux: 9 },
+  'the-long-winter': { blows: 15, crux: 10 },
 }
 
 describe('pack tension progression', () => {
-  it('every level has a place in it; each is longer, and its crux no nearer the end, than the last', () => {
+  it('every level has a place in it; within an arc each is longer, and its crux no nearer the end, than the last', () => {
     const steps = PACK.map((l) => PROGRESSION[l.id])
     steps.forEach((step, i) => expect(step, PACK[i].id).toBeDefined())
     for (let i = 1; i < steps.length; i++) {
+      if (steps[i].arc) continue
       expect(steps[i].blows, PACK[i].id).toBeGreaterThan(steps[i - 1].blows)
       const after = (s: { blows: number; crux?: number }) => (s.crux === undefined ? -1 : s.blows - s.crux)
       expect(after(steps[i]), PACK[i].id).toBeGreaterThanOrEqual(after(steps[i - 1]))

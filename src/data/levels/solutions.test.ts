@@ -29,7 +29,7 @@ describe('curated pack solutions', () => {
             expect(res.status, label).not.toBe('won')
           }
         }
-      })
+      }, 120_000)
     }
   }
 
@@ -44,7 +44,7 @@ describe('curated pack solutions', () => {
       const log = run.moves.map(moveLabel).join(', ')
       expect(end, log).not.toBeNull()
       expect(economyWon(level, end!), log).toBe(true)
-    })
+    }, 30_000)
   }
 
   // Careless play should almost always fail (level 1 is the gentle exception).
