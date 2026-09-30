@@ -427,28 +427,50 @@
           ]
         },
         {
-          "sides": 5,
-          "radius": 30,
+          "sides": 3,
+          "radius": 40,
           "nodes": [
             {
               "catch": "blue",
-              "release": "blue"
+              "release": "gold"
             },
             {
-              "catch": "blue",
-              "release": "blue"
+              "catch": "gold",
+              "release": "gold"
             },
             {
-              "catch": "blue",
-              "release": "blue"
+              "catch": "gold",
+              "release": "gold"
+            }
+          ]
+        },
+        {
+          "sides": 6,
+          "radius": 30,
+          "nodes": [
+            {
+              "catch": "teal",
+              "release": "teal"
             },
             {
-              "catch": "blue",
-              "release": "blue"
+              "catch": "teal",
+              "release": "teal"
             },
             {
-              "catch": "blue",
-              "release": "blue"
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
             }
           ]
         }
@@ -840,58 +862,6 @@
               "catch": "teal",
               "release": "teal"
             },
-            {
-              "catch": "teal",
-              "release": "teal"
-            },
-            {
-              "catch": "teal",
-              "release": "teal"
-            },
-            {
-              "catch": "teal",
-              "release": "teal"
-            },
-            {
-              "catch": "teal",
-              "release": "teal"
-            },
-            {
-              "catch": "teal",
-              "release": "teal"
-            },
-            {
-              "catch": "teal",
-              "release": "teal"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "layers": [
-        {
-          "sides": 3,
-          "radius": 40,
-          "nodes": [
-            {
-              "catch": "blue",
-              "release": "gold"
-            },
-            {
-              "catch": "gold",
-              "release": "gold"
-            },
-            {
-              "catch": "gold",
-              "release": "gold"
-            }
-          ]
-        },
-        {
-          "sides": 6,
-          "radius": 30,
-          "nodes": [
             {
               "catch": "teal",
               "release": "teal"

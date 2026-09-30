@@ -203,72 +203,6 @@
         },
         {
           "sides": 3,
-          "radius": 30,
-          "nodes": [
-            {
-              "catch": "violet",
-              "release": "violet"
-            },
-            {
-              "catch": "violet",
-              "release": "violet"
-            },
-            {
-              "catch": "violet",
-              "release": "violet"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "layers": [
-        {
-          "sides": 4,
-          "radius": 40,
-          "nodes": [
-            {
-              "catch": "gold",
-              "release": "violet"
-            },
-            {
-              "catch": "gold",
-              "release": "violet"
-            },
-            {
-              "catch": "gold",
-              "release": "violet"
-            },
-            {
-              "catch": "gold",
-              "release": "violet"
-            }
-          ]
-        },
-        {
-          "sides": 3,
-          "radius": 30,
-          "nodes": [
-            {
-              "catch": "violet",
-              "release": "violet"
-            },
-            {
-              "catch": "violet",
-              "release": "violet"
-            },
-            {
-              "catch": "violet",
-              "release": "violet"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "layers": [
-        {
-          "sides": 3,
           "radius": 40,
           "nodes": [
             {
@@ -311,6 +245,28 @@
     },
     {
       "layers": [
+        {
+          "sides": 4,
+          "radius": 40,
+          "nodes": [
+            {
+              "catch": "gold",
+              "release": "violet"
+            },
+            {
+              "catch": "gold",
+              "release": "violet"
+            },
+            {
+              "catch": "gold",
+              "release": "violet"
+            },
+            {
+              "catch": "gold",
+              "release": "violet"
+            }
+          ]
+        },
         {
           "sides": 3,
           "radius": 40,

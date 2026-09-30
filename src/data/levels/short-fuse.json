@@ -255,23 +255,41 @@
         },
         {
           "sides": 4,
+          "radius": 40,
+          "nodes": [
+            {
+              "catch": "blue",
+              "release": "blue"
+            },
+            {
+              "catch": "blue",
+              "release": "blue"
+            },
+            {
+              "catch": "blue",
+              "release": "blue"
+            },
+            {
+              "catch": "blue",
+              "release": "blue"
+            }
+          ]
+        },
+        {
+          "sides": 3,
           "radius": 30,
           "nodes": [
             {
-              "catch": "violet",
-              "release": "violet"
+              "catch": "blue",
+              "release": "blue"
             },
             {
-              "catch": "violet",
-              "release": "violet"
+              "catch": "blue",
+              "release": "blue"
             },
             {
-              "catch": "violet",
-              "release": "violet"
-            },
-            {
-              "catch": "violet",
-              "release": "violet"
+              "catch": "blue",
+              "release": "blue"
             }
           ]
         }
@@ -579,50 +597,6 @@
               "catch": "blue",
               "release": "blue"
             },
-            {
-              "catch": "blue",
-              "release": "blue"
-            },
-            {
-              "catch": "blue",
-              "release": "blue"
-            },
-            {
-              "catch": "blue",
-              "release": "blue"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "layers": [
-        {
-          "sides": 4,
-          "radius": 40,
-          "nodes": [
-            {
-              "catch": "blue",
-              "release": "blue"
-            },
-            {
-              "catch": "blue",
-              "release": "blue"
-            },
-            {
-              "catch": "blue",
-              "release": "blue"
-            },
-            {
-              "catch": "blue",
-              "release": "blue"
-            }
-          ]
-        },
-        {
-          "sides": 3,
-          "radius": 30,
-          "nodes": [
             {
               "catch": "blue",
               "release": "blue"

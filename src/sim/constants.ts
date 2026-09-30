@@ -35,15 +35,11 @@ export const MOTE_FRICTION = 3 // 1/s exponential velocity decay
 export const FLICK_GAIN = 0.35
 export const FLICK_MAX = 360
 export const SETTLE_SPEED = 4
-// Placed runes push uncaptured motes out of their body: anything closer
-// than (radius - PUSH_INSET) accelerates outward, harder the deeper it is.
-export const PUSH_INSET = REACH / 2
+// Placed runes push motes they can't take out of their body and clear of
+// the catch ring, harder the deeper they sit. (One they can take is drawn
+// to a bowl instead: see updateCatching.)
 export const PUSH_BASE = 50
 export const PUSH_DEPTH = 160
-// ...except a mote a hungry node can catch, which is drawn toward the
-// nearest such node instead (px/s^2; friction bounds the speed).
-export const PULL_ACCEL = 260
-export const PULL_RANGE = 0.9 // x outer radius: farther matching nodes don't pull
 
 // Footprint = outer radius + this margin (node rings draw slightly outside).
 export const FOOTPRINT_MARGIN = 4

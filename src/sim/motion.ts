@@ -1,4 +1,4 @@
-import { DRIFT_SPEED, EJECT_TIME, FLICK_MAX, KICK_GAIN, KICK_MAX, KICK_MIN, MOTE_FRICTION, PULL_ACCEL, PULL_RANGE, PUSH_BASE, PUSH_DEPTH, PUSH_INSET, REACH, SETTLE_SPEED, TRAVEL_TIME } from './constants'
+import { DRIFT_SPEED, EJECT_TIME, FLICK_MAX, KICK_GAIN, KICK_MAX, KICK_MIN, MOTE_FRICTION, PUSH_BASE, PUSH_DEPTH, REACH, SETTLE_SPEED, TRAVEL_TIME } from './constants'
 import { dist, nodePositions } from './geometry'
 import { nextRandom } from './rng'
 import type { SimBus } from './events'
@@ -24,18 +24,23 @@ function pickWander(state: SimState, mote: Mote): Vec2 {
   return { x: mote.home.x + Math.cos(a) * r, y: mote.home.y + Math.sin(a) * r }
 }
 
-// Pieces on the field act on nearby free motes:
-// - a mote the piece can still catch is pulled toward a nearby matching
-//   hungry node, or (if the only match is across the body) pushed out onto
-//   the ring, where that node sweeps by;
-// - any other mote is pushed fully clear: past the catch ring plus its own
-//   drift radius, so it can't hover inside the piece's outline or wander back.
-// Kicked, pulled or pushed motes coast with friction, bounce off the field
-// edge, and adopt their resting spot as home. Returns true while coasting.
-function applyPushAndCoast(state: SimState, mote: Mote, pushers: Piece[], nodesOf: (p: Piece) => Vec2[], blocks: Block[], dt: number): boolean {
+// Can this charging piece still take the mote (a hungry node of its color,
+// or any hungry node for a wild one)?
+function canHold(piece: Piece, mote: Mote): boolean {
+  return piece.held.some((id, i) => id === null && (mote.color === 'generic' || mote.color === piece.layer.nodes[i].catch))
+}
+
+// Pieces on the field act on nearby free motes. A mote a charging piece can
+// still catch is left be: inside the piece it is drawn to a bowl at once,
+// and on the ring it waits for one to sweep by (see updateCatching). Any
+// other mote is pushed fully clear: past the catch ring plus its own drift
+// radius, so it can't hover inside the piece's outline or wander back.
+// Kicked or pushed motes coast with friction, bounce off the field edge,
+// and adopt their resting spot as home. Returns true while coasting.
+function applyPushAndCoast(state: SimState, mote: Mote, pushers: Piece[], blocks: Block[], dt: number): boolean {
   let ax = 0
   let ay = 0
-  let effort = 0 // summed size of every push and pull, before they cancel
+  let effort = 0 // summed size of every push, before they cancel
   const f = state.field
   // Push the mote directly away from `center`, harder the deeper it sits
   // inside `limit` (d is its distance from the center).
@@ -64,46 +69,10 @@ function applyPushAndCoast(state: SimState, mote: Mote, pushers: Piece[], nodesO
     if (d < limit) pushAway(b.pos, d, limit)
   }
   for (const piece of pushers) {
-    const layer = piece.layer
+    if (piece.state === 'charging' && canHold(piece, mote)) continue
     const d = dist(mote.pos, piece.pos)
-
-    let catchable = false
-    let target: Vec2 | null = null
-    let best = Infinity
-    if (piece.state === 'charging') {
-      nodesOf(piece).forEach((p, i) => {
-        if (piece.held[i] !== null) return
-        if (mote.color !== 'generic' && mote.color !== layer.nodes[i].catch) return
-        catchable = true
-        const dn = Math.hypot(p.x - mote.pos.x, p.y - mote.pos.y)
-        if (dn < best) {
-          best = dn
-          target = p
-        }
-      })
-    }
-
-    let limit: number
-    if (catchable) {
-      limit = layer.radius - PUSH_INSET
-      if (d >= limit) continue // on or near the ring: the node will sweep by
-      // Only chase a nearby node; one across the body would drag the mote
-      // through the interior and fling it out the far side.
-      if (target && best <= layer.radius * PULL_RANGE) {
-        const t: Vec2 = target
-        const tx = t.x - mote.pos.x
-        const ty = t.y - mote.pos.y
-        const tl = Math.hypot(tx, ty) || 1
-        ax += (tx / tl) * PULL_ACCEL
-        ay += (ty / tl) * PULL_ACCEL
-        effort += PULL_ACCEL
-        continue
-      }
-    } else {
-      limit = layer.radius + REACH + mote.tether
-      if (d >= limit) continue
-    }
-    pushAway(piece.pos, d, limit)
+    const limit = piece.layer.radius + REACH + mote.tether
+    if (d < limit) pushAway(piece.pos, d, limit)
   }
   const pushed = ax !== 0 || ay !== 0
   if (pushed) {
@@ -184,7 +153,7 @@ export function updateMotion(state: SimState, bus: SimBus, dt: number): void {
   for (const mote of state.motes) {
     switch (mote.state) {
       case 'free': {
-        if (applyPushAndCoast(state, mote, pushers, nodesOf, blocks, dt)) break
+        if (applyPushAndCoast(state, mote, pushers, blocks, dt)) break
         const d = dist(mote.pos, mote.wander)
         const step = DRIFT_SPEED * dt
         if (d <= step) {
@@ -262,14 +231,15 @@ export function updateCatching(state: SimState, bus: SimBus): void {
         best = h
       }
     }
-    // A kicked mote that flies into a rune's catch ring doesn't wait for a
-    // node to sweep by: the nearest hungry node that can hold it draws it in.
-    if (!best && mote.kicked) {
+    // A mote inside a rune doesn't wait for a node to sweep by, and nor does
+    // a kicked one flying into its catch ring: the nearest hungry node that
+    // can hold it draws it in at once, so nothing that lands inside is lost.
+    if (!best) {
       bestD = Infinity
       for (const h of hungry) {
         if (h.piece.held[h.node] !== null) continue
         if (mote.color !== 'generic' && mote.color !== h.catch) continue
-        if (dist(mote.pos, h.piece.pos) > h.piece.layer.radius + REACH) continue
+        if (dist(mote.pos, h.piece.pos) > h.piece.layer.radius + (mote.kicked ? REACH : -REACH)) continue
         const d = dist(mote.pos, h.pos)
         if (d < bestD) {
           bestD = d

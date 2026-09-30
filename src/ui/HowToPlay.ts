@@ -188,7 +188,7 @@ const allRuby = (held?: string): RuneNode[] => Array.from({ length: 4 }, () => (
 const PAGES: { title: string; text: string; svg: string }[] = [
   {
     title: 'Cast a rune',
-    text: 'Drag a rune into the field: its next layer comes to your hand at once. The cast layer spins, and each glass bowl on its rim catches motes of its own color as it sweeps past.',
+    text: 'Drag a rune into the field: its next layer comes to your hand at once. Motes it can hold that lie inside it flow straight into its bowls. Then it spins, and each glass bowl on its rim catches motes of its own color as it sweeps past.',
     svg: `<circle cx="110" cy="68" r="31" fill="none" stroke="#7cffb2" stroke-width="16" opacity=".06"/>
       ${rune(110, 68, 31, allRuby(), 3)}
       ${mote(150, 58, RUBY)}${mote(82, 100, RUBY)}${mote(196, 34, SAPPHIRE)}`,
@@ -216,7 +216,7 @@ const PAGES: { title: string; text: string; svg: string }[] = [
   },
   {
     title: 'Flick and push',
-    text: 'Swipe a mote to flick it that way: it travels at least as far as your swipe, farther the quicker you flick. Flicked into a rune, it flies to a bowl that can hold it. Runes push stray motes out of their bodies, so nothing stays trapped inside.',
+    text: 'Swipe a mote to flick it that way: it travels at least as far as your swipe, farther the quicker you flick. Flicked into a rune, it flies to a bowl that can hold it; a rune pushes out the motes it can’t hold. Opal motes are wild: any bowl takes one, so keep them clear of runes that shouldn’t spend them.',
     svg: `<path d="M44 92 Q70 84 96 74" fill="none" stroke="#fff" stroke-opacity=".1" stroke-width="16" stroke-linecap="round"/>
       <path d="M52 89 Q72 83 96 74" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="2" stroke-linecap="round"/>
       <circle cx="96" cy="74" r="4" fill="#fff" opacity=".75"/>
@@ -242,7 +242,7 @@ const PAGES: { title: string; text: string; svg: string }[] = [
   },
   {
     title: 'Fire and fuses',
-    text: 'In the fire levels every rune you cast has a fuse. Fill it and burst it before the fuse burns down, or it burns: the motes it holds turn to ash, and its shape is gone without a blow. The rune moves on to its next layer, so letting a layer you don’t need burn is one way past it.',
+    text: 'In the fire levels every rune you cast has a fuse. Fill it and burst it before the fuse burns down, or it burns: the motes it holds turn to ash, and its shape is gone without a blow. Gather its motes first and cast it onto them, and it fills at once. Letting a layer you don’t need burn is one way past it.',
     svg: `${fuse(70, 62, 44, 0.62)}
       ${rune(70, 62, 29, [
       { c: GARNET, r: CITRINE, held: GARNET },

@@ -560,6 +560,22 @@ describe('fuse (burning)', () => {
   })
 })
 
+describe('scripted play', () => {
+  it("gathering first: the layer's colors come to the spot, wild motes are moved off it, and the cast fills before its fuse", () => {
+    // Red spread to the corners; a wild mote and a blue one sitting where the rune will go.
+    const motes = [mote('red', 40, 340), mote('red', 360, 340), mote('red', 40, 700), mote('red', 360, 700), mote('generic', C.x + 12, C.y), mote('blue', C.x - 12, C.y + 6)]
+    const level = testLevel({ fuse: 2, obstacles: [obstacle(200, 150, [3, 4])], hand: [{ layers: [layer(4, 40, 'red'), layer(3, 30, 'red')] }], motes })
+    const res = runScript(level, [{ gather: 0, at: C }, { place: 0, at: C }, { wait: 1.5 }], { settle: 0 })
+    expect(res.error).toBeUndefined()
+    const piece = res.sim.state.pieces[0]
+    expect(piece.state).toBe('full')
+    expect(piece.held.map((id) => res.sim.state.motes.find((m) => m.id === id)!.color)).toEqual(['red', 'red', 'red', 'red'])
+    // Cast cold instead, the fuse burns it while the motes are still fetched.
+    const cold = runScript(level, [{ place: 0, at: C }, { feed: 0 }, { tap: 0 }], { settle: 0 })
+    expect(cold.sim.state.stats.burned).toBe(1)
+  })
+})
+
 describe('flick', () => {
   it('sends a free mote along the swipe, its speed clamped, and it coasts to a stop', () => {
     const sim = mk(testLevel({ hand: [{ layers: [layer(4, 40, 'red'), layer(3, 30, 'red')] }], motes: [mote('red', 100, 500), mote('blue', 60, 620)] }))

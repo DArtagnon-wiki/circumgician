@@ -10,6 +10,8 @@ const RELEASES = [...MOTE_COLORS, 'annihilating']
 const INSIGHTS = ['none', 'shape', 'full']
 export const MIN_SIDES = 3
 export const MAX_SIDES = 12
+// A hand fits the shelf readably at up to six runes (see handLayout).
+export const MAX_HAND = 6
 
 export class LevelValidationError extends Error {
   readonly errors: string[]
@@ -128,6 +130,7 @@ export function validateLevel(data: unknown): string[] {
   if (!Array.isArray(data.hand)) err('hand', 'must be an array')
   else {
     if (data.hand.length === 0) err('hand', 'needs at least one rune')
+    if (data.hand.length > MAX_HAND) err('hand', `holds at most ${MAX_HAND} runes (deeper stacks instead)`)
     data.hand.forEach((r, i) => {
       const p = `hand[${i}]`
       if (!isObj(r)) return err(p, 'must be an object')

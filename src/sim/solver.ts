@@ -371,8 +371,9 @@ export class EconomySolver {
     const all = this.moves(s)
     // With a fuse, digging burns the layers above: a slow, deliberate
     // sacrifice rather than a choice among the moves at hand, so peril
-    // counts the others. With nothing else to do, the burn is all there is.
-    const ms = this.level.fuse === undefined ? all : all.filter((t) => !(t.move.kind === 'fill' && t.move.layer > s.hand[t.move.rune]))
+    // counts the others. With nothing else to do, the burns are the choice.
+    const others = this.level.fuse === undefined ? all : all.filter((t) => !(t.move.kind === 'fill' && t.move.layer > s.hand[t.move.rune]))
+    const ms = others.length ? others : all
     const losing = ms.filter((t) => !this.canWin(t.next)).length
     let margin = Infinity
     let tight: MoteColor | null = null
@@ -385,7 +386,7 @@ export class EconomySolver {
         tight = ECONOMY_COLORS[c]
       }
     })
-    const peril = ms.length ? losing / ms.length : all.length ? 1 : 0
+    const peril = ms.length ? losing / ms.length : 0
     const scarcity = 1 / (1 + margin)
     return { tension: 1 - (1 - peril) * (1 - scarcity), peril, losing, moves: ms.length, scarcity, margin, tight, luck: this.blindLuck(s) }
   }

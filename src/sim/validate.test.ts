@@ -102,6 +102,14 @@ describe('validateLevel', () => {
     expect(validateLevel(l)).toEqual(['palette: must be one of jewel, cool, warm'])
   })
 
+  it('keeps a hand to six runes', () => {
+    const l = good()
+    l.hand = Array.from({ length: 7 }, () => structuredClone(l.hand[0]))
+    expect(validateLevel(l)).toEqual(['hand: holds at most 6 runes (deeper stacks instead)'])
+    l.hand.length = 6
+    expect(validateLevel(l)).toEqual([])
+  })
+
   it("checks an obstacle's look: a known style and motion, and up to four moons", () => {
     const l = good()
     l.obstacles[0].look = { style: 'geode', motion: 'spin', moons: 4 }

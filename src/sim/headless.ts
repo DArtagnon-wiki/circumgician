@@ -1,4 +1,4 @@
-import { KICK_GAIN, MOTE_FRICTION } from './constants'
+import { KICK_GAIN, MOTE_FRICTION, REACH } from './constants'
 import { dist, outerLayer } from './geometry'
 import { colorsCanCover } from './progress'
 import { Sim, type SimOptions } from './Sim'
@@ -12,6 +12,7 @@ export type ScriptStep =
   | { wait: number } // seconds
   | { flick: number; toward: Vec2 } // kick the level's nth mote so it coasts to a point
   | { feed: number; layer?: number } // kick the free motes a charging piece from that slot can use into it, nearest first, until it fills
+  | { gather: number; at: Vec2; layer?: number } // before a cast: bring the motes that slot's layer (in hand, or that stack layer) needs to a spot, wild motes kept out
 
 export interface RunResult {
   status: SimStatus
@@ -73,6 +74,54 @@ function feedOne(sim: Sim, piece: Piece): boolean {
   return !!best
 }
 
+const GATHER_TIMEOUT = 30
+const GATHER_TOLERANCE = 4 // px of margin inside the ring's inner edge
+
+// Moving motes before casting, the way a careful player works: the motes
+// the layer needs are clumped where it will be cast (it takes whatever of
+// its colors lands inside it at once, so it fills before a fuse can burn
+// it), and wild motes within reach of its ring are moved clear, so none is
+// spent by accident. Nothing is cast; returns why the layer could not be
+// read, if it could not.
+function gather(sim: Sim, slot: number, to: Vec2, layer?: number): string | null {
+  const rune = runeInSlot(sim, slot)
+  const k = layer ?? rune?.index ?? 0
+  const spec = rune?.layers[k]
+  if (!rune || !spec || k >= rune.layers.length - 1) return `slot ${slot} has no layer${layer === undefined ? '' : ` ${layer}`} to gather for`
+  const need = new Map<string, number>()
+  for (const n of spec.nodes) need.set(n.catch, (need.get(n.catch) ?? 0) + 1)
+  const inside = (m: Mote) => dist(m.pos, to) < spec.radius - REACH - GATHER_TOLERANCE
+  const clear = spec.radius + REACH * 2 // a wild mote this far out is beyond the ring's reach
+  const start = sim.state.time
+  while (sim.state.time - start < GATHER_TIMEOUT) {
+    if (sim.state.motes.some((m) => m.vel || m.state === 'traveling')) {
+      sim.step(DT)
+      continue
+    }
+    const free = sim.state.motes.filter((m) => m.state === 'free')
+    let next: [Mote, Vec2] | null = null
+    const wild = free.find((m) => m.color === 'generic' && dist(m.pos, to) < clear)
+    if (wild) {
+      const d = dist(wild.pos, to) || 1
+      next = [wild, { x: to.x + ((wild.pos.x - to.x) / d) * (clear + REACH), y: to.y + ((wild.pos.y - to.y) / d) * (clear + REACH) }]
+    } else {
+      for (const [color, count] of need) {
+        const mine = free.filter((m) => m.color === color)
+        if (mine.filter(inside).length >= count) continue
+        const m = mine.filter((c) => !inside(c)).sort((a, b) => dist(a.pos, to) - dist(b.pos, to))[0]
+        if (m) {
+          next = [m, to]
+          break
+        }
+      }
+    }
+    if (!next) return null
+    kickTo(sim, next[0], next[1])
+    sim.step(DT)
+  }
+  return null
+}
+
 // Plays a fixed sequence of actions, then lets the board settle until the
 // sim decides (or `settle` seconds pass). Drift randomness comes from `seed`.
 export function runScript(level: LevelData, steps: ScriptStep[], opts: SimOptions & { fillTimeout?: number; settle?: number } = {}): RunResult {
@@ -89,6 +138,9 @@ export function runScript(level: LevelData, steps: ScriptStep[], opts: SimOption
       const mote = sim.state.motes.find((m) => m.id === `mote-${step.flick}`)
       if (!mote || mote.state !== 'free') return fail(`mote ${step.flick} cannot be flicked`)
       kickTo(sim, mote, step.toward)
+    } else if ('gather' in step) {
+      const error = gather(sim, step.gather, step.at, step.layer)
+      if (error) return fail(error)
     } else if ('feed' in step) {
       const piece = pieceFrom(sim, step.feed, step.layer)
       if (!piece) return fail(`no piece on the field from slot ${step.feed}${step.layer === undefined ? '' : ` layer ${step.layer}`} to feed`)
