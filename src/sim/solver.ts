@@ -1,4 +1,5 @@
 import type { Hue, LevelData, MoteColor, RuneLayerSpec } from './types'
+import { holdsShield } from '../model/Color'
 
 // Economy solver: plays out a level's arithmetic exhaustively, with geometry
 // abstracted away. Kicks let a player herd motes almost anywhere, and where
@@ -34,8 +35,8 @@ import type { Hue, LevelData, MoteColor, RuneLayerSpec } from './types'
 //     its shape waits for them to fall. A piece with bowls of a shield's
 //     color latches on as a puller (full, or cast with only its bowls of
 //     the shields' colors filled, the rest to fill later); a shield is down
-//     once its pullers hold its strength in its color. Pullers can't burst
-//     until the layer falls, and then go free.
+//     once its pullers hold its strength in its color. Ash cups don't pull.
+//     Pullers can't burst until the layer falls, and then go free.
 // A move is one of
 //   fill Rn.k      fill layer k of rune n from the free motes (`fill Rn.k ..nv`
 //                  when some of its bowls take a null or a void). If k is still
@@ -362,11 +363,11 @@ function fill(level: LevelData, s: Economy, rune: number, layer: number, opts: S
   }))
 }
 
-// A piece's pull on a shield of this color: its bowls of that color that
-// hold a mote that counts.
+// A piece's pull on a shield of this color: its bowls of that color (ash
+// cups aside) that hold a mote that counts.
 function pullOf(level: LevelData, p: EconomyPiece, color: Hue): number {
   const marks = p.full ? (p.blanks ?? '') : (p.hold ?? '')
-  return level.hand[p.rune].layers[p.layer].nodes.filter((n, i) => n.catch === color && (marks[i] ?? (p.full ? '.' : '_')) === '.').length
+  return level.hand[p.rune].layers[p.layer].nodes.filter((n, i) => holdsShield(n, color) && (marks[i] ?? (p.full ? '.' : '_')) === '.').length
 }
 
 // The colors of obstacle oi's shields still up: short of their strength in
@@ -391,7 +392,7 @@ function pull(level: LevelData, s: Economy, rune: number, layer: number, target:
   const pool = [...s.pool]
   const hold = spec.nodes.map((n, i) => {
     if (marks[i] !== null) return marks[i]
-    if (!up.has(n.catch)) return '_'
+    if (!up.has(n.catch) || !holdsShield(n, n.catch)) return '_'
     const c = ECONOMY_COLORS.indexOf(n.catch)
     if (pool[c] > 0) pool[c]--
     else pool[GENERIC]--
@@ -487,9 +488,10 @@ function lock(s: Economy, piece: EconomyPiece, target: number): Transition {
 // Every legal move from s.
 export function transitions(level: LevelData, s: Economy, opts: SolverOptions = {}): Transition[] {
   const out: Transition[] = []
-  // A layer can pull where a shield it has a bowl for is still up.
+  // A layer can pull where a shield it has a bowl for (not an ash cup) is
+  // still up.
   const up = s.obstacles.map((_, oi) => upColors(level, s, oi))
-  const pullsAt = (spec: RuneLayerSpec) => up.flatMap((colors, oi) => (colors.some((c) => spec.nodes.some((n) => n.catch === c)) ? [oi] : []))
+  const pullsAt = (spec: RuneLayerSpec) => up.flatMap((colors, oi) => (colors.some((c) => spec.nodes.some((n) => holdsShield(n, c))) ? [oi] : []))
   level.hand.forEach((hand, r) => {
     for (let k = 0; k < castable(level, r); k++) {
       if (status(s, r, k) !== 'open') continue

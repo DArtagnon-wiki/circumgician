@@ -336,7 +336,7 @@ const PAGES: { title: string; text: string; svg: string }[] = [
   },
   {
     title: 'Shields',
-    text: 'A colored arc is a shield: while one is up, nothing strikes that obstacle. A rune with bowls of its color latches on, with no fuse, and pulls it down with the motes of that color it holds, full or not. Its pips go hollow as it gives. When the obstacle’s shape breaks, the pullers go free.',
+    text: 'A colored arc is a shield: while one is up, nothing strikes that obstacle. A rune with bowls of its color (ash cups aside) latches on, with no fuse, and pulls it down with the motes of that color it holds, full or not. Its pips go hollow as it gives. When the obstacle’s shape breaks, the pullers go free.',
     svg: `${wire(62, 92, 150, 44, RUBY, false)}
       ${obsidian(150, 44, 24, 5, [[150, 48], [143, 41], [157, 41]])}
       ${shieldArc(150, 44, 36, -80, 80, RUBY, 2, 1)}${shieldArc(150, 44, 36, 100, 260, SAPPHIRE, 2, 0)}

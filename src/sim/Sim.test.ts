@@ -819,6 +819,21 @@ describe('shields', () => {
     expect(shared.state.obstacles[0].down).toEqual([0])
   })
 
+  it("an ash cup doesn't pull: a rune whose only bowl of the shield's color is one strikes, and waits", () => {
+    // Three sapphire bowls and a ruby ash cup: the ruby it catches holds nothing down.
+    const ashy = { layers: [{ sides: 4, radius: 40, nodes: [{ catch: 'red' as const, release: 'annihilating' as const }, ...(['blue', 'blue', 'blue'] as const).map((c) => ({ catch: c, release: c }))] }, layer(3, 30, 'blue')] }
+    const sim = mk(level({ hand: [puller, ashy], motes: [...around(['red', 'red', 'blue', 'blue'], A), ...around(['blue', 'blue', 'blue', 'red'], B)] }))
+    const b = sim.piece(placeSlot(sim, 1, B))!
+    expect([b.linkedObstacleId, b.pulling]).toEqual([sim.state.obstacles[0].id, undefined])
+    stepFor(sim, 1)
+    expect(b.state).toBe('full')
+    expect(sim.state.obstacles[0].down).toBeUndefined()
+    expect(sim.detonate(b.id)).toBe(false)
+    placeSlot(sim, 0, A)
+    stepFor(sim, 1)
+    expect(sim.detonate(b.id)).toBe(true)
+  })
+
   it('pullers never burst: with nothing else left to do, the level is lost', () => {
     const sim = new Sim(level({ hand: [puller] }))
     placeSlot(sim, 0, A)

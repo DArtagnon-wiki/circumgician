@@ -27,6 +27,10 @@ export interface NodeColorSpec {
   release: ReleaseColor // release (and motes themselves) can still be generic
 }
 
+// Does this bowl hold a shield of this color down? One of its color that
+// keeps what it catches: an ash cup burns its catch, so it can't.
+export const holdsShield = (node: NodeColorSpec, color: Hue): boolean => node.catch === color && node.release !== 'annihilating'
+
 // Motes any bowl takes, in the order a bowl takes them after its own color:
 // the friendliest first, so a blank never beats a mote that counts.
 export const ANY_BOWL = ['generic', 'null', 'void'] as const

@@ -20,6 +20,7 @@ import { ENDLESS_TUNING, ensureEndlessLayers } from '../sim/endless'
 import { EJECT_TIME, FLICK_GAIN, MOTE_FRICTION, REACH, THAW_LAG } from '../sim/constants'
 import { middleAngle, outerAngle, outerLayer } from '../sim/geometry'
 import { partnerOf, shieldPull, upShields } from '../sim/rules'
+import { holdsShield } from '../model/Color'
 import type { Hue, LevelData, Mote, Obstacle, Piece, Rune, RuneLayerSpec, Vec2 } from '../sim/types'
 import type { DetonationInfo } from '../sim/events'
 import { createDebugPanel, isDebugMode } from '../debug/DebugPanel'
@@ -417,7 +418,7 @@ export class GameScene {
     if (piece.pulling === undefined) return undefined
     const o = this.sim.state.obstacles.find((x) => x.id === piece.linkedObstacleId)
     if (!o) return undefined
-    const any = (o.layers[o.index]?.shields ?? []).find((sh) => piece.layer.nodes.some((n) => n.catch === sh.color))
+    const any = (o.layers[o.index]?.shields ?? []).find((sh) => piece.layer.nodes.some((n) => holdsShield(n, sh.color)))
     return haulColor(piece.layer, o) ?? (any ? hueColor(any.color) : undefined)
   }
 
@@ -1005,7 +1006,7 @@ export class GameScene {
 // The color a piece of this glass pulls at `o`: the first shield still up
 // there that it has a bowl for (none: it would not pull there).
 function haulColor(glass: RuneLayerSpec, o: Obstacle): number | undefined {
-  const sh = upShields(o).find((x) => glass.nodes.some((n) => n.catch === x.color))
+  const sh = upShields(o).find((x) => glass.nodes.some((n) => holdsShield(n, x.color)))
   return sh ? hueColor(sh.color) : undefined
 }
 

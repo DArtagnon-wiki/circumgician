@@ -414,6 +414,18 @@ describe('shields', () => {
     expect(labels(strong, after(strong, full, 'pull R1.0=>O0'))).toContain('R2.0->O0')
   })
 
+  it("an ash cup doesn't pull", () => {
+    // Three sapphire bowls and a ruby ash cup.
+    const ashy = { layers: [{ sides: 4, radius: 40, nodes: [{ catch: 'red' as const, release: 'annihilating' as const }, ...(['blue', 'blue', 'blue'] as const).map((c) => ({ catch: c, release: c }))] }, layer(3, 36, 'blue')] }
+    const lvl = testLevel({ motes: [...around(['red', 'red', 'blue', 'blue'], A), ...around(['blue', 'blue', 'blue', 'red'], B)], obstacles: [shielded(2)], hand: [puller, ashy] })
+    const s = initialEconomy(lvl)
+    expect(labels(lvl, s)).not.toContain('pull R1.0=>O0')
+    const full = after(lvl, s, 'fill R1.0')
+    expect(labels(lvl, full)).not.toContain('pull R1.0=>O0')
+    expect(labels(lvl, full)).not.toContain('R1.0->O0') // it waits for the shield
+    expect(labels(lvl, after(lvl, full, 'pull R0.0=>O0'))).toContain('R1.0->O0')
+  })
+
   it("a sim run's pulls replay in the model", () => {
     const run = runScript(level, [{ place: 0, at: A }, { place: 1, at: B }, { wait: 1 }, { tap: 1 }, { tap: 0 }], { settle: 3 })
     expect(run.error).toBeUndefined()

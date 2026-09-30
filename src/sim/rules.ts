@@ -1,7 +1,7 @@
 import { BURST_GAP, DEFAULT_TETHER, EJECT_TIME, FOOTPRINT_MARGIN, THAW_LAG } from './constants'
 import type { DetonationInfo, SimBus } from './events'
 import { circleHitsRect, circleInRect, clampToRect, dist, footprintRadius, iceSpots, middleAngle, middleLayer, nodePositions, outerAngle, outerLayer, strikeTime } from './geometry'
-import { addsPower, isHue } from '../model/Color'
+import { addsPower, holdsShield, isHue } from '../model/Color'
 import type { Hue, Mote, MoteColor, Obstacle, ObstacleLayerSpec, Piece, Rune, RuneLayerSpec, ShieldSpec, SimState, Vec2 } from './types'
 
 // Where node i's released mote settles: along that node's REST direction
@@ -42,19 +42,20 @@ export function upShields(o: Obstacle): ShieldSpec[] {
 // While any shield is up, nothing strikes the layer.
 export const guarded = (o: Obstacle): boolean => upShields(o).length > 0
 
-// A piece with a bowl of a shield's color that is still up pulls there.
+// A piece with a bowl of a shield's color that is still up pulls there (an
+// ash cup doesn't count: it burns what it holds, so it can't hold a shield).
 export function canPull(glass: RuneLayerSpec | undefined, o: Obstacle): boolean {
-  return !!glass && upShields(o).some((sh) => glass.nodes.some((n) => n.catch === sh.color))
+  return !!glass && upShields(o).some((sh) => glass.nodes.some((n) => holdsShield(n, sh.color)))
 }
 
 // A shield's pull so far: the motes that count (its color or opal) held in
-// its pullers' bowls of its color.
+// its pullers' bowls of its color, ash cups aside.
 export function shieldPull(state: SimState, o: Obstacle, color: Hue): number {
   let pull = 0
   for (const p of state.pieces) {
     if (p.pulling === undefined || p.linkedObstacleId !== o.id) continue
     p.held.forEach((id, i) => {
-      if (id === null || p.layer.nodes[i].catch !== color) return
+      if (id === null || !holdsShield(p.layer.nodes[i], color)) return
       const mote = state.motes.find((m) => m.id === id)
       if (mote?.state === 'held' && addsPower(mote.color)) pull++
     })
