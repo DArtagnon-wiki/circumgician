@@ -6,7 +6,7 @@ import { dist, nodePositions, strikeTime } from './geometry'
 import { layer, mote, obstacle, ring, testLevel } from './testFixtures'
 import { runScript } from './headless'
 import { DEBUG_PACK } from '../data/levels/pack'
-import type { LevelData, ObstacleSpec, ReleaseColor, RuneLayerSpec } from './types'
+import type { LevelData, MoteColor, ObstacleSpec, Prefill, ReleaseColor, RuneLayerSpec } from './types'
 
 const DT = 1 / 30
 const C = { x: 200, y: 500 }
@@ -557,6 +557,77 @@ describe('fuse (burning)', () => {
     expect(sim.state.runes.find((r) => r.slot === 0)!.index).toBe(0)
     expect(sim.state.motes.filter((m) => m.color === 'red')).toHaveLength(2)
     expect(sim.state.stats.burned).toBe(0)
+  })
+})
+
+describe('null and void motes, prefilled bowls', () => {
+  // A square of four red bowls (each giving back blue) cast at C onto the motes.
+  const square = (release: ReleaseColor = 'blue') => ({ layers: [layer(4, 40, 'red', release), layer(3, 30, 'red')] })
+  const inside = (colors: MoteColor[]) => colors.map((c, i) => mote(c, C.x + Math.cos(i * 1.3) * 10, C.y + Math.sin(i * 1.3) * 10))
+
+  it('a null fills a bowl but adds no power, and comes out in its bowl color', () => {
+    const sim = mk(testLevel({ obstacles: [obstacle(200, 150, [3, 4])], hand: [square()], motes: inside(['red', 'red', 'red', 'null']) }))
+    const id = placeSlot(sim, 0)
+    stepFor(sim, 1)
+    expect(sim.piece(id)!.state).toBe('full')
+    sim.detonate(id)
+    stepFor(sim, 2)
+    expect(sim.state.obstacles[0].hp).toBe(1) // three of four struck
+    expect(sim.state.motes.map((m) => m.color)).toEqual(['blue', 'blue', 'blue', 'blue'])
+  })
+
+  it('a void never changes, and only an ash bowl gets rid of it', () => {
+    const kept = mk(testLevel({ hand: [square()], motes: inside(['red', 'red', 'red', 'void']) }))
+    const id = placeSlot(kept, 0)
+    stepFor(kept, 1)
+    kept.detonate(id)
+    stepFor(kept, 2)
+    expect(kept.state.motes.map((m) => m.color).sort()).toEqual(['blue', 'blue', 'blue', 'void'])
+    const ash = mk(testLevel({ hand: [square('annihilating')], motes: inside(['red', 'red', 'red', 'void']) }))
+    const burnt = placeSlot(ash, 0)
+    stepFor(ash, 1)
+    ash.detonate(burnt)
+    stepFor(ash, 2)
+    expect(ash.state.motes).toEqual([])
+  })
+
+  it('bowls take their own color first, then opal, then null, then void', () => {
+    // Three red bowls over three red, an opal and two blanks: the reds win.
+    const tri = { layers: [layer(3, 40, 'red'), layer(3, 30, 'red')] }
+    const sim = mk(testLevel({ hand: [tri], motes: inside(['void', 'null', 'generic', 'red', 'red', 'red']) }))
+    const id = placeSlot(sim, 0)
+    stepFor(sim, 1)
+    const held = sim.piece(id)!.held.map((m) => sim.state.motes.find((x) => x.id === m)!.color)
+    expect(held.sort()).toEqual(['red', 'red', 'red'])
+    // Two reds: the opal takes the third bowl before either blank.
+    const two = mk(testLevel({ hand: [tri], motes: inside(['void', 'null', 'generic', 'red', 'red']) }))
+    const p2 = placeSlot(two, 0)
+    stepFor(two, 1)
+    expect(two.piece(p2)!.held.map((m) => two.state.motes.find((x) => x.id === m)!.color).sort()).toEqual(['generic', 'red', 'red'])
+    // Nothing better inside: the null before the void.
+    const blank = mk(testLevel({ hand: [tri], motes: inside(['void', 'null', 'red', 'red']) }))
+    const p3 = placeSlot(blank, 0)
+    stepFor(blank, 1)
+    expect(blank.piece(p3)!.held.map((m) => blank.state.motes.find((x) => x.id === m)!.color).sort()).toEqual(['null', 'red', 'red'])
+  })
+
+  it('prefilled bowls hold their motes from the cast; one prefilled all round is full at once', () => {
+    const nodes = (kinds: (Prefill | undefined)[]) => kinds.map((prefilled) => ({ catch: 'red' as const, release: 'blue' as const, ...(prefilled ? { prefilled } : {}) }))
+    const full = mk(testLevel({ obstacles: [obstacle(200, 150, [3, 9])], hand: [{ layers: [{ sides: 4, radius: 40, nodes: nodes(['real', 'real', 'null', 'void']) }, layer(3, 30, 'red')] }] }))
+    const id = placeSlot(full, 0)
+    expect(full.piece(id)!.state).toBe('full')
+    expect(full.state.motes.map((m) => m.color)).toEqual(['red', 'red', 'null', 'void'])
+    full.detonate(id)
+    stepFor(full, 2)
+    expect(full.state.obstacles[0].hp).toBe(7) // the two real ones struck
+    expect(full.state.motes.map((m) => m.color).sort()).toEqual(['blue', 'blue', 'blue', 'void'])
+  })
+
+  it('voids and nulls count as fillers for the loss check', () => {
+    const level = testLevel({ hand: [{ layers: [layer(3, 40, 'blue'), layer(3, 30, 'blue')] }], motes: [mote('void', 80, 400), mote('void', 90, 420), mote('null', 100, 400)] })
+    const sim = new Sim(level)
+    sim.checkLoss()
+    expect(sim.state.status).toBe('playing')
   })
 })
 

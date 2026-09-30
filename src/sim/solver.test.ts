@@ -241,7 +241,7 @@ describe('ice and frost', () => {
   it('a blow short of a frost layer freezes the piece with what it released; the layer falling thaws it', () => {
     const bitten = after(level, after(level, initialEconomy(level), 'fill R0.0'), 'R0.0->O0')
     expect(bitten.obstacles[0]).toEqual({ index: 0, hp: 2 })
-    expect(bitten.ice).toEqual([{ sides: 4, hp: 4, motes: [0, 4, 0, 0, 0, 0], by: [0, 0] }])
+    expect(bitten.ice).toEqual([{ sides: 4, hp: 4, motes: [0, 4, 0, 0, 0, 0, 0, 0], by: [0, 0] }])
     expect(pool(bitten)).toEqual({ gold: 3 })
     const thawed = after(level, after(level, bitten, 'fill R1.0'), 'R1.0->O0')
     expect(thawed.obstacles[0]).toEqual({ index: 1, hp: 3 })
@@ -268,5 +268,49 @@ describe('ice and frost', () => {
     expect(pool(end)).toEqual({ blue: 4, gold: 3 })
     const sim = run.sim.state
     expect(sim.motes.filter((m) => m.state === 'free').map((m) => m.color).sort()).toEqual(['blue', 'blue', 'blue', 'blue', 'gold', 'gold', 'gold'])
+  })
+})
+
+describe('null and void motes, prefilled bowls', () => {
+  it('a bowl can take a null or a void instead of its color: each way is a move, and blanks add no power', () => {
+    const level = testLevel({ motes: motes({ red: 3, null: 1, void: 1 }), obstacles: [obstacle(200, 150, [3, 4])], hand: [{ layers: [layer(4, 40, 'red', 'blue'), layer(3, 36, 'red')] }] })
+    const s = initialEconomy(level)
+    expect(labels(level, s).sort()).toEqual(['fill R0.0 ...n', 'fill R0.0 ...v', 'fill R0.0 ..nv'])
+    // The null comes back in its bowl's color; the void comes back a void.
+    const nulled = transitions(level, after(level, s, 'fill R0.0 ...n'))[0]
+    expect(nulled.blow).toMatchObject({ damage: 3, wasted: 0 })
+    expect(pool(nulled.next)).toEqual({ blue: 4, void: 1 })
+    const voided = transitions(level, after(level, s, 'fill R0.0 ..nv'))[0]
+    expect(voided.blow).toMatchObject({ damage: 2 })
+    expect(pool(voided.next)).toEqual({ red: 1, blue: 3, void: 1 }) // one red was left over
+  })
+
+  it('an ash bowl destroys a void; nothing else does', () => {
+    const level = testLevel({ motes: motes({ red: 2, void: 1 }), hand: [{ layers: [mixed(3, [2, 'red', 'red'], [1, 'red', 'annihilating']), layer(3, 36, 'red')] }] })
+    const fills = transitions(level, initialEconomy(level))
+    expect(fills.map((t) => moveLabel(t.move)).sort()).toEqual(['fill R0.0 ..v', 'fill R0.0 .v.'])
+    const burst = (label: string) => pool(transitions(level, after(level, initialEconomy(level), label))[0].next)
+    expect(burst('fill R0.0 ..v')).toEqual({ red: 2 }) // the ash bowl took the void
+    expect(burst('fill R0.0 .v.')).toEqual({ red: 1, void: 1 }) // a red bowl let it out again
+  })
+
+  it('prefilled bowls start full: fewer motes to catch, and theirs come out at the burst', () => {
+    const spec: RuneLayerSpec = { sides: 4, radius: 40, nodes: [{ catch: 'red', release: 'red', prefilled: 'real' }, { catch: 'red', release: 'red' }, { catch: 'red', release: 'red' }, { catch: 'red', release: 'red', prefilled: 'null' }] }
+    const level = testLevel({ motes: motes({ red: 2 }), obstacles: [obstacle(200, 150, [3, 5])], hand: [{ layers: [spec, layer(3, 36, 'red')] }] })
+    const s = initialEconomy(level)
+    expect(labels(level, s)).toEqual(['fill R0.0 ...n'])
+    const fired = transitions(level, after(level, s, 'fill R0.0 ...n'))[0]
+    expect(fired.blow).toMatchObject({ damage: 3 }) // the real one counts, the null does not
+    expect(pool(fired.next)).toEqual({ red: 4 }) // two caught, two it brought
+  })
+
+  it("a sim run's fills with blanks replay in the model", () => {
+    const C = { x: 200, y: 500 }
+    const level = testLevel({ motes: [mote('red', C.x - 8, C.y), mote('red', C.x + 8, C.y), mote('red', C.x, C.y - 8), mote('null', C.x, C.y + 8)], obstacles: [obstacle(200, 150, [3, 3])], hand: [{ layers: [layer(4, 40, 'red', 'blue'), layer(3, 36, 'red')] }] })
+    const run = runScript(level, [{ place: 0, at: C }, { tap: 0 }], { settle: 3 })
+    expect(run.error).toBeUndefined()
+    expect(run.moves.map(moveLabel)).toEqual(['fill R0.0 ...n', 'R0.0->O0'])
+    expect(run.status).toBe('won')
+    expect(economyWon(level, replay(level, run.moves)!)).toBe(true)
   })
 })

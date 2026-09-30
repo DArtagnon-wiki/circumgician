@@ -1,17 +1,28 @@
-import type { Hue, LevelData, NodeSpec, PaletteName, RuneLayerSpec } from '../sim/types'
+import type { Hue, LevelData, NodeSpec, PaletteName, Prefill, RuneLayerSpec } from '../sim/types'
 import { MAX_SIDES, MIN_SIDES } from '../sim/validate'
 import { PALETTE_NAMES } from '../model/Color'
 import { MAX_MOONS, OBSTACLE_MOTIONS, OBSTACLE_STYLES, type ObstacleLook } from '../model/Look'
-import { ANNIHILATING_COLOR, MIASMA_COLOR, PALETTES, hueColor } from '../render/Theme'
+import { ANNIHILATING_COLOR, MIASMA_COLOR, NULL_COLOR, PALETTES, VOID_COLOR, hueColor } from '../render/Theme'
 import type { EditorState } from './state'
 
 const HUES = ['red', 'blue', 'gold', 'teal', 'violet'] as const
-const MOTE_COLORS = [...HUES, 'generic'] as const
+const MOTE_COLORS = [...HUES, 'generic', 'null', 'void'] as const
+const PREFILLS = ['–', 'real', 'null', 'void'] as const
 const RELEASES = [...MOTE_COLORS, 'annihilating'] as const
 
 const hex = (n: number) => '#' + n.toString(16).padStart(6, '0')
 export const swatch = (c: string) =>
-  c === 'generic' ? hex(MIASMA_COLOR) : c === 'annihilating' ? hex(ANNIHILATING_COLOR) : (HUES as readonly string[]).includes(c) ? hex(hueColor(c as Hue)) : '#2a2238'
+  c === 'generic'
+    ? hex(MIASMA_COLOR)
+    : c === 'annihilating'
+      ? hex(ANNIHILATING_COLOR)
+      : c === 'null'
+        ? hex(NULL_COLOR)
+        : c === 'void'
+          ? hex(VOID_COLOR)
+          : (HUES as readonly string[]).includes(c)
+            ? hex(hueColor(c as Hue))
+            : '#2a2238'
 
 type Props = Record<string, unknown> & { class?: string; style?: string; on?: Record<string, (e: Event) => void> }
 export function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Props = {}, ...children: (Node | string | null)[]): HTMLElementTagNameMap[K] {
@@ -48,6 +59,14 @@ function colorSelect(options: readonly string[], value: string, onSet: (v: strin
   for (const o of options) s.append(el('option', { value: o, textContent: compact ? o.slice(0, 3) : o, style: `background:${swatch(o)};color:#fff` }))
   s.value = value
   s.style.background = swatch(value)
+  return s
+}
+
+// A cup that starts full: '–' (no), 'real' (its own color), null or void.
+function prefillSelect(value: Prefill | undefined, onSet: (v: Prefill | undefined) => void) {
+  const s = el('select', { class: 'color-select compact', title: 'Starts full with…', on: { change: (e) => onSet(((e.target as HTMLSelectElement).value as Prefill | '–') === '–' ? undefined : ((e.target as HTMLSelectElement).value as Prefill)) } })
+  for (const o of PREFILLS) s.append(el('option', { value: o, textContent: o === '–' ? 'empty' : `full: ${o}` }))
+  s.value = value ?? '–'
   return s
 }
 
@@ -247,6 +266,13 @@ export function renderInspector(host: HTMLElement, st: EditorState): void {
             { class: 'node' },
             colorSelect(HUES, n.catch, (v) => edit((l) => (l.hand[i].layers[j].nodes[k].catch = v as never)), true),
             colorSelect(RELEASES, n.release, (v) => edit((l) => (l.hand[i].layers[j].nodes[k].release = v as never)), true),
+            prefillSelect(n.prefilled, (v) =>
+              edit((l) => {
+                const node = l.hand[i].layers[j].nodes[k]
+                if (v) node.prefilled = v
+                else delete node.prefilled
+              }),
+            ),
           ),
         ),
       )

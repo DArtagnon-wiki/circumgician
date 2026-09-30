@@ -1,4 +1,4 @@
-import type { LevelData, MoteColor } from './types'
+import type { LevelData, MoteColor, RuneLayerSpec } from './types'
 
 // Economy solver: plays out a level's arithmetic exhaustively, with geometry
 // abstracted away. Kicks let a player herd motes almost anywhere, and where
@@ -7,13 +7,18 @@ import type { LevelData, MoteColor } from './types'
 //   - casting a rune's layer puts it on the field as a piece and brings the
 //     next layer into hand; the stack's last entry is never cast, it is the
 //     shape the layer above it strikes;
-//   - a detonation deals the piece's sides in damage to an obstacle whose
+//   - a detonation deals the piece's power (the motes it holds that count)
+//     in damage to an obstacle whose
 //     current layer has as many sides as the piece's energy (the stack's
 //     next entry); with no such obstacle it is unlinked and deals none;
 //   - damage never carries into the next layer: the excess is wasted;
 //   - every caught mote is released recolored by its node, except at
 //     'annihilating' nodes, which destroy theirs;
-//   - generic motes fill any node;
+//   - generic (opal) motes fill any node; so do nulls and voids, which add
+//     nothing to the blow (a void is released as a void, whatever the
+//     node's color; a null takes the node's color like any mote);
+//   - prefilled nodes start full (a mote of their own color, a null or a
+//     void) and release it like any other;
 //   - ice (the level's blocks, and pieces frozen by frost) is struck like
 //     an obstacle of one layer, by energy of its shape; broken, it frees
 //     the motes locked inside. It never counts toward the win;
@@ -21,7 +26,8 @@ import type { LevelData, MoteColor } from './types'
 //     freezes into ice of its own shape (strength its sides) holding its
 //     released motes; when that layer falls, all the ice it froze thaws.
 // A move is one of
-//   fill Rn.k      fill layer k of rune n from the free motes. If k is still
+//   fill Rn.k      fill layer k of rune n from the free motes (`fill Rn.k ..nv`
+//                  when some of its bowls take a null or a void). If k is still
 //                  in hand, it is cast first, and any layers above it are
 //                  cast as empty pieces (digging down to it)
 //   Rn.k->Om       detonate that full piece into obstacle m
@@ -44,13 +50,18 @@ import type { LevelData, MoteColor } from './types'
 // can reach) is checked in the real sim by the scripted lines in
 // src/data/levels/solutions.test.ts.
 
-export const ECONOMY_COLORS: readonly MoteColor[] = ['red', 'blue', 'gold', 'teal', 'violet', 'generic']
+export const ECONOMY_COLORS: readonly MoteColor[] = ['red', 'blue', 'gold', 'teal', 'violet', 'generic', 'null', 'void']
 const GENERIC = ECONOMY_COLORS.indexOf('generic')
+const NULL = ECONOMY_COLORS.indexOf('null')
+const VOID = ECONOMY_COLORS.indexOf('void')
 
 export interface EconomyPiece {
   rune: number
   layer: number
   full: boolean
+  // Once full, what each bowl holds when not a mote that counts: 'n' a null,
+  // 'v' a void, '.' otherwise. Omitted when every bowl counts.
+  blanks?: string
 }
 
 // A block of ice, as the game creates them: the level's, then each piece a
@@ -71,8 +82,9 @@ export interface Economy {
   burned?: number // layers burned by digging (levels with a fuse)
 }
 
-// A fire's target indexes the obstacles, or the ice when `ice` is set.
-export type Move = { kind: 'fill'; rune: number; layer: number } | { kind: 'fire'; rune: number; layer: number; target: number | null; ice?: boolean }
+// A fire's target indexes the obstacles, or the ice when `ice` is set. A
+// fill's `blanks` says which bowls took a null or a void (see EconomyPiece).
+export type Move = { kind: 'fill'; rune: number; layer: number; blanks?: string } | { kind: 'fire'; rune: number; layer: number; target: number | null; ice?: boolean }
 
 // One detonation, counted the way the result screen counts it.
 export interface Blow {
@@ -137,11 +149,14 @@ export function economyKey(level: LevelData, s: Economy, opts: SolverOptions = {
   const ice = s.ice.map((b) => (b.hp ? `${b.sides}:${b.hp}:${b.motes.join('.')}${b.by ? `<${b.by.join('.')}` : ''}` : 'x')).join(',')
   const obs = `${s.obstacles.map((o) => `${o.index}:${o.hp}`).join(',')}|${ice}${s.burned ? `|b${s.burned}` : ''}`
   if (room(opts) === Infinity) {
-    const mark = { open: 'o', full: 'F', fired: 'x' }
-    const layers = level.hand.map((_, r) => Array.from({ length: castable(level, r) }, (_, k) => mark[status(s, r, k)]).join('')).join(',')
+    const mark = (r: number, k: number) => {
+      const st = status(s, r, k)
+      return st === 'open' ? 'o' : st === 'fired' ? 'x' : `F${s.pieces.find((p) => p.rune === r && p.layer === k)?.blanks ?? ''};`
+    }
+    const layers = level.hand.map((_, r) => Array.from({ length: castable(level, r) }, (_, k) => mark(r, k)).join('')).join(',')
     return `${s.pool.join(',')}|${layers}|${obs}`
   }
-  return `${s.pool.join(',')}|${s.hand.join(',')}|${s.pieces.map((p) => `${p.rune}.${p.layer}${p.full ? 'f' : ''}`).join(',')}|${obs}`
+  return `${s.pool.join(',')}|${s.hand.join(',')}|${s.pieces.map((p) => `${p.rune}.${p.layer}${p.full ? `f${p.blanks ?? ''}` : ''}`).join(',')}|${obs}`
 }
 
 export function economyWon(level: LevelData, s: Economy): boolean {
@@ -160,7 +175,7 @@ export function damageShort(level: LevelData, s: Economy): boolean {
   const can = new Map<number, number>()
   const add = (rune: number, layer: number) => {
     const layers = level.hand[rune].layers
-    can.set(layers[layer + 1].sides, (can.get(layers[layer + 1].sides) ?? 0) + layers[layer].sides)
+    can.set(layers[layer + 1].sides, (can.get(layers[layer + 1].sides) ?? 0) + mostPower(layers[layer]))
   }
   for (const p of s.pieces) add(p.rune, p.layer)
   s.hand.forEach((index, r) => {
@@ -170,60 +185,133 @@ export function damageShort(level: LevelData, s: Economy): boolean {
   return false
 }
 
-// Exact colors first; generics cover the shortfall. Keeping a generic is
-// never worse than keeping the hued mote it could replace, because a
-// release takes its node's color, not the mote's.
-function takeCatch(pool: number[], catches: MoteColor[]): number[] | null {
-  const next = [...pool]
-  for (const c of catches) {
-    const i = ECONOMY_COLORS.indexOf(c)
-    if (next[i] > 0) next[i]--
-    else if (next[GENERIC] > 0) next[GENERIC]--
-    else return null
+// The most a layer can strike for: every bowl but those prefilled with a
+// null or a void.
+const mostPower = (spec: RuneLayerSpec) => spec.nodes.filter((n) => n.prefilled !== 'null' && n.prefilled !== 'void').length
+
+// Bowls that are interchangeable in the economy: same catch, same release,
+// neither prefilled. Blanks are written canonically within each group
+// (motes that count first, then nulls, then voids, in node order), so the
+// same filling always reads the same.
+function bowlGroups(spec: RuneLayerSpec): number[][] {
+  const groups = new Map<string, number[]>()
+  spec.nodes.forEach((n, i) => {
+    if (n.prefilled) return
+    const key = `${n.catch}|${n.release}`
+    groups.set(key, [...(groups.get(key) ?? []), i])
+  })
+  return [...groups.values()]
+}
+
+// The blanks string for a filling, from each group's null and void counts.
+function writeBlanks(spec: RuneLayerSpec, groups: number[][], counts: [number, number][]): string {
+  const out = spec.nodes.map((n) => (n.prefilled === 'null' ? 'n' : n.prefilled === 'void' ? 'v' : '.'))
+  groups.forEach((g, gi) => {
+    const [u, v] = counts[gi]
+    g.forEach((node, k) => (out[node] = k < g.length - u - v ? '.' : k < g.length - v ? 'n' : 'v'))
+  })
+  return out.join('')
+}
+
+// The same canonical form for bowls a real run filled one way or another
+// (per node: '.', 'n' or 'v'), so its moves read like the solver's.
+export function canonicalBlanks(spec: RuneLayerSpec, perNode: string): string {
+  const groups = bowlGroups(spec)
+  return writeBlanks(
+    spec,
+    groups,
+    groups.map((g) => [g.filter((i) => perNode[i] === 'n').length, g.filter((i) => perNode[i] === 'v').length]),
+  )
+}
+
+// Every way to fill a layer from the pool: each group of alike bowls takes
+// some nulls and voids, and the rest take their own color, opal covering
+// the shortfall. (Opal before the own color is never better: a release
+// takes its bowl's color, not the mote's.) Prefilled bowls take nothing.
+// Without nulls or voids in the pool there is exactly one way, or none.
+function fillings(spec: RuneLayerSpec, pool: number[]): { pool: number[]; blanks: string }[] {
+  const groups = bowlGroups(spec)
+  const out: { pool: number[]; blanks: string }[] = []
+  const counts: [number, number][] = []
+  const walk = (gi: number, nulls: number, voids: number) => {
+    if (gi === groups.length) {
+      const next = [...pool]
+      next[NULL] -= nulls
+      next[VOID] -= voids
+      const need = new Map<number, number>()
+      groups.forEach((g, i) => {
+        const real = g.length - counts[i][0] - counts[i][1]
+        const c = ECONOMY_COLORS.indexOf(spec.nodes[g[0]].catch)
+        need.set(c, (need.get(c) ?? 0) + real)
+      })
+      for (const [c, n] of need) {
+        const exact = Math.min(n, next[c])
+        next[c] -= exact
+        next[GENERIC] -= n - exact
+      }
+      if (next[GENERIC] < 0) return
+      out.push({ pool: next, blanks: writeBlanks(spec, groups, counts) })
+      return
+    }
+    const size = groups[gi].length
+    for (let u = 0; u <= Math.min(size, pool[NULL] - nulls); u++)
+      for (let v = 0; v <= Math.min(size - u, pool[VOID] - voids); v++) {
+        counts[gi] = [u, v]
+        walk(gi + 1, nulls + u, voids + v)
+      }
   }
-  return next
+  walk(0, 0, 0)
+  return out
 }
 
 const byRuneLayer = (a: EconomyPiece, b: EconomyPiece) => a.rune - b.rune || a.layer - b.layer
 
-function fill(level: LevelData, s: Economy, rune: number, layer: number, opts: SolverOptions): Transition | null {
+function fill(level: LevelData, s: Economy, rune: number, layer: number, opts: SolverOptions): Transition[] {
   const spec = level.hand[rune].layers[layer]
-  const pool = takeCatch(s.pool, spec.nodes.map((n) => n.catch))
-  if (!pool) return null
+  const ways = fillings(spec, s.pool)
+  if (!ways.length) return []
   const onField = s.pieces.findIndex((p) => p.rune === rune && p.layer === layer)
-  let pieces: EconomyPiece[]
+  let placed: (blanks: string) => EconomyPiece[]
   const hand = [...s.hand]
   let burned = s.burned ?? 0
+  const piece = (blanks: string): EconomyPiece => ({ rune, layer, full: true, ...(/[nv]/.test(blanks) ? { blanks } : {}) })
   if (onField >= 0) {
-    if (s.pieces[onField].full) return null
-    pieces = s.pieces.map((p, i) => (i === onField ? { ...p, full: true } : p))
+    if (s.pieces[onField].full) return []
+    placed = (blanks) => s.pieces.map((p, i) => (i === onField ? piece(blanks) : p))
   } else {
-    if (layer < s.hand[rune] || layer >= castable(level, rune)) return null
+    if (layer < s.hand[rune] || layer >= castable(level, rune)) return []
     // Dig: the layers above it go down as empty pieces (or, in a level
     // with a fuse, burn away).
     const cast = layer - s.hand[rune] + 1
     const burns = level.fuse !== undefined
-    if (s.pieces.length + (burns ? 1 : cast) > room(opts)) return null
+    if (s.pieces.length + (burns ? 1 : cast) > room(opts)) return []
     const dug = burns ? [] : Array.from({ length: cast - 1 }, (_, i) => ({ rune, layer: s.hand[rune] + i, full: false }))
-    pieces = [...s.pieces, ...dug, { rune, layer, full: true }].sort(byRuneLayer)
+    placed = (blanks) => [...s.pieces, ...dug, piece(blanks)].sort(byRuneLayer)
     hand[rune] = layer + 1
     if (burns) burned += cast - 1
   }
-  return { move: { kind: 'fill', rune, layer }, next: { pool, hand, pieces, obstacles: s.obstacles, ice: s.ice, ...(burned ? { burned } : {}) } }
+  return ways.map(({ pool, blanks }) => ({
+    move: { kind: 'fill', rune, layer, ...(/[nv]/.test(blanks) ? { blanks } : {}) },
+    next: { pool, hand, pieces: placed(blanks), obstacles: s.obstacles, ice: s.ice, ...(burned ? { burned } : {}) },
+  }))
 }
 
 function fire(level: LevelData, s: Economy, rune: number, layer: number, target: number | null, ice = false): Transition {
   const layers = level.hand[rune].layers
   const outer = layers[layer]
-  const released = tally(outer.nodes.flatMap((n) => (n.release === 'annihilating' ? [] : [n.release])))
+  const blanks = s.pieces.find((p) => p.rune === rune && p.layer === layer)?.blanks ?? ''
+  const power = outer.sides - (blanks.match(/[nv]/g)?.length ?? 0)
+  // Ash takes whatever it holds; a void comes out a void; the rest take
+  // their bowl's color.
+  const released = tally(outer.nodes.flatMap((n, i) => (n.release === 'annihilating' ? [] : [blanks[i] === 'v' ? 'void' : n.release])))
   let pool = s.pool
   let blocks = s.ice
   const obstacles = s.obstacles.map((o) => ({ ...o }))
   const blow: Blow = { rune, layer, target, ...(ice ? { ice } : {}), targetLayer: -1, damage: 0, wasted: 0, unlinked: target === null }
   let frozen = false
   const strike = (hp: number) => {
-    blow.damage = Math.min(hp, outer.sides)
-    blow.wasted = outer.sides - blow.damage
+    blow.damage = Math.min(hp, power)
+    blow.wasted = power - blow.damage
     return hp - blow.damage
   }
   if (target !== null && ice) {
@@ -239,7 +327,7 @@ function fire(level: LevelData, s: Economy, rune: number, layer: number, target:
     const o = obstacles[target]
     const spec = level.obstacles[target].layers[o.index]
     blow.targetLayer = o.index
-    if (spec.frost && outer.sides < o.hp) {
+    if (spec.frost && power < o.hp) {
       // Frostbitten: the piece freezes, holding what it released.
       frozen = true
       blocks = [...blocks, { sides: outer.sides, hp: outer.sides, motes: released, by: [target, o.index] }]
@@ -267,10 +355,7 @@ function fire(level: LevelData, s: Economy, rune: number, layer: number, target:
 export function transitions(level: LevelData, s: Economy, opts: SolverOptions = {}): Transition[] {
   const out: Transition[] = []
   level.hand.forEach((_, r) => {
-    for (let k = 0; k < castable(level, r); k++) {
-      const t = status(s, r, k) === 'open' ? fill(level, s, r, k, opts) : null
-      if (t) out.push(t)
-    }
+    for (let k = 0; k < castable(level, r); k++) if (status(s, r, k) === 'open') out.push(...fill(level, s, r, k, opts))
   })
   for (const p of s.pieces) {
     if (!p.full) continue
@@ -295,7 +380,7 @@ export function economyLost(level: LevelData, s: Economy, opts: SolverOptions = 
 }
 
 export function moveLabel(m: Move): string {
-  if (m.kind === 'fill') return `fill R${m.rune}.${m.layer}`
+  if (m.kind === 'fill') return `fill R${m.rune}.${m.layer}${m.blanks ? ` ${m.blanks}` : ''}`
   return m.target === null ? `R${m.rune}.${m.layer} unlinked` : `R${m.rune}.${m.layer}->${m.ice ? 'I' : 'O'}${m.target}`
 }
 

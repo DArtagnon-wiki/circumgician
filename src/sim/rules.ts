@@ -1,7 +1,8 @@
-import { BURST_GAP, EJECT_TIME, FOOTPRINT_MARGIN, THAW_LAG } from './constants'
+import { BURST_GAP, DEFAULT_TETHER, EJECT_TIME, FOOTPRINT_MARGIN, THAW_LAG } from './constants'
 import type { DetonationInfo, SimBus } from './events'
-import { circleHitsRect, circleInRect, clampToRect, dist, footprintRadius, iceSpots, middleAngle, middleLayer, outerAngle, outerLayer, strikeTime } from './geometry'
-import type { Hue, Mote, Obstacle, Piece, Rune, RuneLayerSpec, SimState, Vec2 } from './types'
+import { circleHitsRect, circleInRect, clampToRect, dist, footprintRadius, iceSpots, middleAngle, middleLayer, nodePositions, outerAngle, outerLayer, strikeTime } from './geometry'
+import { addsPower, isHue } from '../model/Color'
+import type { Hue, Mote, MoteColor, Obstacle, Piece, Rune, RuneLayerSpec, SimState, Vec2 } from './types'
 
 // Where node i's released mote settles: along that node's REST direction
 // (vertex 0 pointing up), BURST_GAP outside the outer radius. Independent
@@ -83,12 +84,36 @@ export function castRune(state: SimState, bus: SimBus, rune: Rune, pos: Vec2, en
     ...(burn !== undefined ? { burnAt: state.time + burn } : {}),
   }
   state.pieces.push(piece)
+  // Prefilled cups come with their motes already in them.
+  const at = nodePositions(piece, state.time)
+  layer.nodes.forEach((node, i) => {
+    if (!node.prefilled) return
+    const color: MoteColor = node.prefilled === 'real' ? node.catch : node.prefilled
+    const mote: Mote = { id: `mote-${state.nextId++}`, color, home: { ...at[i] }, tether: DEFAULT_TETHER, pos: { ...at[i] }, wander: { ...at[i] }, state: 'held', pieceId: piece.id, node: i }
+    state.motes.push(mote)
+    piece.held[i] = mote.id
+  })
   rune.index++
   ensure?.(state)
   if (!outerLayer(rune)) rune.state = 'spent'
   bus.emit('piece:cast', { piece, rune })
   if (rune.state === 'spent') bus.emit('rune:spent', { rune })
+  if (piece.held.every((id) => id !== null)) {
+    piece.state = 'full'
+    bus.emit('piece:full', { piece })
+  }
   return piece
+}
+
+// A blow's power: the motes it holds that count (its own colors and opal;
+// nulls and voids fill a bowl but add nothing).
+export function blowPower(state: SimState, piece: Piece): number {
+  let power = 0
+  for (const id of piece.held) {
+    const mote = id === null ? undefined : state.motes.find((m) => m.id === id)
+    if (mote && addsPower(mote.color)) power++
+  }
+  return power
 }
 
 // A strike on a frost layer that leaves it standing is caught by the frost:
@@ -102,7 +127,8 @@ export function detonatePiece(state: SimState, bus: SimBus, piece: Piece, ensure
   const outer = piece.layer
   const pos = piece.pos
   const obstacle = state.obstacles.find((o) => o.id === piece.linkedObstacleId && !o.cleared) ?? null
-  const ice = frostbites(obstacle, outer.sides) ? newIce(state, pos, outer.sides, outer.radius, { obstacle: obstacle.id, layer: obstacle.index }) : null
+  const power = blowPower(state, piece)
+  const ice = frostbites(obstacle, power) ? newIce(state, pos, outer.sides, outer.radius, { obstacle: obstacle.id, layer: obstacle.index }) : null
   const spots = ice ? iceSpots(pos, outer.sides, outer.radius) : []
   const info: DetonationInfo = {
     pos: { ...pos },
@@ -110,7 +136,7 @@ export function detonatePiece(state: SimState, bus: SimBus, piece: Piece, ensure
     energy: piece.energy,
     outerAngle: outerAngle(piece, state.time),
     energyAngle: middleAngle(piece, state.time),
-    damage: obstacle ? outer.sides : 0,
+    damage: obstacle ? power : 0,
     obstacleId: obstacle?.id ?? null,
     released: [],
     annihilated: [],
@@ -131,10 +157,11 @@ export function detonatePiece(state: SimState, bus: SimBus, piece: Piece, ensure
       info.annihilated.push(mote.id)
       return
     }
-    mote.color = release
-    if (release !== 'generic' && !state.seenHues.includes(release)) {
-      state.seenHues.push(release)
-      discovered.push({ hue: release, mote })
+    // A void never changes; every other mote takes the bowl's output.
+    if (mote.color !== 'void') mote.color = release
+    if (isHue(mote.color) && !state.seenHues.includes(mote.color)) {
+      state.seenHues.push(mote.color)
+      discovered.push({ hue: mote.color, mote })
     }
     if (ice) {
       lockInIce(mote, ice, spots[i])
@@ -162,7 +189,7 @@ export function detonatePiece(state: SimState, bus: SimBus, piece: Piece, ensure
 
   // 3. Damage the obstacle (after the piece has left, so relinking sees the
   //    freed field), then relink everything still on the field.
-  if (obstacle) damageObstacle(state, bus, obstacle, outer.sides, ensure, strikeTime(pos, obstacle.pos))
+  if (obstacle) damageObstacle(state, bus, obstacle, power, ensure, strikeTime(pos, obstacle.pos))
   relinkAll(state, bus)
 }
 

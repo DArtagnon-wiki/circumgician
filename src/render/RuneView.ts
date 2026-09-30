@@ -1,7 +1,7 @@
 import { Circle, Container, Graphics, Sprite } from 'pixi.js'
-import type { Insight, Mote, Piece, ReleaseColor, Rune, RuneLayerSpec, Vec2 } from '../sim/types'
+import type { Insight, Mote, MoteColor, Piece, ReleaseColor, Rune, RuneLayerSpec, Vec2 } from '../sim/types'
 import { centerLayer, isFinal, middleLayer, outerLayer, polygonPoints } from '../sim/geometry'
-import { ASH_COLOR, ASH_DARK, FROST, RUNE_BODY_COLOR, colorForMote, colorForRelease, lighten, mix, opal } from './Theme'
+import { ASH_COLOR, ASH_DARK, FROST, NULL_COLOR, RUNE_BODY_COLOR, VOID_COLOR, colorForMote, colorForRelease, lighten, mix, opal } from './Theme'
 import { EMBER, FLAME, SPARK } from './Fire'
 import { drawPolygon, localVertices } from './drawPolygon'
 import { sheenBand } from './obsidian'
@@ -73,6 +73,7 @@ export interface RuneLook {
   insight: Insight
   state: 'idle' | 'charging' | 'full'
   held: (string | null)[]
+  prefill?: (MoteColor | null)[] // in hand: what prefilled cups will hold
 }
 
 const NONE_HELD: (string | null)[] = []
@@ -90,6 +91,7 @@ export function handLook(rune: Rune): RuneLook | null {
     insight: rune.insight,
     state: 'idle',
     held: NONE_HELD,
+    ...(outer.nodes.some((n) => n.prefilled) ? { prefill: outer.nodes.map((n) => (n.prefilled === 'real' ? n.catch : (n.prefilled ?? null))) } : {}),
   }
 }
 
@@ -108,6 +110,7 @@ interface Bowl {
   held: boolean
   color: number
   generic: boolean
+  blank: 'null' | 'void' | null // holds a mote that adds nothing to the blow
 }
 
 // A rune is glassware. The outer layer's edges are glass tubes: each half
@@ -216,30 +219,36 @@ export class RuneView {
       b.c.scale.set(bowlScale)
       const id = look.held[i]
       const m = id ? motes.get(id) : undefined
-      if (m) {
-        b.generic = m.color === 'generic'
-        b.color = colorForMote(m.color)
+      const pre = !id ? look.prefill?.[i] : undefined
+      const kind = m?.color ?? pre
+      if (kind) {
+        b.generic = kind === 'generic'
+        b.blank = kind === 'null' || kind === 'void' ? kind : null
+        b.color = colorForMote(kind)
       }
-      const held = m?.state === 'held'
+      const held = m?.state === 'held' || !!pre
       b.held = held
       const step = dt / FILL_TIME
-      b.fill = Math.max(0, Math.min(1, b.fill + (held ? step : -step)))
+      b.fill = pre ? 1 : Math.max(0, Math.min(1, b.fill + (held ? step : -step)))
       let level = 1 - (1 - b.fill) * (1 - b.fill)
       const incoming = m?.state === 'traveling'
       // A mote on its way makes the bowl shimmer in anticipation.
       if (incoming) level = Math.max(level, 0.3 + 0.08 * Math.sin(time * 32 + i * 2))
       const color = b.generic ? opal(time, i) : b.color
+      // Blanks fill the bowl without lighting it: clear silver for a null,
+      // ink for a void. Only bowls that add to the blow glow and glint.
+      const lit = held && !b.blank
       b.liquid.visible = level > 0.01
-      b.liquid.tint = held ? lighten(color, 0.28) : color
-      b.liquid.alpha = held ? 1 : 0.5
+      b.liquid.tint = b.blank === 'void' ? VOID_COLOR : b.blank === 'null' ? NULL_COLOR : held ? lighten(color, 0.28) : color
+      b.liquid.alpha = b.blank === 'null' ? 0.55 : held ? 1 : 0.5
       b.liquid.scale.set((level * BOWL_R * 1.8) / 64)
       b.glow.tint = color
       b.glow.scale.set((BOWL_R * 5.5 * bowlScale) / b.glow.texture.width)
-      b.glow.alpha = held && quality.settings.glows ? level * (full ? 0.7 + pulse * 0.3 : 0.5) : 0
+      b.glow.alpha = lit && quality.settings.glows ? level * (full ? 0.7 + pulse * 0.3 : 0.5) : 0
       // The glint: now and then on a filled bowl, often and bright on a full
       // piece. It sits up-left, toward the light, whatever the rune's turn.
-      b.sparkle.visible = held
-      if (held) {
+      b.sparkle.visible = lit
+      if (lit) {
         const beat = Math.max(0, Math.sin(time * (full ? 3.1 : 1.7) + i * 2.3))
         const twinkle = full ? 0.55 + 0.45 * beat * beat : 0.2 + 0.8 * Math.pow(beat, 6)
         const ox = -BOWL_R * 0.5 * bowlScale
@@ -426,7 +435,7 @@ export class RuneView {
       sparkle.anchor.set(0.5)
       sparkle.visible = false
       this.sparkleC.addChild(sparkle)
-      return { c, glass, glow, liquid, shine, sparkle, fill: 0, held: false, color: 0xffffff, generic: false }
+      return { c, glass, glow, liquid, shine, sparkle, fill: 0, held: false, color: 0xffffff, generic: false, blank: null }
     })
   }
 

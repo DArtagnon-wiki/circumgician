@@ -117,7 +117,7 @@ const TOOLS: [Tool, string, string][] = [
   ['blocker', 'Blocker', 'B: drag a rectangle in the field'],
   ['ghost', 'Ghost', 'G: pin the selected hand rune (at the ghost layer) to preview its catch ring'],
 ]
-const MOTE_COLORS: MoteColor[] = ['red', 'blue', 'gold', 'teal', 'violet', 'generic']
+const MOTE_COLORS: MoteColor[] = ['red', 'blue', 'gold', 'teal', 'violet', 'generic', 'null', 'void']
 const randomOut = el('span', { class: 'hint' })
 
 function renderToolbar(): void {

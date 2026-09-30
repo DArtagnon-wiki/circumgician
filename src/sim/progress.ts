@@ -1,5 +1,6 @@
 import { canPlace } from './rules'
 import { footprintRadius, outerLayer } from './geometry'
+import { takesAnyBowl } from '../model/Color'
 import type { LossReason, SimState } from './types'
 
 const SCAN_STEP = 6
@@ -10,14 +11,14 @@ export function isWon(state: SimState): boolean {
   return real.length > 0 && real.every((o) => o.cleared)
 }
 
-// Could the free motes' colors (generics as wildcards) ever cover this
-// layer's catch requirements? Ignores position, so it only rules out.
+// Could the free motes' colors (opal, null and void as wildcards) ever cover
+// this layer's catch requirements? Ignores position, so it only rules out.
 export function colorsCanCover(state: SimState, catches: string[]): boolean {
   const have = new Map<string, number>()
   let generic = 0
   for (const m of state.motes) {
     if (m.state !== 'free' && m.state !== 'ejecting') continue
-    if (m.color === 'generic') generic++
+    if (takesAnyBowl(m.color)) generic++
     else have.set(m.color, (have.get(m.color) ?? 0) + 1)
   }
   const need = new Map<string, number>()
@@ -35,7 +36,7 @@ export function anyUsefulCast(state: SimState): boolean {
     const outer = outerLayer(rune)
     if (rune.state !== 'idle' || !outer) continue
     let fillable = false
-    for (let i = rune.index; i + 1 < rune.layers.length && !fillable; i++) fillable = colorsCanCover(state, rune.layers[i].nodes.map((n) => n.catch))
+    for (let i = rune.index; i + 1 < rune.layers.length && !fillable; i++) fillable = colorsCanCover(state, rune.layers[i].nodes.filter((n) => !n.prefilled).map((n) => n.catch))
     if (!fillable) continue
     const r = footprintRadius(outer)
     for (let y = f.y + r; y <= f.y + f.h - r; y += SCAN_STEP)

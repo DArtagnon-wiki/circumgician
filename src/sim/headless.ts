@@ -1,9 +1,10 @@
 import { KICK_GAIN, MOTE_FRICTION, REACH } from './constants'
 import { dist, outerLayer } from './geometry'
 import { colorsCanCover } from './progress'
+import { takesAnyBowl } from '../model/Color'
 import { Sim, type SimOptions } from './Sim'
 import { nextRandom } from './rng'
-import type { Move } from './solver'
+import { canonicalBlanks, type Move } from './solver'
 import type { LevelData, Mote, Piece, RuneLayerSpec, SimStatus, Vec2 } from './types'
 
 export type ScriptStep =
@@ -29,7 +30,15 @@ const DT = 1 / 30
 // each in the order the sim holds them (ice in the order it formed).
 function recordMoves(sim: Sim): Move[] {
   const moves: Move[] = []
-  sim.bus.on('piece:full', ({ piece }) => moves.push({ kind: 'fill', rune: piece.slot, layer: piece.depth }))
+  sim.bus.on('piece:full', ({ piece }) => {
+    // Which bowls took a null or a void, written the way the solver writes it.
+    const perNode = piece.held.map((id) => {
+      const c = sim.state.motes.find((m) => m.id === id)?.color
+      return c === 'null' ? 'n' : c === 'void' ? 'v' : '.'
+    })
+    const blanks = canonicalBlanks(piece.layer, perNode.join(''))
+    moves.push({ kind: 'fill', rune: piece.slot, layer: piece.depth, ...(/[nv]/.test(blanks) ? { blanks } : {}) })
+  })
   sim.bus.on('piece:detonated', ({ piece, info }) => {
     const hit = sim.state.obstacles.find((o) => o.id === info.obstacleId)
     const kin = sim.state.obstacles.filter((o) => !o.frozen === !hit?.frozen)
@@ -65,14 +74,20 @@ function kickTo(sim: Sim, mote: Mote, to: Vec2): void {
 // center; one reaching the catch ring is drawn to a node. False if none.
 function feedOne(sim: Sim, piece: Piece): boolean {
   const want = new Set<string>(piece.layer.nodes.filter((_, i) => piece.held[i] === null).map((n) => n.catch))
+  // Its own colors or opal, nearest first; a null or void only when nothing
+  // that counts is left (the way bowls themselves prefer them).
   let best: Mote | null = null
+  const better = (m: Mote) => !best || blankRank(m) < blankRank(best) || (blankRank(m) === blankRank(best) && dist(m.pos, piece.pos) < dist(best.pos, piece.pos))
   for (const m of sim.state.motes) {
-    if (m.state !== 'free' || m.vel || (m.color !== 'generic' && !want.has(m.color))) continue
-    if (!best || dist(m.pos, piece.pos) < dist(best.pos, piece.pos)) best = m
+    if (m.state !== 'free' || m.vel || (!takesAnyBowl(m.color) && !want.has(m.color))) continue
+    if (better(m)) best = m
   }
   if (best) kickTo(sim, best, piece.pos)
   return !!best
 }
+
+// 0 for a mote that counts (its own color or opal), then null, then void.
+const blankRank = (m: Mote) => (m.color === 'null' ? 1 : m.color === 'void' ? 2 : 0)
 
 const GATHER_TIMEOUT = 30
 const GATHER_TOLERANCE = 4 // px of margin inside the ring's inner edge
@@ -100,7 +115,7 @@ function gather(sim: Sim, slot: number, to: Vec2, layer?: number): string | null
     }
     const free = sim.state.motes.filter((m) => m.state === 'free')
     let next: [Mote, Vec2] | null = null
-    const wild = free.find((m) => m.color === 'generic' && dist(m.pos, to) < clear)
+    const wild = free.find((m) => takesAnyBowl(m.color) && dist(m.pos, to) < clear)
     if (wild) {
       const d = dist(wild.pos, to) || 1
       next = [wild, { x: to.x + ((wild.pos.x - to.x) / d) * (clear + REACH), y: to.y + ((wild.pos.y - to.y) / d) * (clear + REACH) }]
@@ -212,7 +227,7 @@ export function runCompetent(level: LevelData, seed: number, maxSeconds = 600, o
             if (m.state !== 'free') continue
             const d = Math.hypot(m.home.x - x, m.home.y - y)
             if (Math.abs(d - layer.radius) > 8 + m.tether * 0.8) continue
-            const c = m.color === 'generic' ? [...need.keys()].find((k) => (need.get(k) ?? 0) > 0) : m.color
+            const c = takesAnyBowl(m.color) ? [...need.keys()].find((k) => (need.get(k) ?? 0) > 0) : m.color
             if (c && (need.get(c) ?? 0) > 0) {
               need.set(c, need.get(c)! - 1)
               got++
@@ -246,7 +261,7 @@ export function runCompetent(level: LevelData, seed: number, maxSeconds = 600, o
         const layer = piece.layer
         const want = new Set(layer.nodes.filter((_, i) => piece.held[i] === null).map((n) => n.catch as string))
         const band = (m: { home: Vec2 }) => Math.abs(Math.hypot(m.home.x - piece.pos.x, m.home.y - piece.pos.y) - layer.radius)
-        const candidates = s().motes.filter((m) => m.state === 'free' && !m.vel && (want.has(m.color) || m.color === 'generic') && band(m) > 10)
+        const candidates = s().motes.filter((m) => m.state === 'free' && !m.vel && (want.has(m.color) || takesAnyBowl(m.color)) && band(m) > 10)
         if (!candidates.length) continue
         candidates.sort((a, b) => band(a) - band(b))
         // Aim: tap on the far side so the mote coasts toward the nearest ring
@@ -288,7 +303,7 @@ function fallbackCast(sim: Sim): { id: string; at: Vec2 } | null {
     if (rune.state !== 'idle' || !layer) continue
     const catches = catchesOf(layer)
     if (colorsCanCover(s, catches)) {
-      const wanted = free.filter((m) => m.color === 'generic' || catches.includes(m.color))
+      const wanted = free.filter((m) => takesAnyBowl(m.color) || catches.includes(m.color))
       if (!wanted.length) continue
       const cx = wanted.reduce((a, m) => a + m.pos.x, 0) / wanted.length
       const cy = wanted.reduce((a, m) => a + m.pos.y, 0) / wanted.length

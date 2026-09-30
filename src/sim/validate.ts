@@ -5,7 +5,8 @@ import { circleInRect } from './geometry'
 import type { LevelData, Rect } from './types'
 
 const HUES = ['red', 'blue', 'gold', 'teal', 'violet']
-const MOTE_COLORS = [...HUES, 'generic']
+const MOTE_COLORS = [...HUES, 'generic', 'null', 'void']
+const PREFILLS = ['real', 'null', 'void']
 const RELEASES = [...MOTE_COLORS, 'annihilating']
 const INSIGHTS = ['none', 'shape', 'full']
 export const MIN_SIDES = 3
@@ -150,6 +151,7 @@ export function validateLevel(data: unknown): string[] {
           if (!isObj(n)) return err(np, 'must be an object')
           if (!HUES.includes(n.catch as string)) err(`${np}.catch`, `must be a hue (${HUES.join(', ')})`)
           if (!RELEASES.includes(n.release as string)) err(`${np}.release`, `must be one of ${RELEASES.join(', ')}`)
+          if (n.prefilled !== undefined && !PREFILLS.includes(n.prefilled as string)) err(`${np}.prefilled`, `must be one of ${PREFILLS.join(', ')}`)
           if (data.endless && n.release === 'annihilating') err(`${np}.release`, 'endless levels never annihilate')
         })
       })

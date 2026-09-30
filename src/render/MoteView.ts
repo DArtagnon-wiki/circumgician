@@ -1,6 +1,6 @@
 import { Container, Sprite } from 'pixi.js'
 import type { Mote, MoteStateKind } from '../sim/types'
-import { colorForMote, lighten, opal } from './Theme'
+import { NULL_COLOR, VOID_COLOR, VOID_RIM, colorForMote, lighten, opal } from './Theme'
 import { textures } from './textures'
 import type { SmokeSystem } from './SmokeSystem'
 import { LAUNCH } from './Detonation'
@@ -49,6 +49,8 @@ export class MoteView {
   private hot: Sprite
   private drop: Sprite
   private gem: Sprite // locked in ice: a crisp jewel, so it reads against the glaze
+  private rim: Sprite // a blank's edge: a null is a hollow bead, a void a dark hole
+  private addWisp = true // a void's smoke is ink, not light
   private smoke: SmokeSystem
   private phase = Math.random() * TAU
   private emitAcc = Math.random() * 0.1
@@ -63,21 +65,22 @@ export class MoteView {
     this.hot = new Sprite(t.glow)
     this.drop = new Sprite(t.droplet)
     this.gem = new Sprite(t.disc)
-    for (const s of [this.halo, this.body, this.hot, this.drop, this.gem]) s.anchor.set(0.5)
+    this.rim = new Sprite(t.ring)
+    for (const s of [this.halo, this.body, this.hot, this.drop, this.gem, this.rim]) s.anchor.set(0.5)
     layers.halos.addChild(this.halo)
-    layers.bodies.addChild(this.body, this.drop, this.gem)
+    layers.bodies.addChild(this.body, this.drop, this.gem, this.rim)
     layers.hearts.addChild(this.hot)
   }
 
   destroy(): void {
-    for (const s of [this.halo, this.body, this.hot, this.drop, this.gem]) s.destroy()
+    for (const s of [this.halo, this.body, this.hot, this.drop, this.gem, this.rim]) s.destroy()
   }
 
   private show(on: boolean): void {
     this.body.visible = on
     this.hot.visible = on
     this.halo.visible = on && quality.settings.glows
-    if (!on) this.drop.visible = this.gem.visible = false
+    if (!on) this.drop.visible = this.gem.visible = this.rim.visible = false
   }
 
   // Not drawn at all (a frostbitten piece's motes, until its ice appears).
@@ -96,8 +99,11 @@ export class MoteView {
     }
     this.show(true)
     const generic = mote.color === 'generic'
+    const voided = mote.color === 'void'
+    const blank = voided || mote.color === 'null'
     const color = generic ? opal(time, this.phase) : colorForMote(mote.color)
-    const wisp = generic ? color : lighten(color, 0.12)
+    const wisp = generic ? color : voided ? 0x2a1f3d : lighten(color, 0.12)
+    this.addWisp = !voided
     const { x, y } = mote.pos
     for (const s of [this.halo, this.body, this.hot]) s.position.set(x, y)
     this.halo.tint = color
@@ -136,7 +142,7 @@ export class MoteView {
           life: 0.3,
           alpha: 0.6,
           grow: 0.55,
-          add: true,
+          add: this.addWisp,
           vx: (dx / d) * 70,
           vy: (dy / d) * 70,
           opal: generic ? this.phase : undefined,
@@ -166,7 +172,7 @@ export class MoteView {
       alpha = t < spill ? 0 : 1 - liquid
       if (t > 0.7) {
         this.every(dt, 0.045, () =>
-          this.smoke.emit(fx, fy, wisp, { size: 14, life: 0.8, alpha: 1.6 * (t - 0.65), grow: 2.2, add: true, opal: generic ? this.phase : undefined }),
+          this.smoke.emit(fx, fy, wisp, { size: 14, life: 0.8, alpha: 1.6 * (t - 0.65), grow: 2.2, add: this.addWisp, opal: generic ? this.phase : undefined }),
         )
       }
     } else {
@@ -184,7 +190,7 @@ export class MoteView {
             life: 0.75 + Math.random() * 0.3,
             alpha: 0.5,
             grow: 2.3,
-            add: true,
+            add: this.addWisp,
             vx: -mote.vel!.x * 0.12 + (Math.random() - 0.5) * 8,
             vy: -mote.vel!.y * 0.12 + (Math.random() - 0.5) * 8,
             opal: generic ? this.phase : undefined,
@@ -197,7 +203,7 @@ export class MoteView {
             life: 1.1 + Math.random() * 0.4,
             alpha: 0.42,
             grow: 2.8,
-            add: true,
+            add: this.addWisp,
             vx: (Math.random() - 0.5) * 10,
             vy: (Math.random() - 0.5) * 10 - 3,
             opal: generic ? this.phase : undefined,
@@ -212,6 +218,27 @@ export class MoteView {
     this.halo.alpha = Math.min(1, 0.3 * alpha * glow)
     this.body.alpha = alpha
     this.hot.alpha = 0.75 * alpha
+    // Blanks: a null is a hollow silver bead (faint body, bright rim, next
+    // to no heat); a void a dark hole ringed in pale violet, the faint
+    // corona around it swallowed at the center.
+    this.rim.visible = blank && !this.gem.visible
+    if (blank) {
+      this.rim.position.copyFrom(this.body.position)
+      this.rim.scale.set((15 / 64 / 0.8) * heart * (voided ? 1 : breathe))
+      this.rim.tint = voided ? VOID_RIM : lighten(NULL_COLOR, 0.5)
+      this.rim.alpha = 0.9 * alpha
+      if (voided) {
+        this.body.tint = VOID_COLOR
+        this.body.scale.set((30 / GLOW) * heart)
+        this.halo.tint = VOID_RIM
+        this.halo.alpha = Math.min(1, 0.22 * alpha * glow)
+        this.hot.alpha = 0
+      } else {
+        this.body.alpha = 0.3 * alpha
+        this.hot.alpha = 0.15 * alpha
+        this.halo.alpha *= 0.2
+      }
+    }
   }
 
   // A puff of smoke from this mote (landing, a kick).
@@ -224,7 +251,7 @@ export class MoteView {
         life: 0.7 + Math.random() * 0.4,
         alpha: 0.5,
         grow: 2.4,
-        add: true,
+        add: this.addWisp,
         vx: Math.cos(a) * v + vx,
         vy: Math.sin(a) * v + vy,
         opal: generic ? this.phase : undefined,

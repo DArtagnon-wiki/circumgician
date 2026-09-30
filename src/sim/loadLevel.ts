@@ -1,6 +1,7 @@
 import { DEFAULT_TETHER, ICE_RADIUS } from './constants'
 import { iceSpots } from './geometry'
-import type { Hue, LevelData, Mote, MoteColor, Obstacle, SimState, Vec2 } from './types'
+import { isHue } from '../model/Color'
+import type { LevelData, Mote, MoteColor, Obstacle, SimState, Vec2 } from './types'
 
 // Build the initial runtime state for a level. `seed` drives drift only.
 export function loadLevel(level: LevelData, seed = 1): SimState {
@@ -74,6 +75,6 @@ export function loadLevel(level: LevelData, seed = 1): SimState {
     score: 0,
     broken: 0,
     stats: { detonations: 0, landed: 0, wasted: 0, unlinked: 0, destroyed: 0, burned: 0 },
-    seenHues: [...new Set(all.map((m) => m.color).filter((c): c is Hue => c !== 'generic'))],
+    seenHues: [...new Set(all.map((m) => m.color).filter(isHue))],
   }
 }

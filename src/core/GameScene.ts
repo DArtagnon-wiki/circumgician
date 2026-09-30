@@ -416,18 +416,28 @@ export class GameScene {
       if (boss && !o.cleared && this.obstacleViews.has(o.id)) list.push({ from: o.pos, to: boss.pos, tether: true })
     }
     // A blow short of a frost layer's strength will be caught by its frost.
-    const bitten = (sides: number, o: Obstacle) => !o.frozen && !!o.layers[o.index]?.frost && sides < o.hp
+    const bitten = (power: number, o: Obstacle) => !o.frozen && !!o.layers[o.index]?.frost && power < o.hp
+    const motes = new Map(s.motes.map((m) => [m.id, m]))
     for (const piece of s.pieces) {
       if (!piece.linkedObstacleId) continue
       const o = obstacles.get(piece.linkedObstacleId)
-      if (o && this.obstacleViews.has(o.id)) list.push({ from: piece.pos, to: o.pos, full: piece.state === 'full', frost: bitten(piece.layer.sides, o) })
+      if (!o || !this.obstacleViews.has(o.id)) continue
+      // The most it can strike for: every bowl but those holding blanks.
+      const blank = piece.held.filter((id) => {
+        const c = id ? motes.get(id)?.color : undefined
+        return c === 'null' || c === 'void'
+      }).length
+      const power = piece.layer.sides - blank
+      list.push({ from: piece.pos, to: o.pos, full: piece.state === 'full', frost: bitten(power, o), ...(blank ? { pips: { lit: power, blank }, fromRadius: piece.layer.radius } : {}) })
     }
     if (this.drag) {
       const target = this.sim.previewLink(this.drag.runeId, this.drag.pos)
       const ok = this.sim.canPlace(this.drag.runeId, this.drag.pos)
       const rune = this.sim.rune(this.drag.runeId)
       const outer = rune && outerLayer(rune)
-      if (target) list.push({ from: this.drag.pos, to: target.pos, preview: true, invalid: !ok, frost: !!outer && bitten(outer.sides, target) })
+      const blank = outer ? outer.nodes.filter((n) => n.prefilled === 'null' || n.prefilled === 'void').length : 0
+      const power = outer ? outer.sides - blank : 0
+      if (target) list.push({ from: this.drag.pos, to: target.pos, preview: true, invalid: !ok, frost: !!outer && bitten(power, target), ...(blank && outer ? { pips: { lit: power, blank }, fromRadius: outer.radius } : {}) })
     }
     this.links.draw(list, this.clock)
     const g = this.links.g

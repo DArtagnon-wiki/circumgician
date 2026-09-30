@@ -95,8 +95,16 @@ export function mix(a: number, b: number, t: number): number {
 // Brighten toward white (t = 0 keeps the color, 1 is white).
 export const lighten = (c: number, t: number) => mix(c, 0xffffff, t)
 
+// Blanks: a null is clear silver glass, a void a dark hole with a pale
+// violet rim. Neither is a hue, and every palette keeps clear of both.
+export const NULL_COLOR = 0xd9dee8
+export const VOID_COLOR = 0x140c20
+export const VOID_RIM = 0xa596d6
+
 export function colorForMote(color: string): number {
   if (color === 'generic') return MIASMA_COLOR
+  if (color === 'null') return NULL_COLOR
+  if (color === 'void') return VOID_COLOR
   return active.hues[color as Hue] ?? MIASMA_COLOR
 }
 

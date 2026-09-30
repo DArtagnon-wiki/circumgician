@@ -12,10 +12,15 @@ export interface Link {
   invalid?: boolean // preview over a spot the rune can't be placed
   frost?: boolean // the blow won't break the frost layer it strikes: the piece will freeze
   tether?: boolean // ice held by the frost layer that froze it (from: the ice)
+  // A piece holding blanks: its power in lit pips, its blanks hollow, set
+  // out along the thread from the rune's edge (`fromRadius` out).
+  pips?: { lit: number; blank: number }
+  fromRadius?: number
 }
 
 const THREAD = 0xe6dcff
 const BEAD = 0xf1e9ff
+const PIP_BLANK = 0xa596d6
 const BEAD_GAP = 44 // px between glyph beads along a thread
 const SEGMENTS = 14
 
@@ -67,6 +72,18 @@ export class LinkThreads {
         g.moveTo(l.from.x + dx * t0 + nx * jag(k), l.from.y + dy * t0 + ny * jag(k))
           .lineTo(l.from.x + dx * t1 + nx * jag(k + 1), l.from.y + dy * t1 + ny * jag(k + 1))
           .stroke({ color, width: l.full || l.frost ? 1.4 : 1, alpha: Math.min(1, (0.18 + 0.3 * wave) * dim * bright * (l.frost ? 1.5 : 1)) })
+      }
+      if (l.pips) {
+        const total = l.pips.lit + l.pips.blank
+        const start = (l.fromRadius ?? 40) + 12
+        for (let k = 0; k < total; k++) {
+          const at = start + k * 7
+          if (at > len - 12) break
+          const x = l.from.x + (dx / len) * at
+          const y = l.from.y + (dy / len) * at
+          if (k < l.pips.lit) g.circle(x, y, 2.3).fill({ color: BEAD, alpha: 0.95 * dim })
+          else g.circle(x, y, 2.1).stroke({ color: PIP_BLANK, width: 1, alpha: 0.85 * dim })
+        }
       }
       // Glyph beads drifting toward the obstacle, fading in and out at the ends.
       const n = Math.max(1, Math.floor(len / BEAD_GAP))

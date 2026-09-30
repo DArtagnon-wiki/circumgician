@@ -20,7 +20,13 @@ export interface Rect {
 export interface NodeSpec {
   catch: Hue
   release: ReleaseColor
+  // A cup that starts full: a mote of its own color ('real', which counts
+  // toward the blow), a null or a void. The mote appears when the layer is
+  // cast and leaves at the burst like any other.
+  prefilled?: Prefill
 }
+
+export type Prefill = 'real' | 'null' | 'void'
 
 export interface RuneLayerSpec {
   sides: number // 3+

@@ -1,6 +1,7 @@
 import { DRIFT_SPEED, EJECT_TIME, FLICK_MAX, KICK_GAIN, KICK_MAX, KICK_MIN, MOTE_FRICTION, PUSH_BASE, PUSH_DEPTH, REACH, SETTLE_SPEED, TRAVEL_TIME } from './constants'
 import { dist, nodePositions } from './geometry'
 import { nextRandom } from './rng'
+import { addsPower, catchRank, takesAnyBowl } from '../model/Color'
 import type { SimBus } from './events'
 import type { Mote, Piece, SimState, Vec2 } from './types'
 
@@ -25,9 +26,9 @@ function pickWander(state: SimState, mote: Mote): Vec2 {
 }
 
 // Can this charging piece still take the mote (a hungry node of its color,
-// or any hungry node for a wild one)?
+// or any hungry node for an opal, null or void)?
 function canHold(piece: Piece, mote: Mote): boolean {
-  return piece.held.some((id, i) => id === null && (mote.color === 'generic' || mote.color === piece.layer.nodes[i].catch))
+  return piece.held.some((id, i) => id === null && (takesAnyBowl(mote.color) || mote.color === piece.layer.nodes[i].catch))
 }
 
 // Pieces on the field act on nearby free motes. A mote a charging piece can
@@ -204,11 +205,15 @@ export function updateMotion(state: SimState, bus: SimBus, dt: number): void {
   }
 }
 
-// Each free mote within reach of a hungry node whose catch it satisfies is
-// claimed by the nearest such node. Motes are resolved in pool order, and a
+// Each free mote a hungry node can take is claimed by the nearest such node
+// within reach (or, inside a rune or kicked into its ring, the nearest one
+// at all). Bowls prefer their own color, then opal, null and void: motes are
+// resolved in that order (pool order within each), and a null or void never
+// takes a bowl that a real or opal mote in the same ring could fill. A
 // claimed node is no longer hungry, so contention is deterministic per tick.
 export function updateCatching(state: SimState, bus: SimBus): void {
-  const hungry: { piece: Piece; node: number; pos: Vec2; catch: string }[] = []
+  type Hungry = { piece: Piece; node: number; pos: Vec2; catch: string }
+  const hungry: Hungry[] = []
   for (const piece of state.pieces) {
     if (piece.state !== 'charging') continue
     const positions = nodePositions(piece, state.time)
@@ -218,13 +223,18 @@ export function updateCatching(state: SimState, bus: SimBus): void {
   }
   if (!hungry.length) return
 
-  for (const mote of state.motes) {
+  const free = state.motes.filter((m) => m.state === 'free').sort((a, b) => catchRank(a.color) - catchRank(b.color))
+  // A bowl held back for a mote that counts, already in its rune's ring.
+  const keptFor = (h: Hungry) =>
+    free.some((m) => m.state === 'free' && addsPower(m.color) && (m.color === 'generic' || m.color === h.catch) && dist(m.pos, h.piece.pos) <= h.piece.layer.radius + REACH)
+  for (const mote of free) {
     if (mote.state !== 'free') continue
-    let best: (typeof hungry)[number] | null = null
+    const blank = !addsPower(mote.color)
+    const fits = (h: Hungry) => h.piece.held[h.node] === null && (takesAnyBowl(mote.color) || mote.color === h.catch) && !(blank && keptFor(h))
+    let best: Hungry | null = null
     let bestD = REACH
     for (const h of hungry) {
-      if (h.piece.held[h.node] !== null) continue
-      if (mote.color !== 'generic' && mote.color !== h.catch) continue
+      if (!fits(h)) continue
       const d = dist(mote.pos, h.pos)
       if (d <= bestD) {
         bestD = d
@@ -237,8 +247,7 @@ export function updateCatching(state: SimState, bus: SimBus): void {
     if (!best) {
       bestD = Infinity
       for (const h of hungry) {
-        if (h.piece.held[h.node] !== null) continue
-        if (mote.color !== 'generic' && mote.color !== h.catch) continue
+        if (!fits(h)) continue
         if (dist(mote.pos, h.piece.pos) > h.piece.layer.radius + (mote.kicked ? REACH : -REACH)) continue
         const d = dist(mote.pos, h.pos)
         if (d < bestD) {
