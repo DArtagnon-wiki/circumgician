@@ -289,5 +289,27 @@ export const LINES: Record<string, Line[]> = {
   ],
 }
 
+// Levels 24-26: nulls, a pair, borrowed cups. Rubies on the left, sapphires
+// on the right, the later stages made at a well below.
+const ARC = { ruby: at(100, 440), sapphire: at(300, 440), well: at(200, 600), left: at(100, 605), right: at(300, 605), hollowWell: at(200, 590) }
+const hollowToCrux = [...cast(0, ARC.ruby), ...cast(1, ARC.sapphire), ...cast(2, ARC.ruby), ...cast(3, ARC.sapphire), ...cast(4, ARC.hollowWell)]
+const twoHandsToCrux = [...cast(0, ARC.ruby), ...cast(1, ARC.sapphire), ...cast(2, ARC.ruby), ...cast(3, ARC.sapphire), ...cast(4, ARC.well), ...cast(3, ARC.well)]
+const borrowedToCrux = [...cast(0, ARC.ruby), ...cast(1, ARC.sapphire), ...cast(2, ARC.ruby), ...cast(3, ARC.sapphire), ...cast(4, ARC.well), ...cast(3, ARC.right)]
+Object.assign(LINES, {
+  'hollow-bowls': [
+    { name: 'intended', expect: 'won', steps: [...hollowToCrux, ...cast(5, ARC.hollowWell), ...cast(0, ARC.hollowWell)] },
+    { name: 'the amethyst triangle takes the nulls', expect: 'not-won', steps: [...hollowToCrux, ...cast(0, ARC.hollowWell)] },
+  ],
+  'two-hands': [
+    { name: 'intended', expect: 'won', steps: [...twoHandsToCrux, place(5, ARC.left), feed(5), place(2, ARC.right), feed(2), tap(5)] },
+    { name: 'a jade decoy for the pentagon', expect: 'not-won', steps: [...twoHandsToCrux, ...cast(0, ARC.left)] },
+    { name: 'a jade decoy for the square', expect: 'not-won', steps: [...twoHandsToCrux, ...cast(1, ARC.right)] },
+  ],
+  'borrowed-light': [
+    { name: 'intended', expect: 'won', steps: [...borrowedToCrux, ...cast(5, ARC.left), ...cast(3, ARC.sapphire), ...cast(5, ARC.ruby)] },
+    { name: 'the finisher first', expect: 'not-won', steps: [...borrowedToCrux, ...cast(3, ARC.left)] },
+  ],
+} satisfies Record<string, Line[]>)
+
 // The line a level is designed to be played along.
 export const intendedLine = (id: string): Line | undefined => LINES[id]?.find((line) => line.name === 'intended')

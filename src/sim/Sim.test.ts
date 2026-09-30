@@ -611,6 +611,15 @@ describe('null and void motes, prefilled bowls', () => {
     expect(blank.piece(p3)!.held.map((m) => blank.state.motes.find((x) => x.id === m)!.color).sort()).toEqual(['null', 'red', 'red'])
   })
 
+  it("blanks fill a rune's hollow bowls first, leaving the rest for colors still out on the field", () => {
+    // Two sapphire bowls and two amethyst ones (no amethyst anywhere), two nulls inside.
+    const nodes = (['blue', 'blue', 'violet', 'violet'] as const).map((c) => ({ catch: c, release: 'gold' as const }))
+    const sim = mk(testLevel({ hand: [{ layers: [{ sides: 4, radius: 40, nodes }, layer(3, 30, 'red')] }], motes: [...inside(['null', 'null']), mote('blue', 60, 700), mote('blue', 340, 700)] }))
+    const id = placeSlot(sim, 0)
+    stepFor(sim, 1)
+    expect(sim.piece(id)!.held.map((m) => (m ? sim.state.motes.find((x) => x.id === m)!.color : null))).toEqual([null, null, 'null', 'null'])
+  })
+
   it('ash bowls are kept for voids: a void goes to one first, and a ruby leaves it for the void', () => {
     // Three ruby bowls and one ash bowl, over four rubies and a void.
     const nodes = [0, 1, 2, 3].map((i) => ({ catch: 'red' as const, release: i === 3 ? ('annihilating' as const) : ('red' as const) }))

@@ -14,8 +14,10 @@ import { profileLevel, tensionAlong, tensionBands } from '../../sim/solver'
 // the last blow and moves back toward two thirds; everything else has
 // motes to spare. The ice and frost levels start a second arc (`arc`): back
 // to the sixth level's length, building to the eleventh's; so do the fire
-// levels.
-const PROGRESSION: Record<string, { blows: number; crux?: number; arc?: true }> = {
+// levels, and the levels of nulls, pairs and borrowed cups. Where a level
+// has other moves besides fills and detonations (a pair's two pieces
+// latching on, say), `moves` is its shortest win in moves.
+const PROGRESSION: Record<string, { blows: number; crux?: number; arc?: true; moves?: number }> = {
   'first-threads': { blows: 2 },
   'changing-colors': { blows: 3 },
   'the-weighing': { blows: 4 },
@@ -39,6 +41,9 @@ const PROGRESSION: Record<string, { blows: number; crux?: number; arc?: true }> 
   backdraft: { blows: 12, crux: 8 },
   wildfire: { blows: 13, crux: 9 },
   phoenix: { blows: 15, crux: 10 },
+  'hollow-bowls': { blows: 7, crux: 6, arc: true },
+  'two-hands': { blows: 8, crux: 7, moves: 17 },
+  'borrowed-light': { blows: 9, crux: 7 },
 }
 
 describe('pack tension progression', () => {
@@ -61,7 +66,7 @@ describe('pack tension progression', () => {
       expect(p.winnable).toBe(true)
       expect(p.cleanest).toBe(0)
       const { bands, fewestMoves } = tensionBands(level)
-      expect(fewestMoves).toBe(2 * step.blows)
+      expect(fewestMoves).toBe(step.moves ?? 2 * step.blows)
       const run = runScript(level, intendedLine(level.id)!.steps, { seed: 1 })
       const beats = tensionAlong(level, run.moves)!.map((b) => b.tension.tension)
       if (step.crux === undefined) {

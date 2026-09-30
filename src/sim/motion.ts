@@ -1,7 +1,7 @@
 import { DRIFT_SPEED, EJECT_TIME, FLICK_MAX, KICK_GAIN, KICK_MAX, KICK_MIN, MOTE_FRICTION, PUSH_BASE, PUSH_DEPTH, REACH, SETTLE_SPEED, TRAVEL_TIME } from './constants'
 import { dist, nodePositions } from './geometry'
 import { nextRandom } from './rng'
-import { addsPower, catchRank, takesAnyBowl } from '../model/Color'
+import { addsPower, catchRank, isHue, takesAnyBowl } from '../model/Color'
 import type { SimBus } from './events'
 import type { Mote, Piece, SimState, Vec2 } from './types'
 
@@ -209,7 +209,9 @@ export function updateMotion(state: SimState, bus: SimBus, dt: number): void {
 // within reach (or, inside a rune or kicked into its ring, the nearest one
 // at all). Bowls prefer their own color, then opal, null and void: motes are
 // resolved in that order (pool order within each), and a null or void never
-// takes a bowl that a real or opal mote in the same ring could fill. Ash
+// takes a bowl that a real or opal mote in the same ring could fill, nor
+// one of a color still out on the field while its rune has a hollow bowl
+// (one of a color nowhere on the field) left to fill. Ash
 // bowls, which destroy what they hold, are the exception, kept for voids:
 // a void goes to an ash bowl before any other, and a mote that counts
 // won't take an ash bowl while a void is in that rune's ring. A claimed
@@ -233,6 +235,11 @@ export function updateCatching(state: SimState, bus: SimBus): void {
   const keptFor = (h: Hungry) => free.some((m) => m.state === 'free' && addsPower(m.color) && (m.color === 'generic' || m.color === h.catch) && inRing(m, h))
   // An ash bowl held back for a void in its rune's ring.
   const keptForVoid = (h: Hungry) => h.ash && free.some((m) => m.state === 'free' && m.color === 'void' && inRing(m, h))
+  // Hollow bowls: no mote of their color is out on the field, so only a
+  // blank (or opal) can fill them. A rune's blanks go to those first.
+  const out = new Set<string>(free.filter((m) => isHue(m.color)).map((m) => m.color))
+  const hollow = (h: Hungry) => !out.has(h.catch)
+  const hollowLeft = (piece: Piece) => hungry.some((x) => x.piece === piece && x.piece.held[x.node] === null && hollow(x))
   for (const mote of free) {
     if (mote.state !== 'free') continue
     const voided = mote.color === 'void'
@@ -240,6 +247,7 @@ export function updateCatching(state: SimState, bus: SimBus): void {
     const fits = (h: Hungry) => {
       if (h.piece.held[h.node] !== null || !(takesAnyBowl(mote.color) || mote.color === h.catch)) return false
       if (voided && h.ash) return true
+      if (blank && !hollow(h) && hollowLeft(h.piece)) return false
       return !(blank && keptFor(h)) && !(!voided && keptForVoid(h))
     }
     // Nearest first; a void takes an ash bowl before any other.
