@@ -536,6 +536,15 @@
     0 0 42px var(--hue),
     0 2px 3px rgba(0, 0, 0, 0.7);
 }
+.hud-announce.leaving {
+  animation: announce-leave 0.3s ease-in forwards;
+}
+@keyframes announce-leave {
+  to {
+    opacity: 0;
+    transform: translate(-50%, -58%) scale(1.02);
+  }
+}
 @keyframes announce {
   0% {
     opacity: 0;

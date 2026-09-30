@@ -71,6 +71,11 @@ export function createGameHud(actions: GameHudActions): GameHud {
       score.classList.add('bump')
     },
     announce(kicker, title, color) {
+      // A newer banner takes over: any still showing fades out from where it is.
+      for (const old of banners) {
+        old.style.opacity = getComputedStyle(old).opacity
+        old.classList.add('leaving')
+      }
       const el = document.createElement('div')
       el.className = 'hud-announce'
       el.style.setProperty('--hue', color)
