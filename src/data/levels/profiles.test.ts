@@ -44,6 +44,7 @@ const PROGRESSION: Record<string, { blows: number; crux?: number; arc?: true; mo
   'hollow-bowls': { blows: 7, crux: 6, arc: true },
   'two-hands': { blows: 8, crux: 7, moves: 17 },
   'borrowed-light': { blows: 9, crux: 7 },
+  'the-aegis': { blows: 10, crux: 8 },
 }
 
 describe('pack tension progression', () => {
