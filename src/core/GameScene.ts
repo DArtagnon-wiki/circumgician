@@ -19,8 +19,8 @@ import { Sim } from '../sim/Sim'
 import { ENDLESS_TUNING, ensureEndlessLayers } from '../sim/endless'
 import { EJECT_TIME, FLICK_GAIN, MOTE_FRICTION, REACH, THAW_LAG } from '../sim/constants'
 import { middleAngle, outerAngle, outerLayer } from '../sim/geometry'
-import { partnerOf } from '../sim/rules'
-import type { Hue, LevelData, Mote, Obstacle, Piece, Rune, Vec2 } from '../sim/types'
+import { partnerOf, shieldPull, upShields } from '../sim/rules'
+import type { Hue, LevelData, Mote, Obstacle, Piece, Rune, RuneLayerSpec, Vec2 } from '../sim/types'
 import type { DetonationInfo } from '../sim/events'
 import { createDebugPanel, isDebugMode } from '../debug/DebugPanel'
 import { createGameHud, type GameHud } from '../ui/GameHud'
@@ -281,6 +281,12 @@ export class GameScene {
       // A two-shape layer lights the shapes whose places are held in stasis.
       const held = s.pieces.filter((p) => p.stasis !== undefined && p.linkedObstacleId === o.id).map((p) => p.energy.sides)
       view.setEngaged(held, held.length > 1)
+      // Its shields, and how far their pullers have them.
+      const shields = o.layers[o.index]?.shields ?? []
+      view.setShields(
+        o.index,
+        shields.map((sh, i) => ({ color: hueColor(sh.color), strength: sh.strength, pull: shieldPull(s, o, sh.color), down: !!o.down?.includes(i) })),
+      )
       view.sync(o, dt, s.time)
     }
     this.syncHand(dt)
@@ -395,7 +401,7 @@ export class GameScene {
       view.setHitRadius(piece.layer.radius * scale + 10)
       if (piece.burnAt !== undefined) this.burnFuse(view, piece, dt)
       else view.setFuse(piece.freezeAt === undefined ? null : Math.max(0, (piece.freezeAt - s.time) / (piece.freezeFor ?? ENDLESS_TUNING.fuse)), piece.layer.radius, s.time)
-      view.sync(pieceLook(piece, this.stasisOf(piece)), outerAngle(piece, s.time), middleAngle(piece, s.time), s.time, dt, motes)
+      view.sync(pieceLook(piece, this.stasisOf(piece), this.pullColorOf(piece)), outerAngle(piece, s.time), middleAngle(piece, s.time), s.time, dt, motes)
     }
   }
 
@@ -403,6 +409,16 @@ export class GameScene {
   private stasisOf(piece: Piece): 'waiting' | 'armed' | undefined {
     if (piece.stasis === undefined) return undefined
     return partnerOf(this.sim.state, piece) ? 'armed' : 'waiting'
+  }
+
+  // The color a puller hauls on: its obstacle's first shield still up that
+  // it has a bowl for (or, all of those down, the first it has one for).
+  private pullColorOf(piece: Piece): number | undefined {
+    if (piece.pulling === undefined) return undefined
+    const o = this.sim.state.obstacles.find((x) => x.id === piece.linkedObstacleId)
+    if (!o) return undefined
+    const any = (o.layers[o.index]?.shields ?? []).find((sh) => piece.layer.nodes.some((n) => n.catch === sh.color))
+    return haulColor(piece.layer, o) ?? (any ? hueColor(any.color) : undefined)
   }
 
   // A level's fuse burning down around a piece: sparks fly from its tip,
@@ -444,7 +460,16 @@ export class GameScene {
       }).length
       const power = piece.layer.sides - blank
       const stasis = this.stasisOf(piece)
-      list.push({ from: piece.pos, to: o.pos, full: piece.state === 'full', frost: bitten(power, o), ...(stasis ? { stasis } : {}), ...(blank ? { pips: { lit: power, blank }, fromRadius: piece.layer.radius } : {}) })
+      const pull = this.pullColorOf(piece)
+      list.push({
+        from: piece.pos,
+        to: o.pos,
+        full: piece.state === 'full',
+        frost: pull === undefined && bitten(power, o),
+        ...(stasis ? { stasis } : {}),
+        ...(pull === undefined ? {} : { pull }),
+        ...(blank ? { pips: { lit: power, blank }, fromRadius: piece.layer.radius } : {}),
+      })
     }
     if (this.drag) {
       const target = this.sim.previewLink(this.drag.runeId, this.drag.pos)
@@ -453,7 +478,18 @@ export class GameScene {
       const outer = rune && outerLayer(rune)
       const blank = outer ? outer.nodes.filter((n) => n.prefilled === 'null' || n.prefilled === 'void').length : 0
       const power = outer ? outer.sides - blank : 0
-      if (target) list.push({ from: this.drag.pos, to: target.pos, preview: true, invalid: !ok, frost: !!outer && bitten(power, target), ...(blank && outer ? { pips: { lit: power, blank }, fromRadius: outer.radius } : {}) })
+      // Dropped here, would it latch on to pull a shield?
+      const pull = target && outer ? haulColor(outer, target) : undefined
+      if (target)
+        list.push({
+          from: this.drag.pos,
+          to: target.pos,
+          preview: true,
+          invalid: !ok,
+          frost: !!outer && pull === undefined && bitten(power, target),
+          ...(pull === undefined ? {} : { pull }),
+          ...(blank && outer ? { pips: { lit: power, blank }, fromRadius: outer.radius } : {}),
+        })
     }
     this.links.draw(list, this.clock)
     const g = this.links.g
@@ -557,6 +593,40 @@ export class GameScene {
       this.sfx.armed()
     })
     bus.on('piece:released', ({ piece }) => this.effects.ring(piece.pos, STASIS_RING, piece.layer.radius + 12, piece.layer.radius + 36, 0.4, 1.5))
+    // Latched onto a shielded layer: clamps in the shield's color close.
+    bus.on('piece:pulling', ({ piece }) => {
+      this.effects.ring(piece.pos, this.pullColorOf(piece) ?? STASIS_RING, piece.layer.radius + 30, piece.layer.radius + 12, 0.35, 2)
+      this.sfx.stasis()
+    })
+    // Pulled down: the shield bursts in its color.
+    bus.on('shield:down', ({ obstacle, index }) => {
+      const sh = obstacle.layers[obstacle.index]?.shields?.[index]
+      if (!sh) return
+      const color = hueColor(sh.color)
+      const r = obstacle.layers[obstacle.index].radius + 12
+      this.effects.ring(obstacle.pos, color, r, r + 42, 0.55, 3)
+      this.effects.ring(obstacle.pos, lighten(color, 0.5), r - 4, r + 20, 0.3, 1.5)
+      const star = textures().star
+      for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * Math.PI * 2 + Math.random() * 0.3
+        const v = 60 + Math.random() * 70
+        this.effects.particle(star, {
+          x: obstacle.pos.x + Math.cos(a) * r,
+          y: obstacle.pos.y + Math.sin(a) * r,
+          vx: Math.cos(a) * v,
+          vy: Math.sin(a) * v,
+          drag: 0.1,
+          spin: (Math.random() - 0.5) * 6,
+          scale: 0.35 + Math.random() * 0.25,
+          scaleTo: 0.05,
+          tint: lighten(color, 0.3),
+          add: true,
+          life: 0.6 + Math.random() * 0.3,
+        })
+      }
+      this.effects.addShake(4)
+      this.sfx.shieldDown()
+    })
     bus.on('piece:detonated', ({ piece, info }) => this.onDetonated(piece.id, info))
     bus.on('hue:discovered', ({ hue, mote }) => this.onHueDiscovered(hue, { ...mote.home }))
     // A piece whose fuse burned down before it burst: it and the motes it
@@ -929,6 +999,13 @@ export class GameScene {
     this.layers.root.scale.set(fit.scale)
     this.layers.root.position.set(fit.offsetX + sx * fit.scale, fit.offsetY + sy * fit.scale)
   }
+}
+
+// The color a piece of this glass pulls at `o`: the first shield still up
+// there that it has a bowl for (none: it would not pull there).
+function haulColor(glass: RuneLayerSpec, o: Obstacle): number | undefined {
+  const sh = upShields(o).find((x) => glass.nodes.some((n) => n.catch === x.color))
+  return sh ? hueColor(sh.color) : undefined
 }
 
 function distToSegment(p: Vec2, a: Vec2, b: Vec2): number {

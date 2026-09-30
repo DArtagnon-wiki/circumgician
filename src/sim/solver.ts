@@ -1,4 +1,4 @@
-import type { LevelData, MoteColor, RuneLayerSpec } from './types'
+import type { Hue, LevelData, MoteColor, RuneLayerSpec } from './types'
 
 // Economy solver: plays out a level's arithmetic exhaustively, with geometry
 // abstracted away. Kicks let a player herd motes almost anywhere, and where
@@ -29,7 +29,12 @@ import type { LevelData, MoteColor, RuneLayerSpec } from './types'
 //     its shapes goes into stasis on it (one per shape), and the two burst
 //     together as one blow of their combined power. A piece whose shape
 //     matches only two-shape layers whose place for it is held goes
-//     unlinked, as in the game.
+//     unlinked, as in the game;
+//   - nothing strikes a layer while any of its shields is up. A piece with
+//     bowls of a shield's color latches on as a puller (full, or cast with
+//     only its bowls of the shields' colors filled, the rest to fill
+//     later); a shield is down once its pullers hold its strength in its
+//     color. Pullers can't burst until the layer falls, and then go free.
 // A move is one of
 //   fill Rn.k      fill layer k of rune n from the free motes (`fill Rn.k ..nv`
 //                  when some of its bowls take a null or a void). If k is still
@@ -42,6 +47,9 @@ import type { LevelData, MoteColor, RuneLayerSpec } from './types'
 //   Rn.k=>Om       put that full piece in stasis on obstacle m's two-shape
 //                  layer, holding its shape's place
 //   Rn.k+Rp.q->Om  burst two pieces in stasis there as one blow
+//   pull Rn.k=>Om  latch layer k of rune n onto obstacle m's shields: a full
+//                  piece as it is, or else cast (digging as a fill does)
+//                  with its bowls of the colors still up there filled
 // Casting an empty piece only matters for what it uncovers, so it happens
 // inside the fill that needs it. Room on the field is the one limit on
 // digging: `maxPlaced` caps the pieces on the field at once. The default,
@@ -71,6 +79,11 @@ export interface EconomyPiece {
   // 'v' a void, '.' otherwise. Omitted when every bowl counts.
   blanks?: string
   locked?: number // in stasis on this obstacle's two-shape layer
+  pulling?: number // latched onto this obstacle's shields
+  // Not full, but holding: per bowl '.' a mote that counts, 'n' a null,
+  // 'v' a void, '_' nothing yet (a puller cast with only its shields'
+  // colors). Omitted for an empty piece.
+  hold?: string
 }
 
 // A block of ice, as the game creates them: the level's, then each piece a
@@ -97,6 +110,7 @@ export interface Economy {
 export type Move =
   | { kind: 'fill'; rune: number; layer: number; blanks?: string }
   | { kind: 'lock'; rune: number; layer: number; target: number }
+  | { kind: 'pull'; rune: number; layer: number; target: number }
   | { kind: 'fire'; rune: number; layer: number; target: number | null; ice?: boolean; with?: { rune: number; layer: number } }
 
 // One detonation (a pair's counts once), counted the way the result screen
@@ -166,16 +180,19 @@ export function economyKey(level: LevelData, s: Economy, opts: SolverOptions = {
   if (room(opts) === Infinity) {
     const mark = (r: number, k: number) => {
       const st = status(s, r, k)
-      if (st !== 'full') return st === 'open' ? 'o' : 'x'
-      const p = s.pieces.find((q) => q.rune === r && q.layer === k)!
-      return `F${p.blanks ?? ''}${p.locked === undefined ? '' : `@${p.locked}`};`
+      if (st === 'fired') return 'x'
+      const p = s.pieces.find((q) => q.rune === r && q.layer === k)
+      if (st === 'open' && !p?.hold) return 'o'
+      return `${p!.full ? `F${p!.blanks ?? ''}` : `H${p!.hold}`}${latch(p!)};`
     }
     const layers = level.hand.map((_, r) => Array.from({ length: castable(level, r) }, (_, k) => mark(r, k)).join('')).join(',')
     return `${s.pool.join(',')}|${layers}|${obs}`
   }
-  const piece = (p: EconomyPiece) => `${p.rune}.${p.layer}${p.full ? `f${p.blanks ?? ''}` : ''}${p.locked === undefined ? '' : `@${p.locked}`}`
+  const piece = (p: EconomyPiece) => `${p.rune}.${p.layer}${p.full ? `f${p.blanks ?? ''}` : p.hold ? `h${p.hold}` : ''}${latch(p)}`
   return `${s.pool.join(',')}|${s.hand.join(',')}|${s.pieces.map(piece).join(',')}|${obs}`
 }
+
+const latch = (p: EconomyPiece) => `${p.locked === undefined ? '' : `@${p.locked}`}${p.pulling === undefined ? '' : `^${p.pulling}`}`
 
 export function economyWon(level: LevelData, s: Economy): boolean {
   return s.obstacles.every((o, i) => o.index >= level.obstacles[i].layers.length)
@@ -221,14 +238,24 @@ export function damageShort(level: LevelData, s: Economy): boolean {
 // null or a void.
 const mostPower = (spec: RuneLayerSpec) => spec.nodes.filter((n) => n.prefilled !== 'null' && n.prefilled !== 'void').length
 
-// Bowls that are interchangeable in the economy: same catch, same release,
-// neither prefilled. Blanks are written canonically within each group
-// (motes that count first, then nulls, then voids, in node order), so the
-// same filling always reads the same.
-function bowlGroups(spec: RuneLayerSpec): number[][] {
+// What each bowl holds before a filling ('.', 'n' or 'v'; null when it is
+// empty): a prefilled bowl its mote, and a partly held piece's bowls what
+// they hold.
+function heldMarks(spec: RuneLayerSpec, hold?: string): (string | null)[] {
+  return spec.nodes.map((n, i) => {
+    if (hold) return hold[i] === '_' ? null : hold[i]
+    return n.prefilled === 'null' ? 'n' : n.prefilled === 'void' ? 'v' : n.prefilled ? '.' : null
+  })
+}
+
+// Empty bowls that are interchangeable in the economy: same catch, same
+// release. Blanks are written canonically within each group (motes that
+// count first, then nulls, then voids, in node order), so the same filling
+// always reads the same.
+function bowlGroups(spec: RuneLayerSpec, marks: (string | null)[]): number[][] {
   const groups = new Map<string, number[]>()
   spec.nodes.forEach((n, i) => {
-    if (n.prefilled) return
+    if (marks[i] !== null) return
     const key = `${n.catch}|${n.release}`
     groups.set(key, [...(groups.get(key) ?? []), i])
   })
@@ -236,8 +263,8 @@ function bowlGroups(spec: RuneLayerSpec): number[][] {
 }
 
 // The blanks string for a filling, from each group's null and void counts.
-function writeBlanks(spec: RuneLayerSpec, groups: number[][], counts: [number, number][]): string {
-  const out = spec.nodes.map((n) => (n.prefilled === 'null' ? 'n' : n.prefilled === 'void' ? 'v' : '.'))
+function writeBlanks(marks: (string | null)[], groups: number[][], counts: [number, number][]): string {
+  const out = marks.map((m) => m ?? '.')
   groups.forEach((g, gi) => {
     const [u, v] = counts[gi]
     g.forEach((node, k) => (out[node] = k < g.length - u - v ? '.' : k < g.length - v ? 'n' : 'v'))
@@ -248,21 +275,24 @@ function writeBlanks(spec: RuneLayerSpec, groups: number[][], counts: [number, n
 // The same canonical form for bowls a real run filled one way or another
 // (per node: '.', 'n' or 'v'), so its moves read like the solver's.
 export function canonicalBlanks(spec: RuneLayerSpec, perNode: string): string {
-  const groups = bowlGroups(spec)
+  const marks = heldMarks(spec)
+  const groups = bowlGroups(spec, marks)
   return writeBlanks(
-    spec,
+    marks,
     groups,
     groups.map((g) => [g.filter((i) => perNode[i] === 'n').length, g.filter((i) => perNode[i] === 'v').length]),
   )
 }
 
-// Every way to fill a layer from the pool: each group of alike bowls takes
-// some nulls and voids, and the rest take their own color, opal covering
-// the shortfall. (Opal before the own color is never better: a release
-// takes its bowl's color, not the mote's.) Prefilled bowls take nothing.
-// Without nulls or voids in the pool there is exactly one way, or none.
-function fillings(spec: RuneLayerSpec, pool: number[]): { pool: number[]; blanks: string }[] {
-  const groups = bowlGroups(spec)
+// Every way to fill a layer's empty bowls from the pool: each group of
+// alike bowls takes some nulls and voids, and the rest take their own
+// color, opal covering the shortfall. (Opal before the own color is never
+// better: a release takes its bowl's color, not the mote's.) Prefilled
+// bowls, and those a partly held piece holds, take nothing. Without nulls
+// or voids in the pool there is exactly one way, or none.
+function fillings(spec: RuneLayerSpec, pool: number[], hold?: string): { pool: number[]; blanks: string }[] {
+  const marks = heldMarks(spec, hold)
+  const groups = bowlGroups(spec, marks)
   const out: { pool: number[]; blanks: string }[] = []
   const counts: [number, number][] = []
   const walk = (gi: number, nulls: number, voids: number) => {
@@ -282,7 +312,7 @@ function fillings(spec: RuneLayerSpec, pool: number[]): { pool: number[]; blanks
         next[GENERIC] -= n - exact
       }
       if (next[GENERIC] < 0) return
-      out.push({ pool: next, blanks: writeBlanks(spec, groups, counts) })
+      out.push({ pool: next, blanks: writeBlanks(marks, groups, counts) })
       return
     }
     const size = groups[gi].length
@@ -298,34 +328,81 @@ function fillings(spec: RuneLayerSpec, pool: number[]): { pool: number[]; blanks
 
 const byRuneLayer = (a: EconomyPiece, b: EconomyPiece) => a.rune - b.rune || a.layer - b.layer
 
-function fill(level: LevelData, s: Economy, rune: number, layer: number, opts: SolverOptions): Transition[] {
-  const spec = level.hand[rune].layers[layer]
-  const ways = fillings(spec, s.pool)
-  if (!ways.length) return []
+// Where a layer's piece goes: in place of its piece on the field, or cast
+// from hand, digging down to it (the layers above go down as empty pieces
+// or, in a level with a fuse, burn away). Null if it can't.
+function placeFor(level: LevelData, s: Economy, rune: number, layer: number, opts: SolverOptions): { hand: number[]; burned: number; put: (piece: EconomyPiece) => EconomyPiece[] } | null {
   const onField = s.pieces.findIndex((p) => p.rune === rune && p.layer === layer)
-  let placed: (blanks: string) => EconomyPiece[]
   const hand = [...s.hand]
   let burned = s.burned ?? 0
-  const piece = (blanks: string): EconomyPiece => ({ rune, layer, full: true, ...(/[nv]/.test(blanks) ? { blanks } : {}) })
-  if (onField >= 0) {
-    if (s.pieces[onField].full) return []
-    placed = (blanks) => s.pieces.map((p, i) => (i === onField ? piece(blanks) : p))
-  } else {
-    if (layer < s.hand[rune] || layer >= castable(level, rune)) return []
-    // Dig: the layers above it go down as empty pieces (or, in a level
-    // with a fuse, burn away).
-    const cast = layer - s.hand[rune] + 1
-    const burns = level.fuse !== undefined
-    if (s.pieces.length + (burns ? 1 : cast) > room(opts)) return []
-    const dug = burns ? [] : Array.from({ length: cast - 1 }, (_, i) => ({ rune, layer: s.hand[rune] + i, full: false }))
-    placed = (blanks) => [...s.pieces, ...dug, piece(blanks)].sort(byRuneLayer)
-    hand[rune] = layer + 1
-    if (burns) burned += cast - 1
-  }
+  if (onField >= 0) return { hand, burned, put: (piece) => s.pieces.map((p, i) => (i === onField ? piece : p)) }
+  if (layer < s.hand[rune] || layer >= castable(level, rune)) return null
+  const cast = layer - s.hand[rune] + 1
+  const burns = level.fuse !== undefined
+  if (s.pieces.length + (burns ? 1 : cast) > room(opts)) return null
+  const dug = burns ? [] : Array.from({ length: cast - 1 }, (_, i) => ({ rune, layer: s.hand[rune] + i, full: false }))
+  hand[rune] = layer + 1
+  if (burns) burned += cast - 1
+  return { hand, burned, put: (piece) => [...s.pieces, ...dug, piece].sort(byRuneLayer) }
+}
+
+function fill(level: LevelData, s: Economy, rune: number, layer: number, opts: SolverOptions): Transition[] {
+  const spec = level.hand[rune].layers[layer]
+  const current = s.pieces.find((p) => p.rune === rune && p.layer === layer)
+  if (current?.full) return []
+  const ways = fillings(spec, s.pool, current?.hold)
+  const at = ways.length ? placeFor(level, s, rune, layer, opts) : null
+  if (!at) return []
+  // A puller stays latched on.
+  const piece = (blanks: string): EconomyPiece => ({ rune, layer, full: true, ...(/[nv]/.test(blanks) ? { blanks } : {}), ...(current?.pulling === undefined ? {} : { pulling: current.pulling }) })
   return ways.map(({ pool, blanks }) => ({
     move: { kind: 'fill', rune, layer, ...(/[nv]/.test(blanks) ? { blanks } : {}) },
-    next: { pool, hand, pieces: placed(blanks), obstacles: s.obstacles, ice: s.ice, ...(burned ? { burned } : {}) },
+    next: { pool, hand: at.hand, pieces: at.put(piece(blanks)), obstacles: s.obstacles, ice: s.ice, ...(at.burned ? { burned: at.burned } : {}) },
   }))
+}
+
+// A piece's pull on a shield of this color: its bowls of that color that
+// hold a mote that counts.
+function pullOf(level: LevelData, p: EconomyPiece, color: Hue): number {
+  const marks = p.full ? (p.blanks ?? '') : (p.hold ?? '')
+  return level.hand[p.rune].layers[p.layer].nodes.filter((n, i) => n.catch === color && (marks[i] ?? (p.full ? '.' : '_')) === '.').length
+}
+
+// The colors of obstacle oi's shields still up: short of their strength in
+// what its pullers hold.
+function upColors(level: LevelData, s: Economy, oi: number): Hue[] {
+  const shields = level.obstacles[oi].layers[s.obstacles[oi].index]?.shields ?? []
+  return shields.filter((sh) => s.pieces.reduce((n, p) => (p.pulling === oi ? n + pullOf(level, p, sh.color) : n), 0) < sh.strength).map((sh) => sh.color)
+}
+
+// Latches layer k of rune n onto obstacle `target`'s shields: a full piece
+// as it is; otherwise cast (or an empty piece on the field) with only its
+// bowls of the colors still up there filled, their own color first, opal
+// covering the shortfall.
+function pull(level: LevelData, s: Economy, rune: number, layer: number, target: number, opts: SolverOptions): Transition[] {
+  const move: Move = { kind: 'pull', rune, layer, target }
+  const current = s.pieces.find((p) => p.rune === rune && p.layer === layer)
+  if (current?.full) return [{ move, next: { ...s, pieces: s.pieces.map((p) => (p === current ? { ...p, pulling: target } : p)) } }]
+  if (current?.hold) return []
+  const spec = level.hand[rune].layers[layer]
+  const up = new Set<string>(upColors(level, s, target))
+  const marks = heldMarks(spec)
+  const pool = [...s.pool]
+  const hold = spec.nodes.map((n, i) => {
+    if (marks[i] !== null) return marks[i]
+    if (!up.has(n.catch)) return '_'
+    const c = ECONOMY_COLORS.indexOf(n.catch)
+    if (pool[c] > 0) pool[c]--
+    else pool[GENERIC]--
+    return '.'
+  })
+  if (pool[GENERIC] < 0) return []
+  const at = placeFor(level, s, rune, layer, opts)
+  if (!at) return []
+  const held = hold.join('')
+  const full = !held.includes('_')
+  const piece: EconomyPiece = { rune, layer, full, pulling: target, ...(full ? (/[nv]/.test(held) ? { blanks: held } : {}) : { hold: held }) }
+  return [{ move, next: { pool, hand: at.hand, pieces: at.put(piece), obstacles: s.obstacles, ice: s.ice, ...(at.burned ? { burned: at.burned } : {}) } }]
 }
 
 // Bursts a full piece, or a pair in stasis as one blow of their combined
@@ -350,6 +427,7 @@ function fire(level: LevelData, s: Economy, pieces: EconomyPiece[], target: numb
   const obstacles = s.obstacles.map((o) => ({ ...o }))
   const blow: Blow = { rune, layer, ...partner, target, ...(ice ? { ice } : {}), targetLayer: -1, damage: 0, wasted: 0, unlinked: target === null }
   let frozen = false
+  let broke = false
   const strike = (hp: number) => {
     blow.damage = Math.min(hp, power)
     blow.wasted = power - blow.damage
@@ -385,11 +463,19 @@ function fire(level: LevelData, s: Economy, pieces: EconomyPiece[], target: numb
       }
       o.index++
       o.hp = level.obstacles[target].layers[o.index]?.hp ?? 0
+      broke = true
     }
   }
   if (!frozen) pool = plus(pool, released)
-  const left = s.pieces.filter((p) => !pieces.includes(p))
+  // The layer's pullers go free when it falls.
+  const left = s.pieces.filter((p) => !pieces.includes(p)).map((p) => (broke && p.pulling === target ? unlatched(p) : p))
   return { move: { kind: 'fire', rune, layer, target, ...(ice ? { ice } : {}), ...partner }, next: { pool, hand: s.hand, pieces: left, obstacles, ice: blocks, ...(s.burned ? { burned: s.burned } : {}) }, blow }
+}
+
+function unlatched(p: EconomyPiece): EconomyPiece {
+  const free = { ...p }
+  delete free.pulling
+  return free
 }
 
 // A full piece takes up stasis on obstacle `target`'s two-shape layer.
@@ -400,13 +486,21 @@ function lock(s: Economy, piece: EconomyPiece, target: number): Transition {
 // Every legal move from s.
 export function transitions(level: LevelData, s: Economy, opts: SolverOptions = {}): Transition[] {
   const out: Transition[] = []
-  level.hand.forEach((_, r) => {
-    for (let k = 0; k < castable(level, r); k++) if (status(s, r, k) === 'open') out.push(...fill(level, s, r, k, opts))
+  // A layer can pull where a shield it has a bowl for is still up.
+  const up = s.obstacles.map((_, oi) => upColors(level, s, oi))
+  const pullsAt = (spec: RuneLayerSpec) => up.flatMap((colors, oi) => (colors.some((c) => spec.nodes.some((n) => n.catch === c)) ? [oi] : []))
+  level.hand.forEach((hand, r) => {
+    for (let k = 0; k < castable(level, r); k++) {
+      if (status(s, r, k) !== 'open') continue
+      out.push(...fill(level, s, r, k, opts))
+      for (const oi of pullsAt(hand.layers[k])) out.push(...pull(level, s, r, k, oi, opts))
+    }
   })
   const shapeOf = (p: EconomyPiece) => level.hand[p.rune].layers[p.layer + 1].sides
   const current = (oi: number) => level.obstacles[oi].layers[s.obstacles[oi].index]
   for (const p of s.pieces) {
-    if (!p.full) continue
+    // A puller can't burst until its layer falls.
+    if (!p.full || p.pulling !== undefined) continue
     const sides = shapeOf(p)
     if (p.locked !== undefined) {
       // In stasis it bursts only with its partner (each pair once, from its
@@ -417,17 +511,19 @@ export function transitions(level: LevelData, s: Economy, opts: SolverOptions = 
     // A piece links to whichever match is nearest, so any of them can be
     // chosen by where it is cast; none means unlinked. A two-shape layer
     // matches while its place for this shape is free.
-    const targets = s.obstacles.flatMap((_, oi) => (current(oi)?.pair === undefined && current(oi)?.sides === sides ? [oi] : []))
+    const targets = s.obstacles.flatMap((_, oi) => (current(oi)?.pair === undefined && current(oi)?.sides === sides && !up[oi].length ? [oi] : []))
     const blocks = s.ice.flatMap((b, bi) => (b.hp > 0 && b.sides === sides ? [bi] : []))
     const stases = s.obstacles.flatMap((_, oi) => {
       const spec = current(oi)
       if (spec?.pair === undefined || (spec.sides !== sides && spec.pair !== sides)) return []
       return s.pieces.some((q) => q.locked === oi && shapeOf(q) === sides) ? [] : [oi]
     })
+    const latches = pullsAt(level.hand[p.rune].layers[p.layer])
     for (const target of targets) out.push(fire(level, s, [p], target))
     for (const target of blocks) out.push(fire(level, s, [p], target, true))
     for (const target of stases) out.push(lock(s, p, target))
-    if (!targets.length && !blocks.length && !stases.length) out.push(fire(level, s, [p], null))
+    for (const target of latches) out.push(...pull(level, s, p.rune, p.layer, target, opts))
+    if (!targets.length && !blocks.length && !stases.length && !latches.length) out.push(fire(level, s, [p], null))
   }
   return out
 }
@@ -443,6 +539,7 @@ export function economyLost(level: LevelData, s: Economy, opts: SolverOptions = 
 export function moveLabel(m: Move): string {
   if (m.kind === 'fill') return `fill R${m.rune}.${m.layer}${m.blanks ? ` ${m.blanks}` : ''}`
   if (m.kind === 'lock') return `R${m.rune}.${m.layer}=>O${m.target}`
+  if (m.kind === 'pull') return `pull R${m.rune}.${m.layer}=>O${m.target}`
   const who = `R${m.rune}.${m.layer}${m.with ? `+R${m.with.rune}.${m.with.layer}` : ''}`
   return m.target === null ? `${who} unlinked` : `${who}->${m.ice ? 'I' : 'O'}${m.target}`
 }
@@ -520,7 +617,7 @@ export class EconomySolver {
     // With a fuse, digging burns the layers above: a slow, deliberate
     // sacrifice rather than a choice among the moves at hand, so peril
     // counts the others. With nothing else to do, the burns are the choice.
-    const others = this.level.fuse === undefined ? all : all.filter((t) => !(t.move.kind === 'fill' && t.move.layer > s.hand[t.move.rune]))
+    const others = this.level.fuse === undefined ? all : all.filter((t) => !((t.move.kind === 'fill' || t.move.kind === 'pull') && t.move.layer > s.hand[t.move.rune]))
     const ms = others.length ? others : all
     const losing = ms.filter((t) => !this.canWin(t.next)).length
     let margin = Infinity
@@ -608,11 +705,12 @@ export interface TensionBands {
   mostMoves: number // the longest win
 }
 
-// Moves made so far: two per detonation, one per full piece waiting (a dig
-// that burned layers is one move, however many it burned).
+// Moves made so far: two per detonation, one per piece waiting full or
+// partly held (a dig that burned layers is one move, however many it
+// burned).
 export function economyDepth(s: Economy): number {
   const fired = s.hand.reduce((a, b) => a + b, 0) - s.pieces.length - (s.burned ?? 0)
-  return 2 * fired + s.pieces.filter((p) => p.full).length
+  return 2 * fired + s.pieces.filter((p) => p.full || p.hold).length
 }
 
 export function tensionBands(level: LevelData, opts: SolverOptions = {}): TensionBands {
@@ -627,7 +725,7 @@ export function tensionBands(level: LevelData, opts: SolverOptions = {}): Tensio
     const k = solver.key(s)
     const known = fewest.get(k)
     if (known !== undefined) return [known, most.get(k)!]
-    if (level.fuse === undefined || !s.pieces.some((p) => p.full && p.locked === undefined)) {
+    if (level.fuse === undefined || !s.pieces.some((p) => p.full && p.locked === undefined && p.pulling === undefined)) {
       const t = solver.tension(s)
       const d = economyDepth(s)
       const b = bands.get(d) ?? { depth: d, states: 0, min: 1, mean: 0, max: 0, minPeril: 1 }

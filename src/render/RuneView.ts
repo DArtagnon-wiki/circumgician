@@ -77,6 +77,7 @@ export interface RuneLook {
   // A piece in stasis on a two-shape layer: still, waiting for its partner,
   // or armed once the partner is there too (a tap bursts both).
   stasis?: 'waiting' | 'armed'
+  pull?: number // a puller, latched onto a shield of this color (drawn)
 }
 
 const NONE_HELD: (string | null)[] = []
@@ -98,8 +99,8 @@ export function handLook(rune: Rune): RuneLook | null {
   }
 }
 
-export function pieceLook(piece: Piece, stasis?: 'waiting' | 'armed'): RuneLook {
-  return { key: 'piece', outer: piece.layer, middle: piece.energy, middleIsEnergy: true, centerIsEnergy: false, insight: 'full', state: piece.state, held: piece.held, ...(stasis ? { stasis } : {}) }
+export function pieceLook(piece: Piece, stasis?: 'waiting' | 'armed', pull?: number): RuneLook {
+  return { key: 'piece', outer: piece.layer, middle: piece.energy, middleIsEnergy: true, centerIsEnergy: false, insight: 'full', state: piece.state, held: piece.held, ...(stasis ? { stasis } : {}), ...(pull === undefined ? {} : { pull }) }
 }
 
 const STASIS = 0xc9d4ff // the clamps and aura of a piece in stasis
@@ -278,19 +279,20 @@ export class RuneView {
     if (this.heat && quality.settings.glows) this.aura.alpha = Math.max(this.aura.alpha, this.heat * (0.25 + 0.2 * Math.abs(Math.sin(time * 11))))
   }
 
-  // Stasis: a clamp over each bowl, just outside it where a fuse would
-  // burn, holding the piece still. Armed, the clamps pulse in time with its
-  // partner's (the time is shared).
+  // Locked on: a clamp over each bowl, just outside it where a fuse would
+  // burn. In stasis they hold the piece still; armed, they pulse in time
+  // with its partner's (the time is shared). A puller's take the color of
+  // the shield it pulls, turning with it.
   private drawStasis(look: RuneLook, outerRot: number, time: number): void {
     const g = this.stasisG
     g.clear()
-    if (!look.stasis) return
+    if (!look.stasis && look.pull === undefined) return
     const { sides, radius } = look.outer
     const r = fuseRadius(radius)
     const armed = look.stasis === 'armed'
     const beat = armed ? 0.5 + 0.5 * Math.sin(time * 6) : 0
-    const color = armed ? mix(STASIS, 0xffffff, beat) : STASIS
-    const alpha = armed ? 0.7 + 0.3 * beat : 0.55
+    const color = look.pull ?? (armed ? mix(STASIS, 0xffffff, beat) : STASIS)
+    const alpha = look.pull !== undefined ? 0.6 + 0.2 * Math.sin(time * 2.2) : armed ? 0.7 + 0.3 * beat : 0.55
     const span = Math.min(0.32, Math.PI / sides - 0.12)
     for (let i = 0; i < sides; i++) {
       const a = outerRot + (i * 2 * Math.PI) / sides

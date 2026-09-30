@@ -244,6 +244,13 @@ export class Sfx {
     this.ping(1480, 1.0, 0.035, 0.09, 0.6)
   }
 
+  // A shield is pulled down: its hum falls away and it breaks like glass.
+  shieldDown(): void {
+    this.tone(520, 0.6, 0.05, 0, 'triangle', 130, 0.3)
+    this.noise(0.45, { type: 'bandpass', freq: 2400, to: 500, q: 1.2, peak: 0.07, reverb: 0.4 })
+    for (let k = 0; k < 4; k++) this.ping(1900 + k * 420 + Math.random() * 150, 0.4, 0.02, 0.05 + k * 0.04, 0.5)
+  }
+
   freeze(): void {
     this.noise(0.35, { type: 'highpass', freq: 3000, to: 7000, q: 0.9, peak: 0.12, reverb: 0.3 })
     for (let k = 0; k < 6; k++) this.ping(2600 + k * 380 + Math.random() * 200, 0.3, 0.025, k * 0.035, 0.4)

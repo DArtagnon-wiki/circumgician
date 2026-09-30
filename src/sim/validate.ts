@@ -13,6 +13,7 @@ export const MIN_SIDES = 3
 export const MAX_SIDES = 12
 // A hand fits the shelf readably at up to six runes (see handLayout).
 export const MAX_HAND = 6
+export const MAX_SHIELDS = 4
 
 export class LevelValidationError extends Error {
   readonly errors: string[]
@@ -101,6 +102,19 @@ export function validateLevel(data: unknown): string[] {
         if (l.pair !== undefined) {
           if (sides(`${lp}.pair`, l.pair) && l.pair === l.sides) err(`${lp}.pair`, 'must be a different shape from sides')
           if (l.frost) err(`${lp}.pair`, 'a two-shape layer cannot be frost')
+        }
+        if (l.shields !== undefined) {
+          if (!Array.isArray(l.shields) || l.shields.length < 1 || l.shields.length > MAX_SHIELDS) return err(`${lp}.shields`, `must be an array of 1 to ${MAX_SHIELDS} shields`)
+          if (l.pair !== undefined) err(`${lp}.shields`, 'a two-shape layer cannot have shields')
+          const colors = new Set<unknown>()
+          l.shields.forEach((sh, k) => {
+            const sp = `${lp}.shields[${k}]`
+            if (!isObj(sh)) return err(sp, 'must be an object')
+            if (!HUES.includes(sh.color as string)) err(`${sp}.color`, `must be a hue (${HUES.join(', ')})`)
+            else if (colors.has(sh.color)) err(`${sp}.color`, 'another shield on this layer has that color')
+            colors.add(sh.color)
+            if (!isInt(sh.strength) || (sh.strength as number) < 1) err(`${sp}.strength`, 'must be an integer >= 1')
+          })
         }
       })
       if (o.look !== undefined) {

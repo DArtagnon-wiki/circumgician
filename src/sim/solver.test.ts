@@ -365,3 +365,61 @@ describe('two-shape layers', () => {
     expect(economyWon(level, replay(level, run.moves)!)).toBe(true)
   })
 })
+
+describe('shields', () => {
+  const A = { x: 110, y: 500 }
+  const B = { x: 290, y: 500 }
+  const around = (colors: MoteColor[], at: { x: number; y: number }) => colors.map((c, i) => mote(c, at.x + Math.cos(i * 1.6) * 10, at.y + Math.sin(i * 1.6) * 10))
+  const mixedSquare = (a: Hue, b: Hue): RuneLayerSpec => ({ sides: 4, radius: 40, nodes: [a, a, b, b].map((c) => ({ catch: c, release: c })) })
+  // O0: a triangle (strength 4) behind a ruby shield, then a triangle (3).
+  const shielded = (strength: number) => ({ x: 200, y: 150, layers: [{ sides: 3, radius: 30, hp: 4, shields: [{ color: 'red' as const, strength }] }, { sides: 3, radius: 30, hp: 3 }] })
+  const puller = { layers: [mixedSquare('red', 'blue'), layer(3, 36, 'red')] } // two ruby bowls, two sapphire
+  const striker = { layers: [layer(4, 40, 'blue'), layer(3, 36, 'blue')] }
+  const level = testLevel({ motes: [...around(['red', 'red', 'blue', 'blue'], A), ...around(['blue', 'blue', 'blue', 'blue'], B)], obstacles: [shielded(2)], hand: [puller, striker] })
+  const play = (lvl: typeof level, ...moves: string[]) => moves.reduce((s, m) => after(lvl, s, m), initialEconomy(lvl))
+
+  it("a layer with bowls of a shield's color can be cast as a puller, filling just those bowls", () => {
+    const s = initialEconomy(level)
+    expect(labels(level, s)).toEqual(['fill R0.0', 'pull R0.0=>O0', 'fill R1.0'])
+    const pulled = after(level, s, 'pull R0.0=>O0')
+    expect(pulled.pieces).toEqual([{ rune: 0, layer: 0, full: false, pulling: 0, hold: '..__' }])
+    expect(pool(pulled)).toEqual({ blue: 6 })
+  })
+
+  it('while a shield is up nothing strikes the layer; pulled down, it can be struck', () => {
+    const s = play(level, 'fill R1.0')
+    expect(labels(level, s)).toContain('R1.0 unlinked')
+    expect(labels(level, s)).not.toContain('R1.0->O0')
+    const down = after(level, s, 'pull R0.0=>O0')
+    expect(labels(level, down)).toContain('R1.0->O0')
+    expect(labels(level, down)).not.toContain('R1.0 unlinked')
+  })
+
+  it('pullers never burst; the fall frees them, to be filled and fired', () => {
+    let s = play(level, 'pull R0.0=>O0', 'fill R0.0')
+    expect(labels(level, s)).toEqual(['fill R1.0']) // the full puller has nothing to do
+    s = play(level, 'pull R0.0=>O0', 'fill R1.0', 'R1.0->O0')
+    expect(s.obstacles[0]).toEqual({ index: 1, hp: 3 })
+    expect(s.pieces).toEqual([{ rune: 0, layer: 0, full: false, hold: '..__' }])
+    s = after(level, s, 'fill R0.0')
+    expect(labels(level, s)).toEqual(['R0.0->O0'])
+    expect(economyWon(level, after(level, s, 'R0.0->O0'))).toBe(true)
+  })
+
+  it('pullers add up, and a full piece can latch on as it is', () => {
+    const strong = testLevel({ motes: [...around(['red', 'red', 'blue', 'blue'], A), ...around(['red', 'red', 'blue', 'blue'], B), ...around(['blue', 'blue', 'blue', 'blue'], { x: 200, y: 650 })], obstacles: [shielded(4)], hand: [puller, puller, striker] })
+    const one = play(strong, 'pull R0.0=>O0', 'fill R2.0')
+    expect(labels(strong, one)).toContain('R2.0 unlinked') // still up: two of four
+    const full = after(strong, one, 'fill R1.0')
+    expect(labels(strong, full)).toContain('pull R1.0=>O0')
+    expect(labels(strong, after(strong, full, 'pull R1.0=>O0'))).toContain('R2.0->O0')
+  })
+
+  it("a sim run's pulls replay in the model", () => {
+    const run = runScript(level, [{ place: 0, at: A }, { place: 1, at: B }, { wait: 1 }, { tap: 1 }, { tap: 0 }], { settle: 3 })
+    expect(run.error).toBeUndefined()
+    expect(run.status).toBe('won')
+    expect(run.moves.map(moveLabel)).toEqual(['pull R0.0=>O0', 'fill R0.0', 'fill R1.0', 'R1.0->O0', 'R0.0->O0'])
+    expect(economyWon(level, replay(level, run.moves)!)).toBe(true)
+  })
+})

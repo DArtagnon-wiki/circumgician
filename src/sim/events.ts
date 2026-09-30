@@ -27,7 +27,9 @@ export type SimEvents = {
   'mote:held': { mote: Mote; piece: Piece; node: number }
   'piece:full': { piece: Piece }
   'piece:stasis': { piece: Piece } // full and holding its shape's place on a two-shape layer
-  'piece:released': { piece: Piece } // out of stasis (the layer fell without it), with a fresh fuse
+  'piece:released': { piece: Piece } // out of stasis or done pulling (the layer fell), with a fresh fuse
+  'piece:pulling': { piece: Piece } // latched onto a shielded layer, to pull its shields down
+  'shield:down': { obstacle: Obstacle; index: number } // its pullers hold enough of its color
   'piece:detonated': { piece: Piece; info: DetonationInfo }
   'piece:frozen': { piece: Piece; obstacle: Obstacle } // its fuse ran out (endless)
   'piece:burned': { piece: Piece; motes: Mote[] } // its fuse ran out before it burst; the motes it held burned with it

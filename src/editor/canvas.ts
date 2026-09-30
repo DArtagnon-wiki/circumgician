@@ -103,9 +103,18 @@ export class EditorCanvas {
       }
       const pts = polygonPoints({ x: o.x, y: o.y }, layer.sides, layer.radius, -Math.PI / 2)
       g.poly(pts.flatMap((p) => [p.x, p.y])).fill({ color: OBSTACLE_COLOR, alpha: 0.9 }).stroke({ color: 0xffffff, width: 2 })
-      if (sel?.kind === 'obstacle' && sel.i === i) g.circle(o.x, o.y, layer.radius + 8).stroke({ color: SELECT_COLOR, width: 2 })
+      // Shields: an arc apiece in its color.
+      const shields = layer.shields ?? []
+      shields.forEach((sh, k) => {
+        const a0 = -Math.PI / 2 + (k / shields.length) * Math.PI * 2 + 0.12
+        const a1 = -Math.PI / 2 + ((k + 1) / shields.length) * Math.PI * 2 - 0.12
+        const r = layer.radius + 12
+        g.moveTo(o.x + Math.cos(a0) * r, o.y + Math.sin(a0) * r).arc(o.x, o.y, r, a0, a1).stroke({ color: colorForMote(sh.color), width: 3 })
+      })
+      if (sel?.kind === 'obstacle' && sel.i === i) g.circle(o.x, o.y, layer.radius + 18).stroke({ color: SELECT_COLOR, width: 2 })
       this.label(String(layer.hp), o.x, o.y, 18, 0xffffff)
-      const depth = o.layers.map((l) => `${l.sides}${l.pair === undefined ? '' : `+${l.pair}`}:${l.hp}`).join(' > ')
+      const guard = (l: (typeof o.layers)[number]) => (l.shields ? `[${l.shields.map((sh) => `${sh.color[0]}${sh.strength}`).join(' ')}]` : '')
+      const depth = o.layers.map((l) => `${l.sides}${l.pair === undefined ? '' : `+${l.pair}`}:${l.hp}${guard(l)}`).join(' > ')
       this.label(depth, o.x, o.y + layer.radius + 14, 10, 0xb8a8e0)
     })
 

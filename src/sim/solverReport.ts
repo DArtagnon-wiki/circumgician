@@ -1,5 +1,5 @@
 import { moveLabel, type Blow, type LevelProfile, type TensionBand, type TensionBands, type TensionPoint } from './solver'
-import type { LevelData } from './types'
+import type { LevelData, ObstacleLayerSpec } from './types'
 
 // Plain-text decision profile of a level, for `npm run analyze-levels`.
 
@@ -16,7 +16,8 @@ const blowLabel = (b: Blow) => moveLabel({ kind: 'fire', rune: b.rune, layer: b.
 
 export function formatProfile(level: LevelData, p: LevelProfile, maxTraps = 8): string {
   const out = [`${level.name} (${level.id})`]
-  out.push(`  obstacles  ${level.obstacles.map((o, i) => `O${i} ${o.layers.map((l) => `${shape(l.sides)}${l.pair === undefined ? '' : `+${shape(l.pair)}`} ${l.hp}`).join(' > ')}`).join(' | ')}`)
+  const guard = (l: ObstacleLayerSpec) => (l.shields ? ` [${l.shields.map((sh) => `${sh.color} ${sh.strength}`).join(', ')}]` : '')
+  out.push(`  obstacles  ${level.obstacles.map((o, i) => `O${i} ${o.layers.map((l) => `${shape(l.sides)}${l.pair === undefined ? '' : `+${shape(l.pair)}`} ${l.hp}${guard(l)}`).join(' > ')}`).join(' | ')}`)
   if (!p.winnable) {
     out.push('  UNWINNABLE: no order of fills and detonations clears every obstacle')
     return out.join('\n')

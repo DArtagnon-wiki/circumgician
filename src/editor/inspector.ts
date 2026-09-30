@@ -1,5 +1,5 @@
-import type { Hue, LevelData, NodeSpec, PaletteName, Prefill, RuneLayerSpec } from '../sim/types'
-import { MAX_SIDES, MIN_SIDES } from '../sim/validate'
+import type { Hue, LevelData, NodeSpec, PaletteName, Prefill, RuneLayerSpec, ShieldSpec } from '../sim/types'
+import { MAX_SHIELDS, MAX_SIDES, MIN_SIDES } from '../sim/validate'
 import { PALETTE_NAMES } from '../model/Color'
 import { MAX_MOONS, OBSTACLE_MOTIONS, OBSTACLE_STYLES, type ObstacleLook } from '../model/Look'
 import { ANNIHILATING_COLOR, MIASMA_COLOR, NULL_COLOR, PALETTES, VOID_COLOR, hueColor } from '../render/Theme'
@@ -223,8 +223,41 @@ export function renderInspector(host: HTMLElement, st: EditorState): void {
           num(layer.hp, (v) => edit((l) => (l.obstacles[sel.i].layers[j].hp = v)), { min: 1, width: 48 }),
           btn('↑', 'Move up', () => edit((l) => move(l.obstacles[sel.i].layers, j, -1))),
           btn('↓', 'Move down', () => edit((l) => move(l.obstacles[sel.i].layers, j, 1))),
-          btn('⧉', 'Duplicate', () => edit((l) => l.obstacles[sel.i].layers.splice(j + 1, 0, { ...layer }))),
+          btn('⧉', 'Duplicate', () => edit((l) => l.obstacles[sel.i].layers.splice(j + 1, 0, structuredClone(layer)))),
           btn('✕', 'Remove', () => edit((l) => l.obstacles[sel.i].layers.splice(j, 1))),
+        ),
+      )
+      // Shields: while any is up, nothing strikes the layer; pieces with
+      // bowls of a shield's color pull it down with the motes they hold.
+      const shieldsOf = (l: LevelData) => l.obstacles[sel.i].layers[j]
+      const setShields = (l: LevelData, list: ShieldSpec[]) => {
+        if (list.length) shieldsOf(l).shields = list
+        else delete shieldsOf(l).shields
+      }
+      box.append(
+        el(
+          'div',
+          { class: 'row', title: 'Shields: nothing strikes the layer while one is up; pullers bring each down with that many motes of its color' },
+          el('span', { class: 'idx' }, ''),
+          'shields ',
+          ...(layer.shields ?? []).map((sh, k) =>
+            el(
+              'span',
+              {},
+              colorSelect(HUES, sh.color, (v) => edit((l) => (shieldsOf(l).shields![k].color = v as Hue)), true),
+              num(sh.strength, (v) => edit((l) => (shieldsOf(l).shields![k].strength = Math.max(1, Math.round(v)))), { min: 1, width: 40 }),
+              btn('✕', 'Remove shield', () => edit((l) => setShields(l, (shieldsOf(l).shields ?? []).filter((_, x) => x !== k)))),
+            ),
+          ),
+          (layer.shields?.length ?? 0) < MAX_SHIELDS
+            ? btn('+', 'Add shield', () =>
+                edit((l) => {
+                  const list = shieldsOf(l).shields ?? []
+                  const color = HUES.find((h) => !list.some((sh) => sh.color === h)) ?? 'red'
+                  setShields(l, [...list, { color, strength: 2 }])
+                }),
+              )
+            : null,
         ),
       )
     })

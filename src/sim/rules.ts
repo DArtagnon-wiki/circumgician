@@ -2,7 +2,7 @@ import { BURST_GAP, DEFAULT_TETHER, EJECT_TIME, FOOTPRINT_MARGIN, THAW_LAG } fro
 import type { DetonationInfo, SimBus } from './events'
 import { circleHitsRect, circleInRect, clampToRect, dist, footprintRadius, iceSpots, middleAngle, middleLayer, nodePositions, outerAngle, outerLayer, strikeTime } from './geometry'
 import { addsPower, isHue } from '../model/Color'
-import type { Hue, Mote, MoteColor, Obstacle, ObstacleLayerSpec, Piece, Rune, RuneLayerSpec, SimState, Vec2 } from './types'
+import type { Hue, Mote, MoteColor, Obstacle, ObstacleLayerSpec, Piece, Rune, RuneLayerSpec, ShieldSpec, SimState, Vec2 } from './types'
 
 // Where node i's released mote settles: along that node's REST direction
 // (vertex 0 pointing up), BURST_GAP outside the outer radius. Independent
@@ -34,18 +34,53 @@ function holderOf(state: SimState, obstacle: Obstacle, sides: number, except?: P
   return state.pieces.find((p) => p !== except && p.stasis !== undefined && p.linkedObstacleId === obstacle.id && p.energy.sides === sides)
 }
 
-// Nearest uncleared obstacle (any distance) whose current layer takes the
-// energy's shape; on a two-shape layer, only while no other piece holds
-// that shape's place in stasis. Ties go to the earlier obstacle. `self` is
-// the piece asking, whose own place doesn't count against it.
-export function findLink(state: SimState, energy: RuneLayerSpec | undefined, pos: Vec2, self?: Piece): Obstacle | null {
+// The shields still up on an obstacle's current layer.
+export function upShields(o: Obstacle): ShieldSpec[] {
+  return (o.layers[o.index]?.shields ?? []).filter((_, i) => !o.down?.includes(i))
+}
+
+// While any shield is up, nothing strikes the layer.
+export const guarded = (o: Obstacle): boolean => upShields(o).length > 0
+
+// A piece with a bowl of a shield's color that is still up pulls there.
+export function canPull(glass: RuneLayerSpec | undefined, o: Obstacle): boolean {
+  return !!glass && upShields(o).some((sh) => glass.nodes.some((n) => n.catch === sh.color))
+}
+
+// A shield's pull so far: the motes that count (its color or opal) held in
+// its pullers' bowls of its color.
+export function shieldPull(state: SimState, o: Obstacle, color: Hue): number {
+  let pull = 0
+  for (const p of state.pieces) {
+    if (p.pulling === undefined || p.linkedObstacleId !== o.id) continue
+    p.held.forEach((id, i) => {
+      if (id === null || p.layer.nodes[i].catch !== color) return
+      const mote = state.motes.find((m) => m.id === id)
+      if (mote?.state === 'held' && addsPower(mote.color)) pull++
+    })
+  }
+  return pull
+}
+
+// Can a blow of this shape strike the obstacle now: no shield up, and the
+// layer takes the shape (on a two-shape layer, while no other piece holds
+// that shape's place in stasis)?
+function canStrike(state: SimState, o: Obstacle, sides: number, self?: Piece): boolean {
+  const layer = o.layers[o.index]
+  if (!layer || guarded(o) || !takesShape(layer, sides)) return false
+  return layer.pair === undefined || !holderOf(state, o, sides, self)
+}
+
+// Nearest uncleared obstacle (any distance) the piece can pull at (a
+// shield up of a color its glass catches) or strike (see canStrike). Ties
+// go to the earlier obstacle. `self` is the piece asking, whose own place
+// doesn't count against it.
+export function findLink(state: SimState, glass: RuneLayerSpec | undefined, energy: RuneLayerSpec | undefined, pos: Vec2, self?: Piece): Obstacle | null {
   if (!energy) return null
   let best: Obstacle | null = null
   let bestD = Infinity
   for (const o of state.obstacles) {
-    const layer = o.layers[o.index]
-    if (o.cleared || !layer || !takesShape(layer, energy.sides)) continue
-    if (layer.pair !== undefined && holderOf(state, o, energy.sides, self)) continue
+    if (o.cleared || !(canPull(glass, o) || canStrike(state, o, energy.sides, self))) continue
     const d = dist(pos, o.pos)
     if (d < bestD) {
       bestD = d
@@ -55,25 +90,53 @@ export function findLink(state: SimState, energy: RuneLayerSpec | undefined, pos
   return best
 }
 
-// Every piece not in stasis links to its nearest match. A full piece that
-// links to a two-shape layer takes up stasis there, which can move others
-// off that place, so links settle in rounds (each puts one more piece in
-// stasis, so they end).
+// Every piece not locked on (in stasis or pulling) links to its nearest
+// match, latching on at once where it pulls. A full piece that links to a
+// two-shape layer takes up stasis there, which can move others off that
+// place, so links settle in rounds (each puts one more piece in stasis, so
+// they end).
 export function relinkAll(state: SimState, bus: SimBus): void {
   for (;;) {
     for (const piece of state.pieces) {
-      if (piece.stasis !== undefined) continue
-      const id = findLink(state, piece.energy, piece.pos, piece)?.id ?? null
+      if (piece.stasis !== undefined || piece.pulling !== undefined) continue
+      const o = findLink(state, piece.layer, piece.energy, piece.pos, piece)
+      const id = o?.id ?? null
       if (id !== piece.linkedObstacleId) {
         piece.linkedObstacleId = id
         bus.emit('piece:linked', { piece })
       }
+      if (o && canPull(piece.layer, o)) startPulling(state, bus, piece)
     }
     if (!enterStasis(state, bus)) return
   }
 }
 
 const linkedTo = (state: SimState, piece: Piece): Obstacle | null => state.obstacles.find((o) => o.id === piece.linkedObstacleId && !o.cleared) ?? null
+
+// Latched onto a shielded layer: no fuse, no burst, until the layer falls.
+function startPulling(state: SimState, bus: SimBus, piece: Piece): void {
+  piece.pulling = state.time
+  delete piece.burnAt
+  delete piece.freezeAt
+  bus.emit('piece:pulling', { piece })
+}
+
+// Shields whose pullers now hold enough of their color come down. Once the
+// last is down the layer can be struck, so pieces relink.
+export function updateShields(state: SimState, bus: SimBus): void {
+  let fell = false
+  for (const o of state.obstacles) {
+    const shields = o.layers[o.index]?.shields
+    if (o.cleared || !shields) continue
+    shields.forEach((sh, i) => {
+      if (o.down?.includes(i) || shieldPull(state, o, sh.color) < sh.strength) return
+      o.down = [...(o.down ?? []), i]
+      bus.emit('shield:down', { obstacle: o, index: i })
+      fell = true
+    })
+  }
+  if (fell) relinkAll(state, bus)
+}
 
 // Full pieces linked to a two-shape layer go into stasis there, one per
 // shape (the first in cast order wins a contested place): the fuse goes
@@ -94,11 +157,13 @@ export function enterStasis(state: SimState, bus: SimBus): boolean {
   return any
 }
 
-// Out of stasis (its layer fell to something else): it spins on, with a
-// fresh fuse. Callers relink.
-function releaseStasis(state: SimState, bus: SimBus, piece: Piece): void {
-  piece.stillFor = (piece.stillFor ?? 0) + state.time - piece.stasis!
+// Let go when the layer it was locked onto falls (a puller's, or one in
+// stasis whose layer fell to something else): back in play, spinning, with
+// a fresh fuse. Callers relink.
+function release(state: SimState, bus: SimBus, piece: Piece): void {
+  if (piece.stasis !== undefined) piece.stillFor = (piece.stillFor ?? 0) + state.time - piece.stasis
   delete piece.stasis
+  delete piece.pulling
   if (piece.freezeFor !== undefined) piece.freezeAt = state.time + piece.freezeFor
   if (piece.burnFor !== undefined) piece.burnAt = state.time + piece.burnFor
   bus.emit('piece:released', { piece })
@@ -111,10 +176,10 @@ export function partnerOf(state: SimState, piece: Piece): Piece | null {
   return state.pieces.find((p) => p !== piece && p.stasis !== undefined && p.linkedObstacleId === piece.linkedObstacleId && p.energy.sides !== piece.energy.sides) ?? null
 }
 
-// Can the player burst this piece now? Once full, unless it waits in stasis
-// for a partner (with both there, either bursts the pair).
+// Can the player burst this piece now? Once full, unless it is pulling, or
+// waits in stasis for a partner (with both there, either bursts the pair).
 export function canFire(state: SimState, piece: Piece): boolean {
-  return piece.state === 'full' && (piece.stasis === undefined || partnerOf(state, piece) !== null)
+  return piece.state === 'full' && piece.pulling === undefined && (piece.stasis === undefined || partnerOf(state, piece) !== null)
 }
 
 // Called by the Sim before reading a layer that may not exist yet (endless).
@@ -134,6 +199,7 @@ export function castRune(state: SimState, bus: SimBus, rune: Rune, pos: Vec2, en
   const layer = outerLayer(rune)!
   const burn = layer.fuse ?? fuses.burn
   const energy = middleLayer(rune)!
+  const link = findLink(state, layer, energy, pos)
   const piece: Piece = {
     id: `piece-${state.nextId++}`,
     runeId: rune.id,
@@ -145,7 +211,7 @@ export function castRune(state: SimState, bus: SimBus, rune: Rune, pos: Vec2, en
     placedAt: state.time,
     state: 'charging',
     held: Array.from({ length: layer.sides }, () => null),
-    linkedObstacleId: findLink(state, energy, pos)?.id ?? null,
+    linkedObstacleId: link?.id ?? null,
     ...(fuses.freeze !== undefined ? { freezeAt: state.time + fuses.freeze, freezeFor: fuses.freeze } : {}),
     ...(burn !== undefined ? { burnAt: state.time + burn, burnFor: burn } : {}),
   }
@@ -164,11 +230,14 @@ export function castRune(state: SimState, bus: SimBus, rune: Rune, pos: Vec2, en
   if (!outerLayer(rune)) rune.state = 'spent'
   bus.emit('piece:cast', { piece, rune })
   if (rune.state === 'spent') bus.emit('rune:spent', { rune })
+  if (link && canPull(layer, link)) startPulling(state, bus, piece)
   if (piece.held.every((id) => id !== null)) {
     piece.state = 'full'
     bus.emit('piece:full', { piece })
     if (enterStasis(state, bus)) relinkAll(state, bus)
   }
+  // Its prefilled motes may already pull a shield down.
+  updateShields(state, bus)
   return piece
 }
 
@@ -196,8 +265,9 @@ export function detonatePiece(state: SimState, bus: SimBus, piece: Piece, ensure
   const partner = partnerOf(state, piece)
   const blow = partner ? [piece, partner] : [piece]
   const linked = linkedTo(state, piece)
-  // Nothing strikes a two-shape layer alone (only a debug burst gets here).
-  const obstacle = linked && (partner || linked.layers[linked.index]?.pair === undefined) ? linked : null
+  // Nothing strikes a shielded layer, or a two-shape layer alone (only a
+  // debug burst gets here).
+  const obstacle = linked && !guarded(linked) && (partner || linked.layers[linked.index]?.pair === undefined) ? linked : null
   const power = blow.reduce((sum, p) => sum + blowPower(state, p), 0)
   const ice = !partner && frostbites(obstacle, power) ? newIce(state, piece.pos, piece.layer.sides, piece.layer.radius, { obstacle: obstacle.id, layer: obstacle.index }) : null
 
@@ -358,8 +428,10 @@ export function damageObstacle(state: SimState, bus: SimBus, obstacle: Obstacle,
   const next = obstacle.layers[obstacle.index]
   if (next) obstacle.hp = next.hp
   else obstacle.cleared = true
-  // Pieces waiting in stasis on the layer that fell go back into play.
-  for (const p of state.pieces) if (p.stasis !== undefined && p.linkedObstacleId === obstacle.id) releaseStasis(state, bus, p)
+  // Its shields go with it, and the pieces locked onto it (pulling, or in
+  // stasis) go back into play.
+  delete obstacle.down
+  for (const p of state.pieces) if ((p.stasis !== undefined || p.pulling !== undefined) && p.linkedObstacleId === obstacle.id) release(state, bus, p)
   if (obstacle.frozen) {
     // Broken ice is not a layer broken: no score.
     releaseIce(state, obstacle, landsIn)

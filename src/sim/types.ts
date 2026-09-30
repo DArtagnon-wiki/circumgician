@@ -48,6 +48,14 @@ export interface ObstacleLayerSpec {
   // whose energy has `sides` and one whose energy has `pair` sides (another
   // shape). Each waits in stasis once full until the other is (see rules.ts).
   pair?: number
+  // While any of its shields is up, nothing strikes the layer. Pieces with
+  // bowls of a shield's color latch on and pull it down (see rules.ts).
+  shields?: ShieldSpec[]
+}
+
+export interface ShieldSpec {
+  color: Hue
+  strength: number // motes of its color its pullers must hold to bring it down
 }
 
 export type Insight = 'none' | 'shape' | 'full'
@@ -178,6 +186,11 @@ export interface Piece {
   // Its fuse is off, its spin stopped, and it only bursts with its partner.
   stasis?: number
   stillFor?: number // seconds its spin stood still in earlier stasis
+  // Pulling (sim time it latched on): linked to a shielded layer, it pulls
+  // each shield there with the motes in its bowls of that shield's color.
+  // Its fuse is off and it can't burst until that layer falls; it still
+  // spins and catches.
+  pulling?: number
 }
 
 export interface Obstacle {
@@ -193,6 +206,7 @@ export interface Obstacle {
   // frost layer froze (`by`: that obstacle and layer). Holds its motes until
   // broken, or until that frost layer falls. Never needed to win.
   frozen?: { motes: string[]; by?: { obstacle: string; layer: number } }
+  down?: number[] // the current layer's shields pulled down, by index
 }
 
 export type SimStatus = 'playing' | 'won' | 'lost'

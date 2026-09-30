@@ -2,8 +2,8 @@ import { createSimBus, type SimBus } from './events'
 import { loadLevel } from './loadLevel'
 import { flickMote, kickMote, updateCatching, updateMotion } from './motion'
 import { certainLoss, isWon } from './progress'
-import { burnPiece, canFire, canPlace, castRune, damageObstacle, detonatePiece, enterStasis, findLink, freezePiece, relinkAll, type EnsureLayers } from './rules'
-import { middleLayer } from './geometry'
+import { burnPiece, canFire, canPlace, castRune, damageObstacle, detonatePiece, enterStasis, findLink, freezePiece, relinkAll, updateShields, type EnsureLayers } from './rules'
+import { middleLayer, outerLayer } from './geometry'
 import type { LevelData, Obstacle, Piece, Rune, SimState, Vec2 } from './types'
 
 const LOSS_CHECK_INTERVAL = 0.25
@@ -56,8 +56,10 @@ export class Sim {
     s.time += dt
     updateMotion(s, this.bus, dt)
     if (s.status !== 'playing') return
-    // A piece that just filled on a two-shape layer waits there, fuse out.
+    // A piece that just filled on a two-shape layer waits there, fuse out;
+    // motes just caught by pullers may bring shields down.
     if (enterStasis(s, this.bus)) relinkAll(s, this.bus)
+    updateShields(s, this.bus)
     for (const piece of [...s.pieces]) if (piece.freezeAt !== undefined && s.time >= piece.freezeAt) freezePiece(s, this.bus, piece)
     let burned = false
     for (const piece of [...s.pieces]) {
@@ -82,7 +84,7 @@ export class Sim {
 
   previewLink(runeId: string, pos: Vec2): Obstacle | null {
     const rune = this.rune(runeId)
-    return rune ? findLink(this.state, middleLayer(rune), pos) : null
+    return rune ? findLink(this.state, outerLayer(rune), middleLayer(rune), pos) : null
   }
 
   // Casts the rune's layer in hand at `pos`; returns the new piece.

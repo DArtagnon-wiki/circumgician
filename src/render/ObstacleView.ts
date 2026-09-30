@@ -4,10 +4,20 @@ import type { Obstacle, ObstacleLayerSpec, Vec2 } from '../sim/types'
 import { localVertices } from './drawPolygon'
 import { polygonPoints } from '../sim/geometry'
 import { FROST, RIME } from './Frost'
+import { lighten } from './Theme'
 import { makeMaterial, type Material } from './obstacleStyles'
 import { textures } from './textures'
 
 const NEXT_PAD = 3 // gap between the current polygon and the next-shape outline
+const SHIELD_GAP = 12 // shields ring the layer this far out
+
+// A shield as drawn: its hue, its strength, and how much of it is pulled.
+export interface ShieldLook {
+  color: number
+  strength: number
+  pull: number
+  down: boolean
+}
 const REVEAL_TIME = 0.45 // next outline shrinking into place after a collapse
 const IMPLODE_TIME = 0.35
 const GILT = 0xe6c170
@@ -56,6 +66,14 @@ export class ObstacleView {
   private outlines = new Map<number, Vec2[]>() // the current layer's shapes, by sides
   private engaged = ''
   private armed = false
+  // Shields: arcs round the layer, one per shield, their strength in pips
+  // that hollow out as pullers take hold (see drawShields).
+  private shieldC = new Container()
+  private shieldG = new Graphics()
+  private shieldGlowG = new Graphics() // additive
+  private shieldKey = ''
+  private shieldsFor = -1 // the layer index the scene's latest shields belong to
+  private shieldsNow: ShieldLook[] = []
   private seed: number
   private style: ObstacleStyle
   private motion: ObstacleMotion
@@ -101,7 +119,9 @@ export class ObstacleView {
     this.holeGlowC.blendMode = 'add'
     this.engageG.blendMode = 'add'
     this.body.addChild(this.pairC, this.material.art, this.overG, this.frostG, this.weaveG, this.engageG, this.holeGlowC, this.holeCoreC, this.flashG)
-    this.container.addChild(this.moonBack, this.nextC, this.body, this.moonFront)
+    this.shieldGlowG.blendMode = 'add'
+    this.shieldC.addChild(this.shieldGlowG, this.shieldG)
+    this.container.addChild(this.moonBack, this.nextC, this.body, this.shieldC, this.moonFront)
     this.container.position.set(obstacle.pos.x, obstacle.pos.y)
     const moons = this.frozen ? 0 : (obstacle.look?.moons ?? 0)
     for (let i = 0; i < moons; i++) this.moons.push(new Graphics())
@@ -119,6 +139,53 @@ export class ObstacleView {
     if (key === this.engaged) return
     this.engaged = key
     this.drawEngaged()
+  }
+
+  // The shields of the obstacle's current layer (`index`) and how far each
+  // is pulled. While an earlier layer is still on show (a blow in flight),
+  // its shields stay as they were drawn.
+  setShields(index: number, shields: ShieldLook[]): void {
+    this.shieldsFor = index
+    this.shieldsNow = shields
+  }
+
+  private drawShields(shields: ShieldLook[], R: number): void {
+    const key = `${R}|${shields.map((s) => `${s.color}:${s.strength}:${Math.min(s.pull, s.strength)}:${s.down}`).join(',')}`
+    if (key === this.shieldKey) return
+    this.shieldKey = key
+    const g = this.shieldG
+    const glow = this.shieldGlowG
+    g.clear()
+    glow.clear()
+    const r = R + SHIELD_GAP
+    const n = shields.length
+    const gap = n > 1 ? 0.26 : 0
+    shields.forEach((sh, i) => {
+      const a0 = -Math.PI / 2 + (i / n) * Math.PI * 2 + gap / 2
+      const a1 = -Math.PI / 2 + ((i + 1) / n) * Math.PI * 2 - gap / 2
+      const arc = (gr: Graphics) => (n > 1 ? gr.moveTo(Math.cos(a0) * r, Math.sin(a0) * r).arc(0, 0, r, a0, a1) : gr.circle(0, 0, r))
+      if (sh.down) {
+        // Pulled down: a faint broken trace of it.
+        const dashes = Math.max(4, Math.round(((a1 - a0) * r) / 9))
+        for (let k = 0; k < dashes; k += 2) {
+          const d0 = a0 + ((a1 - a0) * k) / dashes
+          const d1 = a0 + ((a1 - a0) * (k + 1)) / dashes
+          g.moveTo(Math.cos(d0) * r, Math.sin(d0) * r).arc(0, 0, r, d0, d1).stroke({ color: sh.color, width: 1.2, alpha: 0.3 })
+        }
+        return
+      }
+      arc(glow).stroke({ color: sh.color, width: 10, alpha: 0.2 })
+      arc(g).stroke({ color: sh.color, width: 2.4, alpha: 0.95 })
+      // Its strength, a pip per mote it takes: hollow once pulled.
+      for (let k = 0; k < sh.strength; k++) {
+        const a = a0 + ((a1 - a0) * (k + 0.5)) / sh.strength
+        const x = Math.cos(a) * r
+        const y = Math.sin(a) * r
+        g.circle(x, y, 3.4).fill({ color: 0x0c0616 })
+        if (k < sh.pull) g.circle(x, y, 2.2).stroke({ color: sh.color, width: 1.1, alpha: 0.8 })
+        else g.circle(x, y, 2.5).fill({ color: lighten(sh.color, 0.45) })
+      }
+    })
   }
 
   private drawEngaged(): void {
@@ -200,6 +267,12 @@ export class ObstacleView {
     this.material.update(time)
     if (layer.pair !== undefined) this.pairMaterial?.update(time)
     this.engageG.alpha = this.armed ? 0.65 + 0.35 * Math.sin(time * 6) : 0.75
+    // The shown layer's shields, once the scene's are for it (a layer with
+    // none clears them); they fade in with a new layer and shimmer.
+    if (index === this.shieldsFor || !layer.shields) this.drawShields(index === this.shieldsFor ? this.shieldsNow : [], layer.radius)
+    this.shieldC.alpha = e
+    this.shieldC.rotation = time * 0.12
+    this.shieldGlowG.alpha = 0.75 + 0.25 * Math.sin(time * 2.2 + this.phase)
     this.syncMoons(layer, next, time)
     this.syncHoles(hp, innerRadius(layer), time, dt, e)
   }

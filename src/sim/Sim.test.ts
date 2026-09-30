@@ -6,7 +6,7 @@ import { dist, nodePositions, outerAngle, strikeTime } from './geometry'
 import { layer, mote, obstacle, ring, testLevel } from './testFixtures'
 import { runScript } from './headless'
 import { DEBUG_PACK } from '../data/levels/pack'
-import type { LevelData, MoteColor, ObstacleSpec, Prefill, ReleaseColor, RuneLayerSpec } from './types'
+import type { Hue, LevelData, MoteColor, ObstacleSpec, Prefill, ReleaseColor, RuneLayerSpec } from './types'
 
 const DT = 1 / 30
 const C = { x: 200, y: 500 }
@@ -727,6 +727,89 @@ describe('two-shape layers', () => {
     expect(sim.detonate(a)).toBe(true)
     stepFor(sim, 1)
     expect(sim.state.obstacles[0].hp).toBe(0)
+  })
+})
+
+describe('shields', () => {
+  const A = { x: 110, y: 500 }
+  const B = { x: 290, y: 500 }
+  const around = (colors: MoteColor[], at: { x: number; y: number }) => colors.map((c, i) => mote(c, at.x + Math.cos(i * 1.6) * 10, at.y + Math.sin(i * 1.6) * 10))
+  const mixedSquare = (a: Hue, b: Hue): RuneLayerSpec => ({ sides: 4, radius: 40, nodes: [a, a, b, b].map((c) => ({ catch: c, release: c })) })
+  // O0: a triangle (strength 4) behind a ruby shield of strength 2, then a triangle (3).
+  const shielded = (strength = 2): ObstacleSpec => ({ x: 200, y: 150, layers: [{ sides: 3, radius: 30, hp: 4, shields: [{ color: 'red', strength }] }, { sides: 3, radius: 30, hp: 3 }] })
+  // Slot 0 pulls (two ruby bowls, two sapphire); slot 1 strikes (four sapphire).
+  const puller = { layers: [mixedSquare('red', 'blue'), layer(3, 30, 'red')] }
+  const striker = { layers: [layer(4, 40, 'blue'), layer(3, 30, 'blue')] }
+  const level = (parts: Partial<LevelData> = {}) => testLevel({ obstacles: [shielded()], hand: [puller, striker], motes: [...around(['red', 'red', 'blue', 'blue'], A), ...around(['blue', 'blue', 'blue', 'blue'], B)], ...parts })
+
+  it("a piece with a bowl of a shield's color latches on: no fuse, no burst, and it pulls with its motes of that color", () => {
+    const sim = mk(level({ fuse: 3 }))
+    const a = placeSlot(sim, 0, A)
+    const p = sim.piece(a)!
+    expect(p.linkedObstacleId).toBe(sim.state.obstacles[0].id)
+    expect(p.pulling).toBeDefined()
+    expect(p.burnAt).toBeUndefined()
+    stepFor(sim, 1)
+    expect(p.state).toBe('full')
+    expect(sim.state.obstacles[0].down).toEqual([0])
+    expect(sim.detonate(a)).toBe(false)
+    stepFor(sim, 5) // long past its fuse
+    expect(sim.state.stats.burned).toBe(0)
+  })
+
+  it('while a shield is up nothing strikes the layer; once it is down, strikers link, and the fall frees the pullers', () => {
+    const sim = mk(level({ fuse: 6 }))
+    const b = placeSlot(sim, 1, B)
+    expect(sim.piece(b)!.linkedObstacleId).toBeNull() // its shape matches, but the shield is up
+    const a = placeSlot(sim, 0, A)
+    stepFor(sim, 1)
+    expect(sim.piece(b)!.linkedObstacleId).toBe(sim.state.obstacles[0].id)
+    expect(sim.detonate(b)).toBe(true)
+    const fell = sim.state.time
+    stepFor(sim, 1)
+    const o = sim.state.obstacles[0]
+    expect([o.index, o.hp, o.down]).toEqual([1, 3, undefined])
+    const p = sim.piece(a)!
+    expect(p.pulling).toBeUndefined()
+    expect(p.burnAt).toBeCloseTo(fell + 6) // a fresh fuse from the fall (the sim lands blows at once)
+    expect(p.linkedObstacleId).toBe(o.id) // now a striker of the next layer
+    expect(sim.detonate(a)).toBe(true)
+    stepFor(sim, 1)
+    expect(o.cleared).toBe(true)
+  })
+
+  it('a puller need not be full, and pullers share a shield', () => {
+    // Just the two ruby motes: the shield falls while the puller still charges.
+    const half = mk(level({ motes: around(['red', 'red'], A) }))
+    const a = placeSlot(half, 0, A)
+    stepFor(half, 1)
+    expect(half.piece(a)!.state).toBe('charging')
+    expect(half.state.obstacles[0].down).toEqual([0])
+    // Strength 4: one puller's two rubies are not enough; a second's are.
+    const shared = mk(level({ obstacles: [shielded(4)], hand: [puller, puller], motes: [...around(['red', 'red'], A), ...around(['red', 'red'], B)] }))
+    placeSlot(shared, 0, A)
+    stepFor(shared, 1)
+    expect(shared.state.obstacles[0].down).toBeUndefined()
+    placeSlot(shared, 1, B)
+    stepFor(shared, 1)
+    expect(shared.state.obstacles[0].down).toEqual([0])
+  })
+
+  it('pullers never burst: with nothing else left to do, the level is lost', () => {
+    const sim = new Sim(level({ hand: [puller] }))
+    placeSlot(sim, 0, A)
+    stepFor(sim, 2)
+    expect(sim.state.status).toBe('lost')
+  })
+
+  it('a piece that could pull at one obstacle and strike another links to the nearer', () => {
+    const plain: ObstacleSpec = { x: 330, y: 150, layers: [{ sides: 3, radius: 30, hp: 3 }] }
+    const both = testLevel({ obstacles: [{ ...shielded(), x: 70 }, plain], hand: [puller, puller] })
+    const sim = mk(both)
+    const near0 = sim.piece(placeSlot(sim, 0, A))!
+    const near1 = sim.piece(placeSlot(sim, 1, B))!
+    expect([near0.linkedObstacleId, near0.pulling !== undefined]).toEqual([sim.state.obstacles[0].id, true])
+    expect([near1.linkedObstacleId, near1.pulling]).toEqual([sim.state.obstacles[1].id, undefined])
   })
 })
 

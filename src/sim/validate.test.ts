@@ -86,6 +86,25 @@ describe('validateLevel', () => {
     expect(validateLevel(l)).toContain('obstacles[0].layers[0].pair: must be an integer 3..12')
   })
 
+  it('accepts shields of distinct hues with a strength, never on a two-shape layer', () => {
+    const l = good()
+    const first = l.obstacles[0].layers[0]
+    first.shields = [
+      { color: 'red', strength: 3 },
+      { color: 'blue', strength: 1 },
+    ]
+    expect(validateLevel(l)).toEqual([])
+    first.shields = [{ color: 'red', strength: 0 }, { color: 'red', strength: 2 }, { color: 'pink', strength: 1 }]
+    first.pair = first.sides === 4 ? 3 : 4
+    const errs = validateLevel(l)
+    expect(errs).toContain('obstacles[0].layers[0].shields: a two-shape layer cannot have shields')
+    expect(errs).toContain('obstacles[0].layers[0].shields[0].strength: must be an integer >= 1')
+    expect(errs).toContain('obstacles[0].layers[0].shields[1].color: another shield on this layer has that color')
+    expect(errs.some((e) => e.startsWith('obstacles[0].layers[0].shields[2].color:'))).toBe(true)
+    first.shields = []
+    expect(validateLevel(l)).toContain('obstacles[0].layers[0].shields: must be an array of 1 to 4 shields')
+  })
+
   it('forbids annihilation in endless levels', () => {
     const l = good()
     l.endless = { seed: 1 }

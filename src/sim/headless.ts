@@ -2,7 +2,7 @@ import { KICK_GAIN, MOTE_FRICTION, REACH } from './constants'
 import { dist, outerLayer } from './geometry'
 import { colorsCanCover } from './progress'
 import { takesAnyBowl } from '../model/Color'
-import { canFire } from './rules'
+import { canFire, upShields } from './rules'
 import { Sim, type SimOptions } from './Sim'
 import { nextRandom } from './rng'
 import { canonicalBlanks, type Move } from './solver'
@@ -28,12 +28,38 @@ const DT = 1 / 30
 
 // The run in the solver's terms (solver.ts): a fill when a piece becomes
 // full, a lock when it goes into stasis, a fire at each detonation (one for
-// a pair, the earlier rune first). Obstacles and ice are numbered apart,
-// each in the order the sim holds them (ice in the order it formed).
+// a pair, the earlier rune first). A puller's pull is recorded once its
+// bowls of the shields still up there all hold motes (at once, if it
+// latched on full), and a fill after that only if bowls were left over.
+// Obstacles and ice are numbered apart, each in the order the sim holds
+// them (ice in the order it formed).
 function recordMoves(sim: Sim): Move[] {
   const moves: Move[] = []
   const realIndex = (id: string | null) => sim.state.obstacles.filter((o) => !o.frozen).findIndex((o) => o.id === id)
+  const waiting = new Set<string>() // pullers whose pull is not recorded yet
+  const pulledFull = new Set<string>() // pullers the pull filled
+  const tryPull = (piece: Piece) => {
+    const o = sim.state.obstacles.find((x) => x.id === piece.linkedObstacleId)
+    if (!waiting.has(piece.id) || !o) return
+    const up = new Set<string>(upShields(o).map((sh) => sh.color))
+    const bowls = piece.layer.nodes.flatMap((n, i) => (up.has(n.catch) && !n.prefilled ? [i] : []))
+    // With nothing of its left to pull (others pulled its shields down
+    // first), the model never sees it pull.
+    if (!piece.layer.nodes.some((n) => up.has(n.catch))) return waiting.delete(piece.id)
+    const held = (i: number) => sim.state.motes.find((m) => m.id === piece.held[i])?.state === 'held'
+    if (!bowls.every(held)) return
+    waiting.delete(piece.id)
+    if (piece.layer.nodes.every((n) => n.prefilled || up.has(n.catch))) pulledFull.add(piece.id)
+    moves.push({ kind: 'pull', rune: piece.slot, layer: piece.depth, target: realIndex(o.id) })
+  }
+  sim.bus.on('piece:pulling', ({ piece }) => {
+    if (piece.state === 'full') return moves.push({ kind: 'pull', rune: piece.slot, layer: piece.depth, target: realIndex(piece.linkedObstacleId) })
+    waiting.add(piece.id)
+    tryPull(piece)
+  })
+  sim.bus.on('mote:held', ({ piece }) => tryPull(piece))
   sim.bus.on('piece:full', ({ piece }) => {
+    if (pulledFull.delete(piece.id)) return
     // Which bowls took a null or a void, written the way the solver writes it.
     const perNode = piece.held.map((id) => {
       const c = sim.state.motes.find((m) => m.id === id)?.color
@@ -193,7 +219,7 @@ export function runScript(level: LevelData, steps: ScriptStep[], opts: SimOption
       if (sim.state.status !== 'playing') break
       if (!onField(sim, piece)) return fail(`slot ${step.tap}'s piece burned before it burst`)
       if (piece.state !== 'full') return fail(`slot ${step.tap}'s piece did not fill`)
-      if (!canFire(sim.state, piece)) return fail(`slot ${step.tap}'s piece waits in stasis for a partner`)
+      if (!canFire(sim.state, piece)) return fail(`slot ${step.tap}'s piece can't burst (pulling, or in stasis without its partner)`)
       sim.detonate(piece.id)
     }
   }

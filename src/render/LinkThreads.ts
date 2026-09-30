@@ -1,7 +1,7 @@
 import { Container, Graphics, Sprite } from 'pixi.js'
 import type { Vec2 } from '../sim/types'
 import { FROST, RIME } from './Frost'
-import { INVALID_TINT } from './Theme'
+import { INVALID_TINT, lighten } from './Theme'
 import { textures } from './textures'
 
 export interface Link {
@@ -15,6 +15,9 @@ export interface Link {
   // A piece in stasis on a two-shape layer: a taut double wire, still while
   // it waits, racing with its partner's once both are there.
   stasis?: 'waiting' | 'armed'
+  // A puller: the thread takes its shield's color (this), and its beads
+  // run back toward the piece, hauling on the shield.
+  pull?: number
   // A piece holding blanks: its power in lit pips, its blanks hollow, set
   // out along the thread from the rune's edge (`fromRadius` out).
   pips?: { lit: number; blank: number }
@@ -57,7 +60,7 @@ export class LinkThreads {
         this.tether(l, dx, dy, len, time)
         continue
       }
-      const color = l.invalid ? INVALID_TINT : l.frost ? FROST : THREAD
+      const color = l.invalid ? INVALID_TINT : l.frost ? FROST : (l.pull ?? THREAD)
       const dim = l.preview ? 0.55 : 1
       const still = l.stasis === 'waiting'
       const bright = l.full && !still ? 1.6 : 1.2
@@ -98,13 +101,14 @@ export class LinkThreads {
       const glyphs = textures().beads
       const flake = textures().star
       for (let k = 0; k < n; k++) {
-        const phase = ((time * drift) / len + k / n) % 1
+        const ahead = ((time * drift) / len + k / n) % 1
+        const phase = l.pull === undefined ? ahead : 1 - ahead
         const b = this.bead(used++)
         b.texture = l.frost ? flake : glyphs[k % glyphs.length]
         b.position.set(l.from.x + dx * phase, l.from.y + dy * phase)
         b.rotation = time * 0.8 + k * 1.7
         b.scale.set((l.full ? 15 : 12) / 32)
-        b.tint = l.invalid ? INVALID_TINT : l.frost ? RIME : BEAD
+        b.tint = l.invalid ? INVALID_TINT : l.frost ? RIME : l.pull !== undefined ? lighten(l.pull, 0.5) : BEAD
         b.alpha = Math.sin(phase * Math.PI) * (l.full ? 0.95 : 0.6) * dim
       }
     }
