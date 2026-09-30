@@ -181,12 +181,15 @@ const PAGES: { title: string; text: string; svg: string }[] = [
   },
   {
     title: 'Flick and push',
-    text: 'Tap beside a mote to flick it away from your finger. Runes push stray motes out of their bodies, so nothing stays trapped inside.',
-    svg: `<ellipse cx="92" cy="70" rx="30" ry="6" fill="${SAPPHIRE}" opacity=".35" filter="url(#softer)"/>
-      <ellipse cx="72" cy="69" rx="16" ry="4" fill="${SAPPHIRE}" opacity=".3" filter="url(#soft)"/>
-      ${mote(120, 70, SAPPHIRE)}
-      <circle cx="148" cy="70" r="12" fill="#fff" opacity=".12"/><circle cx="148" cy="70" r="4" fill="#fff" opacity=".75"/>
-      ${label(148, 98, 'tap', 'middle')}`,
+    text: 'Swipe a mote to flick it that way: it travels at least as far as your swipe, farther the quicker you flick. Flicked into a rune, it flies to a bowl that can hold it. Runes push stray motes out of their bodies, so nothing stays trapped inside.',
+    svg: `<path d="M44 92 Q70 84 96 74" fill="none" stroke="#fff" stroke-opacity=".1" stroke-width="16" stroke-linecap="round"/>
+      <path d="M52 89 Q72 83 96 74" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="96" cy="74" r="4" fill="#fff" opacity=".75"/>
+      <ellipse cx="128" cy="62" rx="26" ry="5" transform="rotate(-18 128 62)" fill="${SAPPHIRE}" opacity=".35" filter="url(#softer)"/>
+      ${mote(158, 52, SAPPHIRE)}
+      <path d="M172 47 L196 39" stroke="${GLASS}" stroke-opacity=".6" stroke-width="1.2" stroke-dasharray="3 3"/>
+      <path d="M190 36 L197 39 L192 45" fill="none" stroke="${GLASS}" stroke-opacity=".6" stroke-width="1.2"/>
+      ${label(70, 110, 'swipe', 'middle')}`,
   },
   {
     title: 'Obstacles',

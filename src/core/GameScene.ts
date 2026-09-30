@@ -15,7 +15,7 @@ import { governor, quality, type Tier } from '../render/Quality'
 import { VIRTUAL_WIDTH, VIRTUAL_HEIGHT, computeFit } from './VirtualScreen'
 import { Sim } from '../sim/Sim'
 import { ENDLESS_TUNING, ensureEndlessLayers } from '../sim/endless'
-import { EJECT_TIME, INVENTORY_ZONE, REACH, THAW_LAG } from '../sim/constants'
+import { EJECT_TIME, FLICK_GAIN, INVENTORY_ZONE, MOTE_FRICTION, REACH, THAW_LAG } from '../sim/constants'
 import { middleAngle, outerAngle, outerLayer } from '../sim/geometry'
 import type { Hue, LevelData, Mote, Obstacle, Piece, Rune, Vec2 } from '../sim/types'
 import type { DetonationInfo } from '../sim/events'
@@ -46,6 +46,25 @@ interface DragState {
   onCancel: (e: PointerEvent) => void
 }
 
+// A touch on the board, followed until it lifts: a swipe flicks a mote
+// along it, a tap shoves the nearest one away from the finger.
+interface Gesture {
+  pointerId: number
+  moteId: string | null // the free mote nearest where it began, if one was close
+  onPiece: boolean // began on a charging piece (a tap there that moves nothing is "not ready")
+  start: Sample
+  samples: Sample[] // the most recent positions
+  onMove: (e: PointerEvent) => void
+  onEnd: (e: PointerEvent) => void
+  onCancel: (e: PointerEvent) => void
+}
+
+interface Sample {
+  t: number // seconds
+  x: number
+  y: number
+}
+
 interface Flight {
   from: Vec2
   fromScale: number
@@ -57,8 +76,10 @@ const FLY_HOME_TIME = 0.5
 const RESULT_DELAY = 1.5
 const REST_ANGLE = -Math.PI / 2
 const TOUCH_LIFT = 56
-const KICK_TOUCH_RADIUS = 26 // fingers are blunt
-const KICK_MOUSE_RADIUS = 16
+const GRAB_TOUCH_RADIUS = 34 // fingers are blunt
+const GRAB_MOUSE_RADIUS = 22
+const TAP_SLOP = 6 // px a touch may wander and still be a tap
+const FLICK_WINDOW = 0.1 // s: the end of a swipe sets its speed
 const NO_MOTES = new Map<string, Mote>()
 const FROST_BACK = 0.3 // frost racing back from a frost layer to the piece it bites
 
@@ -88,6 +109,7 @@ export class GameScene {
   private zoneBg!: ZoneBackground
   private clock = 0 // monotonic scene time for decoration (sim time rewinds on undo)
   private drag: DragState | null = null
+  private gesture: Gesture | null = null
   private pendingResult: { kind: 'won' | 'lost'; wait: number } | null = null
   private mood = 1 // 1 = normal, drops toward 0.35 during the loss animation
   private showRings = false
@@ -123,8 +145,8 @@ export class GameScene {
     this.bindSimEvents()
     this.rebuildViews()
 
-    // Taps that miss every rune land on this invisible backdrop and kick the
-    // nearest free mote. (A hitArea on the root container would short-circuit
+    // Touches that miss every rune land on this invisible backdrop, where a
+    // swipe flicks a mote. (A hitArea on the root container would short-circuit
     // hit-testing of the runes inside it, so the backdrop is a sibling.)
     const backdrop = new Graphics().rect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT).fill({ color: 0x000000, alpha: 0.001 })
     backdrop.eventMode = 'static'
@@ -158,6 +180,7 @@ export class GameScene {
 
   destroy(): void {
     this.cancelDrag()
+    this.detachGesture()
     this.debugPanel?.remove()
     this.hud?.remove()
     this.sim.bus.all.clear()
@@ -385,6 +408,7 @@ export class GameScene {
 
   private rebuildViews(): void {
     this.cancelDrag()
+    this.detachGesture()
     for (const id of [...this.handViews.keys()]) this.removeView(this.handViews, id)
     for (const id of [...this.pieceViews.keys()]) this.removeView(this.pieceViews, id)
     for (const v of this.obstacleViews.values()) v.container.destroy({ children: true })
@@ -628,30 +652,94 @@ export class GameScene {
   // Input
   // ---------------------------------------------------------------------
 
-  // Returns whether a mote was kicked.
-  private onBoardPointerDown(e: FederatedPointerEvent): boolean {
+  // A touch on the board is followed until it lifts (see endGesture). The
+  // free mote nearest where it began, if one is close, is marked at once.
+  private onBoardPointerDown(e: FederatedPointerEvent, onPiece = false): void {
     this.sfx.unlock()
-    if (this.drag || this.sim.state.status !== 'playing') return false
+    if (this.drag || this.gesture || this.sim.state.status !== 'playing') return
     const p = this.layers.root.toLocal(e.global)
+    const radius = e.pointerType === 'mouse' ? GRAB_MOUSE_RADIUS : GRAB_TOUCH_RADIUS
+    const mote = this.nearestFreeMote((m) => Math.hypot(m.pos.x - p.x, m.pos.y - p.y), radius)
+    if (mote) this.effects.ring(mote.pos, colorForMote(mote.color), 16, 9, 0.2, 1.2)
+    const pointerId = e.pointerId
+    const start = { t: performance.now() / 1000, x: p.x, y: p.y }
+    const sample = (ev: PointerEvent): Sample => ({ t: performance.now() / 1000, ...this.clientToVirtual(ev, 0) })
+    const onMove = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId || !this.gesture) return
+      this.gesture.samples.push(sample(ev))
+      if (this.gesture.samples.length > 32) this.gesture.samples.shift()
+    }
+    const onEnd = (ev: PointerEvent) => {
+      if (ev.pointerId === pointerId) this.endGesture(sample(ev), radius)
+    }
+    const onCancel = (ev: PointerEvent) => {
+      if (ev.pointerId === pointerId) this.detachGesture()
+    }
+    this.gesture = { pointerId, moteId: mote?.id ?? null, onPiece, start, samples: [start], onMove, onEnd, onCancel }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onEnd)
+    window.addEventListener('pointercancel', onCancel)
+  }
+
+  private nearestFreeMote(distance: (m: Mote) => number, within: number): Mote | null {
     let best: Mote | null = null
-    let bestD = e.pointerType === 'touch' ? KICK_TOUCH_RADIUS : KICK_MOUSE_RADIUS
+    let bestD = within
     for (const m of this.sim.state.motes) {
       if (m.state !== 'free') continue
-      const d = Math.hypot(m.pos.x - p.x, m.pos.y - p.y)
+      const d = distance(m)
       if (d < bestD) {
         bestD = d
         best = m
       }
     }
-    if (best && this.sim.kick(best.id, { x: p.x, y: p.y })) {
-      this.session.kicks++
-      const v = best.vel ?? { x: 0, y: 0 }
-      this.moteViews.get(best.id)?.burst(best.pos.x, best.pos.y, lighten(colorForMote(best.color), 0.12), best.color === 'generic', 5, v.x * 0.25, v.y * 0.25)
-      this.effects.ring(best.pos, colorForMote(best.color), 6, 22, 0.25, 1.5)
-      this.sfx.kick()
-      return true
+    return best
+  }
+
+  // A swipe flicks the mote it began on (or, failing that, the one it
+  // crossed) along it: at least as far as the swipe, farther the quicker it
+  // was. A tap shoves the nearest mote away from the finger.
+  private endGesture(end: Sample, radius: number): void {
+    const g = this.gesture
+    this.detachGesture()
+    if (!g || this.sim.state.status !== 'playing') return
+    const { start } = g
+    const dx = end.x - start.x
+    const dy = end.y - start.y
+    const moved = Math.hypot(dx, dy)
+    let mote = g.moteId ? (this.sim.state.motes.find((m) => m.id === g.moteId && m.state === 'free') ?? null) : null
+    let ok = false
+    if (moved < TAP_SLOP) {
+      ok = !!mote && this.sim.kick(mote.id, start)
+    } else {
+      mote ??= this.nearestFreeMote((m) => distToSegment(m.pos, start, end), radius)
+      if (mote) {
+        // The swipe's speed over its last moments.
+        const recent = g.samples.find((s) => s.t >= end.t - FLICK_WINDOW) ?? start
+        const dt = end.t - recent.t
+        const quick = dt > 0.008 ? Math.hypot(end.x - recent.x, end.y - recent.y) / dt : 0
+        const speed = Math.max(MOTE_FRICTION * moved, FLICK_GAIN * quick)
+        ok = this.sim.flick(mote.id, { x: (dx / moved) * speed, y: (dy / moved) * speed })
+      }
     }
-    return false
+    if (ok && mote) {
+      this.session.kicks++
+      const v = mote.vel ?? { x: 0, y: 0 }
+      this.moteViews.get(mote.id)?.burst(mote.pos.x, mote.pos.y, lighten(colorForMote(mote.color), 0.12), mote.color === 'generic', 5, v.x * 0.25, v.y * 0.25)
+      this.effects.ring(mote.pos, colorForMote(mote.color), 6, 22, 0.25, 1.5)
+      this.sfx.kick()
+    } else if (g.onPiece) {
+      // A charging piece has nothing to do on tap.
+      this.sfx.notReady()
+    }
+  }
+
+  private detachGesture(): void {
+    const g = this.gesture
+    if (!g) return
+    window.removeEventListener('pointermove', g.onMove)
+    window.removeEventListener('pointerup', g.onEnd)
+    window.removeEventListener('pointercancel', g.onCancel)
+    this.gesture = null
   }
 
   private onRunePointerDown(runeId: string, e: FederatedPointerEvent): void {
@@ -665,13 +753,10 @@ export class GameScene {
     this.sfx.unlock()
     const piece = this.sim.piece(pieceId)
     if (!piece || this.sim.state.status !== 'playing') return
-    if (piece.state === 'full') {
-      this.sim.detonate(pieceId)
-    } else if (!this.onBoardPointerDown(e)) {
-      // A charging piece has nothing to do on tap, so the tap falls through
-      // to kicking a mote under the finger (motes near a piece stay reachable).
-      this.sfx.notReady()
-    }
+    // A charging piece has nothing to do on tap, so the touch falls through
+    // to the board (motes near a piece stay within reach).
+    if (piece.state === 'full') this.sim.detonate(pieceId)
+    else this.onBoardPointerDown(e, true)
   }
 
   // Drag tracking uses window-level DOM pointer events, not Pixi per-object
@@ -749,4 +834,11 @@ export class GameScene {
     this.layers.root.scale.set(fit.scale)
     this.layers.root.position.set(fit.offsetX + sx * fit.scale, fit.offsetY + sy * fit.scale)
   }
+}
+
+function distToSegment(p: Vec2, a: Vec2, b: Vec2): number {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const u = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy || 1)))
+  return Math.hypot(p.x - (a.x + dx * u), p.y - (a.y + dy * u))
 }

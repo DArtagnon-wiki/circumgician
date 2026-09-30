@@ -1,4 +1,4 @@
-import { DRIFT_SPEED, EJECT_TIME, KICK_GAIN, KICK_MAX, KICK_MIN, MOTE_FRICTION, PULL_ACCEL, PULL_RANGE, PUSH_BASE, PUSH_DEPTH, PUSH_INSET, REACH, SETTLE_SPEED, TRAVEL_TIME } from './constants'
+import { DRIFT_SPEED, EJECT_TIME, FLICK_MAX, KICK_GAIN, KICK_MAX, KICK_MIN, MOTE_FRICTION, PULL_ACCEL, PULL_RANGE, PUSH_BASE, PUSH_DEPTH, PUSH_INSET, REACH, SETTLE_SPEED, TRAVEL_TIME } from './constants'
 import { dist, nodePositions } from './geometry'
 import { nextRandom } from './rng'
 import type { SimBus } from './events'
@@ -152,6 +152,18 @@ export function kickMote(mote: Mote, from: Vec2): boolean {
   const speed = Math.max(KICK_MIN, Math.min(KICK_MAX, KICK_GAIN * d))
   const v = mote.vel ?? { x: 0, y: 0 }
   mote.vel = { x: v.x + (dx / d) * speed, y: v.y + (dy / d) * speed }
+  mote.kicked = true
+  return true
+}
+
+// The player's swipe flicks the mote along it: a fresh velocity in the
+// swipe's direction, its speed clamped to [KICK_MIN, FLICK_MAX].
+export function flickMote(mote: Mote, vel: Vec2): boolean {
+  if (mote.state !== 'free') return false
+  const s = Math.hypot(vel.x, vel.y)
+  if (s < 1) return false
+  const speed = Math.max(KICK_MIN, Math.min(FLICK_MAX, s))
+  mote.vel = { x: (vel.x / s) * speed, y: (vel.y / s) * speed }
   mote.kicked = true
   return true
 }

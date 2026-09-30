@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Sim, type SimOptions } from './Sim'
-import { BURST_GAP, FROZEN_INSET, ICE_RADIUS, REACH, THAW_LAG } from './constants'
+import { BURST_GAP, FLICK_MAX, FROZEN_INSET, ICE_RADIUS, KICK_MIN, MOTE_FRICTION, REACH, THAW_LAG } from './constants'
 import type { DetonationInfo } from './events'
 import { dist, nodePositions, strikeTime } from './geometry'
 import { layer, mote, obstacle, ring, testLevel } from './testFixtures'
@@ -444,6 +444,30 @@ describe('fuse (endless)', () => {
       expect(dist(m.pos, C)).toBeCloseTo(40 + BURST_GAP, 0)
     }
     expect(sim.canPlace(sim.state.runes.find((r) => r.slot === 0)!.id, C)).toBe(true) // the ground is clear again
+  })
+})
+
+describe('flick', () => {
+  it('sends a free mote along the swipe, its speed clamped, and it coasts to a stop', () => {
+    const sim = mk(testLevel({ hand: [{ layers: [layer(4, 40, 'red'), layer(3, 30, 'red')] }], motes: [mote('red', 100, 500), mote('blue', 60, 620)] }))
+    const [slow, fast] = sim.state.motes
+    expect(sim.flick(slow.id, { x: 0, y: -10 })).toBe(true) // too gentle: at least KICK_MIN
+    expect(sim.flick(fast.id, { x: 3000, y: 0 })).toBe(true) // too hard: at most FLICK_MAX
+    expect(Math.hypot(slow.vel!.x, slow.vel!.y)).toBeCloseTo(KICK_MIN)
+    expect(fast.vel!.x).toBeCloseTo(FLICK_MAX)
+    stepFor(sim, 4)
+    expect(slow.vel).toBeUndefined()
+    expect(slow.pos.x).toBeCloseTo(100, 0)
+    expect(500 - slow.pos.y).toBeCloseTo(KICK_MIN / MOTE_FRICTION, -1)
+    expect(fast.pos.x - 60).toBeCloseTo(FLICK_MAX / MOTE_FRICTION, -1)
+    expect(slow.home).toEqual(slow.pos) // where it came to rest
+  })
+
+  it('moves only free motes', () => {
+    const sim = mk(testLevel({ hand: [{ layers: [layer(4, 40, 'red'), layer(3, 30, 'red')] }], motes: ring('red', C.x, C.y, 40, 4) }))
+    placeSlot(sim, 0)
+    stepFor(sim, 5)
+    expect(sim.flick(sim.state.motes[0].id, { x: 200, y: 0 })).toBe(false)
   })
 })
 

@@ -1,6 +1,6 @@
 import { createSimBus, type SimBus } from './events'
 import { loadLevel } from './loadLevel'
-import { kickMote, updateCatching, updateMotion } from './motion'
+import { flickMote, kickMote, updateCatching, updateMotion } from './motion'
 import { certainLoss, isWon } from './progress'
 import { canPlace, castRune, damageObstacle, detonatePiece, findLink, freezePiece, relinkAll, type EnsureLayers } from './rules'
 import { middleLayer } from './geometry'
@@ -108,6 +108,14 @@ export class Sim {
     if (this.state.status !== 'playing') return false
     const mote = this.state.motes.find((m) => m.id === moteId)
     return !!mote && kickMote(mote, from)
+  }
+
+  // A swipe across a mote flicks it along the swipe (`vel` in px/s). Like a
+  // kick, not an undo step.
+  flick(moteId: string, vel: Vec2): boolean {
+    if (this.state.status !== 'playing') return false
+    const mote = this.state.motes.find((m) => m.id === moteId)
+    return !!mote && flickMote(mote, vel)
   }
 
   // Debug: collapse the current layer of every obstacle.

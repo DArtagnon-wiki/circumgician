@@ -29,6 +29,11 @@ export const KICK_GAIN = 9 // (px/s) per px of touch offset
 export const KICK_MIN = 70
 export const KICK_MAX = 240
 export const MOTE_FRICTION = 3 // 1/s exponential velocity decay
+// A swipe flicks a mote along it: at least far enough to travel the swipe's
+// length (MOTE_FRICTION px/s per px), farther for a quicker swipe
+// (FLICK_GAIN of its speed), up to FLICK_MAX.
+export const FLICK_GAIN = 0.35
+export const FLICK_MAX = 360
 export const SETTLE_SPEED = 4
 // Placed runes push uncaptured motes out of their body: anything closer
 // than (radius - PUSH_INSET) accelerates outward, harder the deeper it is.
