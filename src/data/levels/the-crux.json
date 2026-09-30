@@ -161,7 +161,10 @@
           "radius": 30,
           "hp": 3
         }
-      ]
+      ],
+      "look": {
+        "style": "marble"
+      }
     },
     {
       "x": 200,
@@ -169,22 +172,22 @@
       "layers": [
         {
           "sides": 3,
-          "radius": 30,
+          "radius": 34,
           "hp": 4
         },
         {
           "sides": 3,
-          "radius": 30,
+          "radius": 33,
           "hp": 3
         },
         {
           "sides": 5,
-          "radius": 36,
+          "radius": 38,
           "hp": 6
         },
         {
           "sides": 4,
-          "radius": 30,
+          "radius": 31,
           "hp": 4
         },
         {
@@ -192,7 +195,11 @@
           "radius": 30,
           "hp": 4
         }
-      ]
+      ],
+      "look": {
+        "style": "marble",
+        "moons": 2
+      }
     },
     {
       "x": 325,
@@ -223,7 +230,10 @@
           "radius": 30,
           "hp": 3
         }
-      ]
+      ],
+      "look": {
+        "style": "marble"
+      }
     }
   ],
   "hand": [

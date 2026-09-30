@@ -164,17 +164,17 @@
       "layers": [
         {
           "sides": 3,
-          "radius": 30,
+          "radius": 36,
           "hp": 4
         },
         {
           "sides": 3,
-          "radius": 30,
+          "radius": 34,
           "hp": 4
         },
         {
           "sides": 6,
-          "radius": 30,
+          "radius": 32,
           "hp": 4
         },
         {
@@ -184,10 +184,13 @@
         },
         {
           "sides": 4,
-          "radius": 30,
+          "radius": 28,
           "hp": 3
         }
-      ]
+      ],
+      "look": {
+        "style": "magma"
+      }
     },
     {
       "x": 305,
@@ -195,12 +198,27 @@
       "layers": [
         {
           "sides": 3,
-          "radius": 30,
+          "radius": 40,
           "hp": 3
         },
         {
           "sides": 3,
-          "radius": 30,
+          "radius": 38,
+          "hp": 3
+        },
+        {
+          "sides": 4,
+          "radius": 36,
+          "hp": 3
+        },
+        {
+          "sides": 4,
+          "radius": 34,
+          "hp": 3
+        },
+        {
+          "sides": 4,
+          "radius": 32,
           "hp": 3
         },
         {
@@ -210,40 +228,29 @@
         },
         {
           "sides": 4,
-          "radius": 30,
-          "hp": 3
-        },
-        {
-          "sides": 4,
-          "radius": 30,
-          "hp": 3
-        },
-        {
-          "sides": 4,
-          "radius": 30,
-          "hp": 3
-        },
-        {
-          "sides": 4,
-          "radius": 30,
+          "radius": 28,
           "hp": 6
         },
         {
           "sides": 6,
-          "radius": 30,
+          "radius": 26,
           "hp": 6
         },
         {
           "sides": 3,
-          "radius": 30,
+          "radius": 24,
           "hp": 3
         },
         {
           "sides": 3,
-          "radius": 30,
+          "radius": 22,
           "hp": 3
         }
-      ]
+      ],
+      "look": {
+        "style": "magma",
+        "moons": 4
+      }
     }
   ],
   "hand": [

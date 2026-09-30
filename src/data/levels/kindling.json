@@ -128,12 +128,12 @@
       "layers": [
         {
           "sides": 3,
-          "radius": 30,
+          "radius": 34,
           "hp": 4
         },
         {
           "sides": 3,
-          "radius": 30,
+          "radius": 32,
           "hp": 4
         },
         {
@@ -141,7 +141,10 @@
           "radius": 30,
           "hp": 3
         }
-      ]
+      ],
+      "look": {
+        "style": "magma"
+      }
     },
     {
       "x": 305,
@@ -149,12 +152,12 @@
       "layers": [
         {
           "sides": 4,
-          "radius": 30,
+          "radius": 34,
           "hp": 3
         },
         {
           "sides": 4,
-          "radius": 30,
+          "radius": 32,
           "hp": 3
         },
         {
@@ -164,10 +167,13 @@
         },
         {
           "sides": 5,
-          "radius": 30,
+          "radius": 28,
           "hp": 5
         }
-      ]
+      ],
+      "look": {
+        "style": "magma"
+      }
     }
   ],
   "hand": [

@@ -145,12 +145,12 @@
       "layers": [
         {
           "sides": 5,
-          "radius": 30,
+          "radius": 34,
           "hp": 4
         },
         {
           "sides": 5,
-          "radius": 30,
+          "radius": 32,
           "hp": 4
         },
         {
@@ -158,7 +158,10 @@
           "radius": 30,
           "hp": 5
         }
-      ]
+      ],
+      "look": {
+        "style": "void"
+      }
     },
     {
       "x": 305,
@@ -166,12 +169,12 @@
       "layers": [
         {
           "sides": 3,
-          "radius": 30,
+          "radius": 34,
           "hp": 3
         },
         {
           "sides": 6,
-          "radius": 30,
+          "radius": 32,
           "hp": 3
         },
         {
@@ -182,16 +185,20 @@
         },
         {
           "sides": 3,
-          "radius": 30,
+          "radius": 28,
           "hp": 6,
           "frost": true
         },
         {
           "sides": 7,
-          "radius": 30,
+          "radius": 26,
           "hp": 5
         }
-      ]
+      ],
+      "look": {
+        "style": "void",
+        "moons": 2
+      }
     }
   ],
   "hand": [

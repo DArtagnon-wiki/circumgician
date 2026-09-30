@@ -162,15 +162,18 @@
       "layers": [
         {
           "sides": 3,
-          "radius": 30,
+          "radius": 32,
           "hp": 4
         },
         {
           "sides": 3,
-          "radius": 30,
+          "radius": 28,
           "hp": 3
         }
-      ]
+      ],
+      "look": {
+        "style": "geode"
+      }
     },
     {
       "x": 290,
@@ -178,7 +181,7 @@
       "layers": [
         {
           "sides": 3,
-          "radius": 30,
+          "radius": 34,
           "hp": 5
         },
         {
@@ -186,7 +189,10 @@
           "radius": 30,
           "hp": 3
         }
-      ]
+      ],
+      "look": {
+        "style": "geode"
+      }
     }
   ],
   "hand": [

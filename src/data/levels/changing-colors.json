@@ -96,12 +96,12 @@
       "layers": [
         {
           "sides": 3,
-          "radius": 30,
+          "radius": 42,
           "hp": 5
         },
         {
           "sides": 4,
-          "radius": 30,
+          "radius": 36,
           "hp": 4
         },
         {
@@ -109,7 +109,11 @@
           "radius": 30,
           "hp": 3
         }
-      ]
+      ],
+      "look": {
+        "style": "marble",
+        "moons": 2
+      }
     }
   ],
   "hand": [

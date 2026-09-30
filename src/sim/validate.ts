@@ -1,4 +1,5 @@
 import { PALETTE_NAMES } from '../model/Color'
+import { MAX_MOONS, OBSTACLE_MOTIONS, OBSTACLE_STYLES } from '../model/Look'
 import { FIELD_ZONE, ICE_RADIUS, OBSTACLE_ZONE } from './constants'
 import { circleInRect } from './geometry'
 import type { LevelData, Rect } from './types'
@@ -95,6 +96,13 @@ export function validateLevel(data: unknown): string[] {
         if (!isInt(l.hp) || (l.hp as number) < 1) err(`${lp}.hp`, 'must be an integer >= 1')
         if (l.frost !== undefined && typeof l.frost !== 'boolean') err(`${lp}.frost`, 'must be true or false')
       })
+      if (o.look !== undefined) {
+        const look = o.look
+        if (!isObj(look)) return err(`${p}.look`, 'must be an object')
+        if (look.style !== undefined && !(OBSTACLE_STYLES as readonly unknown[]).includes(look.style)) err(`${p}.look.style`, `must be one of ${OBSTACLE_STYLES.join(', ')}`)
+        if (look.motion !== undefined && !(OBSTACLE_MOTIONS as readonly unknown[]).includes(look.motion)) err(`${p}.look.motion`, `must be one of ${OBSTACLE_MOTIONS.join(', ')}`)
+        if (look.moons !== undefined && (!isInt(look.moons) || (look.moons as number) < 0 || (look.moons as number) > MAX_MOONS)) err(`${p}.look.moons`, `must be an integer from 0 to ${MAX_MOONS}`)
+      }
     })
   }
 

@@ -121,33 +121,37 @@
   ],
   "obstacles": [
     {
-      "x": 120,
-      "y": 150,
+      "x": 96,
+      "y": 132,
       "layers": [
         {
           "sides": 6,
-          "radius": 30,
+          "radius": 34,
           "hp": 4
         },
         {
           "sides": 6,
-          "radius": 30,
+          "radius": 31,
           "hp": 4
         },
         {
           "sides": 6,
-          "radius": 30,
+          "radius": 28,
           "hp": 4
         }
-      ]
+      ],
+      "look": {
+        "style": "obsidian",
+        "motion": "drift"
+      }
     },
     {
-      "x": 300,
-      "y": 175,
+      "x": 286,
+      "y": 190,
       "layers": [
         {
           "sides": 4,
-          "radius": 30,
+          "radius": 32,
           "hp": 3
         },
         {
@@ -157,15 +161,20 @@
         },
         {
           "sides": 5,
-          "radius": 30,
+          "radius": 28,
           "hp": 6
         },
         {
           "sides": 4,
-          "radius": 30,
+          "radius": 26,
           "hp": 3
         }
-      ]
+      ],
+      "look": {
+        "style": "obsidian",
+        "motion": "drift",
+        "moons": 3
+      }
     }
   ],
   "hand": [

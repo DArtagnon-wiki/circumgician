@@ -1,16 +1,16 @@
 import { Container, Graphics, Sprite } from 'pixi.js'
+import type { ObstacleMotion } from '../model/Look'
 import type { Obstacle, ObstacleLayerSpec, Vec2 } from '../sim/types'
 import { localVertices } from './drawPolygon'
-import { drawObsidian, OBSIDIAN, sheenBand } from './obsidian'
 import { FROST, RIME } from './Frost'
+import { makeMaterial, type Material } from './obstacleStyles'
 import { textures } from './textures'
 
 const NEXT_PAD = 3 // gap between the current polygon and the next-shape outline
 const REVEAL_TIME = 0.45 // next outline shrinking into place after a collapse
 const IMPLODE_TIME = 0.35
 const GILT = 0xe6c170
-const GLINT_EVERY = 4.2 // seconds between specular sweeps
-const GLINT_TIME = 0.9
+const MOON_SPEED = 0.45 // rad/s round the obstacle
 
 // Radius at which an n-gon circumscribes a circle of radius r (its inradius
 // equals r), so the whole current polygon fits inside the outline.
@@ -30,14 +30,14 @@ interface Dying {
   hole: Hole
 }
 
-// An obstacle is faceted obsidian: a bevel of light-shaded facets around a
-// dark table, a sharp rim and a specular glint that sweeps across now and
-// then. Its strength is black holes swirling inside (one per HP), and its
-// next layer (if any) a ghostly obsidian outline circumscribed around it,
-// dotted with that layer's strength. When the current layer collapses, the
-// outline shrinks into place. Bosses carry gilded fractures, frost layers
-// veins of ice; ice itself (a level's blocks, frozen pieces) is obsidian
-// rimed and glazed in frost.
+// An obstacle is a shape cut from some material (obstacleStyles.ts: faceted
+// obsidian unless the level picks another). Its strength is black holes
+// swirling inside (one per HP), and its next layer (if any) a ghostly
+// outline circumscribed around it, dotted with that layer's strength. When
+// the current layer collapses, the outline shrinks into place. It idles in
+// its own way (sways, floats, turns...), and may have moons. Bosses carry
+// gilded fractures, frost layers veins of ice; ice itself (a level's blocks,
+// frozen pieces) is obsidian rimed and glazed in frost.
 export class ObstacleView {
   readonly container = new Container()
   private nextC = new Container()
@@ -45,11 +45,17 @@ export class ObstacleView {
   private glintC = new Container()
   private nextGlints: Sprite[] = []
   private body = new Container()
-  private facetsG = new Graphics()
+  private material: Material
+  private motion: ObstacleMotion
+  private phase: number // desynchronises neighbours' idling
+  private home: Vec2
+  private overG = new Graphics() // boss fractures, over any material
   private frostG = new Graphics()
   private frozen: boolean
   private flashG = new Graphics()
-  private glintG = new Graphics()
+  private moonBack = new Container()
+  private moonFront = new Container()
+  private moons: Graphics[] = []
   // Holes by blend: glowing swirls and lensing rings, then the black cores.
   private holeGlowC = new Container()
   private holeCoreC = new Container()
@@ -63,22 +69,27 @@ export class ObstacleView {
   private flash = 0
   private shownHp = -1
   private dying: Dying[] = []
-  private glintOffset: number
   // Display snapshots queued by detonations in flight: until each one's
   // orb lands, the obstacle keeps showing the state from before its hit.
   private holds: { left: number; index: number; hp: number }[] = []
 
   constructor(obstacle: Obstacle) {
-    this.glintOffset = (obstacle.pos.x * 0.013 + obstacle.pos.y * 0.007) % GLINT_EVERY
+    const seed = Math.round(obstacle.pos.x * 13 + obstacle.pos.y * 7)
+    this.phase = (seed % 97) * 0.37
     this.frozen = !!obstacle.frozen
+    // Ice is always obsidian under its glaze.
+    this.material = makeMaterial(this.frozen ? 'obsidian' : (obstacle.look?.style ?? 'obsidian'), seed)
+    this.motion = this.frozen ? 'sway' : (obstacle.look?.motion ?? this.material.motion)
+    this.home = { ...obstacle.pos }
     this.nextC.addChild(this.nextG, this.glintC)
-    this.glintG.blendMode = 'add'
     this.frostG.blendMode = 'add'
     this.flashG.blendMode = 'add'
     this.holeGlowC.blendMode = 'add'
-    this.body.addChild(this.facetsG, this.frostG, this.glintG, this.holeGlowC, this.holeCoreC, this.flashG)
-    this.container.addChild(this.nextC, this.body)
+    this.body.addChild(this.material.art, this.overG, this.frostG, this.holeGlowC, this.holeCoreC, this.flashG)
+    this.container.addChild(this.moonBack, this.nextC, this.body, this.moonFront)
     this.container.position.set(obstacle.pos.x, obstacle.pos.y)
+    const moons = this.frozen ? 0 : (obstacle.look?.moons ?? 0)
+    for (let i = 0; i < moons; i++) this.moons.push(new Graphics())
   }
 
   hit(): void {
@@ -107,7 +118,8 @@ export class ObstacleView {
     }
     this.container.visible = true
     const next = obstacle.layers[index + 1]
-    const sway = Math.sin(time * 0.4 + obstacle.pos.y) * 0.05
+    const idle = this.idle(time)
+    this.container.position.set(this.home.x + idle.x, this.home.y + idle.y)
 
     if (this.drawnIndex !== index) {
       const prev = obstacle.layers[index - 1]
@@ -117,7 +129,7 @@ export class ObstacleView {
         // Start from the outline's current angle (mod the shape's symmetry)
         // so it seamlessly becomes the body.
         const step = (Math.PI * 2) / layer.sides
-        const d = this.nextC.rotation - sway
+        const d = this.nextC.rotation - idle.turn
         this.revealTurn = d - Math.round(d / step) * step
       }
       this.drawnIndex = index
@@ -132,8 +144,8 @@ export class ObstacleView {
     const radius = this.revealFrom + (layer.radius - this.revealFrom) * e
     const settled = this.reveal >= 1
 
-    this.body.scale.set(settled ? 1 : radius / layer.radius)
-    this.body.rotation = sway + this.revealTurn * (1 - e)
+    this.body.scale.set((settled ? 1 : radius / layer.radius) * idle.scale)
+    this.body.rotation = idle.turn + this.revealTurn * (1 - e)
     this.body.alpha = 0.3 + 0.7 * e
     this.flashG.alpha = this.flash * 0.55
 
@@ -149,17 +161,56 @@ export class ObstacleView {
       this.nextC.visible = false
     }
 
-    this.drawGlint(time)
+    this.material.update(time)
+    this.syncMoons(layer, next, time)
     this.syncHoles(hp, layer.radius * Math.cos(Math.PI / layer.sides), time, dt, e)
+  }
+
+  // Where idling puts the obstacle this frame: an offset, a turn and a
+  // scale. Small enough that threads and strikes still meet it.
+  private idle(time: number): { x: number; y: number; turn: number; scale: number } {
+    const t = time + this.phase
+    switch (this.motion) {
+      case 'bob':
+        return { x: 0, y: Math.sin(t * 0.9) * 3, turn: Math.sin(t * 0.45) * 0.03, scale: 1 }
+      case 'spin':
+        return { x: 0, y: 0, turn: t * (this.phase % 2 < 1 ? 0.2 : -0.2), scale: 1 }
+      case 'pulse':
+        return { x: 0, y: 0, turn: Math.sin(t * 0.4) * 0.03, scale: 1 + Math.sin(t * 1.6) * 0.025 }
+      case 'drift':
+        return { x: Math.cos(t * 0.35) * 4, y: Math.sin(t * 0.5) * 3, turn: Math.sin(t * 0.3) * 0.06, scale: 1 }
+      case 'still':
+        return { x: 0, y: 0, turn: 0, scale: 1 }
+      default:
+        return { x: 0, y: 0, turn: Math.sin(time * 0.4 + this.home.y) * 0.05, scale: 1 }
+    }
+  }
+
+  // Moons circle on a tilted orbit clear of the next layer's outline,
+  // passing behind the body on the far side.
+  private syncMoons(layer: ObstacleLayerSpec, next: ObstacleLayerSpec | undefined, time: number): void {
+    if (!this.moons.length) return
+    const orbit = circumscribing(layer.radius, next?.sides ?? layer.sides) + 9
+    const n = this.moons.length
+    this.moons.forEach((m, i) => {
+      const a = time * MOON_SPEED + (i / n) * Math.PI * 2 + this.phase
+      const depth = Math.sin(a) // > 0: in front
+      m.position.set(Math.cos(a) * orbit, Math.sin(a) * orbit * 0.32)
+      m.scale.set(0.8 + 0.25 * depth)
+      m.rotation = time * 0.8 + i
+      m.alpha = 0.75 + 0.25 * depth
+      const side = depth > 0 ? this.moonFront : this.moonBack
+      if (m.parent !== side) side.addChild(m)
+    })
   }
 
   private drawLayer(layer: ObstacleLayerSpec, next: ObstacleLayerSpec | undefined): void {
     const R = layer.radius
     const outline = localVertices(layer.sides, R)
-    const g = this.facetsG
-    g.clear()
-    this.table = drawObsidian(g, outline, { inset: R * 0.34, rimAlpha: 0.9 })
-    if (layer.boss) drawGildedFractures(g, outline, this.table, R)
+    this.table = this.material.build(outline, R)
+    this.overG.clear()
+    if (layer.boss) drawGildedFractures(this.overG, outline, this.table, R)
+    this.drawMoons(R)
     this.frostG.clear()
     if (layer.frost) drawFrostVeins(this.frostG, outline, this.table, R)
     if (this.frozen) {
@@ -187,10 +238,11 @@ export class ObstacleView {
     if (next) {
       const r = circumscribing(R, next.sides)
       const pts = localVertices(next.sides, r).flatMap((p) => [p.x, p.y])
-      // A ghost of obsidian: a dark smoky edge with a thin glint line.
-      this.nextG.poly(pts).fill({ color: OBSIDIAN.deep, alpha: 0.22 })
-      this.nextG.poly(pts).stroke({ color: OBSIDIAN.deep, width: 4, alpha: 0.55 })
-      const trim = next.boss ? GILT : next.frost ? FROST : 0xb9a2ff
+      // A ghost of the material: a smoky edge with a thin bright line.
+      const m = this.material
+      this.nextG.poly(pts).fill({ color: m.ghost, alpha: 0.22 })
+      this.nextG.poly(pts).stroke({ color: m.ghost, width: 4, alpha: 0.55 })
+      const trim = next.boss ? GILT : next.frost ? FROST : m.trim
       this.nextG.poly(pts).stroke({ color: trim, width: next.frost ? 1.3 : 1, alpha: next.frost ? 0.8 : 0.6 })
       // Its strength: one dark pip per HP, spaced evenly along the rim and
       // offset half a step so they sit between the vertex glints.
@@ -204,7 +256,7 @@ export class ObstacleView {
         const b = verts[(i + 1) % next.sides]
         const x = a.x + (b.x - a.x) * (u - i)
         const y = a.y + (b.y - a.y) * (u - i)
-        this.nextG.circle(x, y, pip + 0.9).fill({ color: next.boss ? GILT : next.frost ? FROST : 0xcdb8ff, alpha: 0.6 })
+        this.nextG.circle(x, y, pip + 0.9).fill({ color: next.boss ? GILT : next.frost ? FROST : m.trim, alpha: 0.6 })
         this.nextG.circle(x, y, pip).fill({ color: 0x030108 })
       }
       const star = textures().star
@@ -213,7 +265,7 @@ export class ObstacleView {
         s.anchor.set(0.5)
         s.position.set(p.x, p.y)
         s.scale.set(0.42)
-        s.tint = next.boss ? 0xffe2a6 : next.frost ? RIME : 0xd9c8ff
+        s.tint = next.boss ? 0xffe2a6 : next.frost ? RIME : m.trim
         s.blendMode = 'add'
         this.glintC.addChild(s)
         this.nextGlints.push(s)
@@ -221,15 +273,15 @@ export class ObstacleView {
     }
   }
 
-  // Now and then a band of light sweeps across the table.
-  private drawGlint(time: number): void {
-    const g = this.glintG
-    g.clear()
-    const u = ((time + this.glintOffset) % GLINT_EVERY) / GLINT_TIME
-    if (u >= 1 || this.table.length < 3) return
-    const span = Math.max(...this.table.map((p) => Math.hypot(p.x, p.y)))
-    const band = sheenBand(this.table, span * (1.2 - 2.4 * u), span * 0.12)
-    if (band.length > 2) g.poly(band.flatMap((p) => [p.x, p.y])).fill({ color: OBSIDIAN.glint, alpha: 0.22 * Math.sin(u * Math.PI) })
+  // Small shards of the material, each a little polygon of its own.
+  private drawMoons(R: number): void {
+    const size = Math.max(3, R * 0.14)
+    this.moons.forEach((m, i) => {
+      m.clear()
+      const pts = localVertices(3 + (i % 3), size).flatMap((p) => [p.x, p.y])
+      m.poly(pts).fill({ color: this.material.moon })
+      m.poly(pts).stroke({ color: this.material.trim, width: 0.9, alpha: 0.8 })
+    })
   }
 
   // One black hole per HP, packed on concentric rings (1, 6, 12, ...) and
@@ -276,9 +328,9 @@ export class ObstacleView {
       return s
     }
     const swirl = make(t.swirl, this.holeGlowC)
-    swirl.tint = 0xffb46e
+    swirl.tint = this.material.swirl
     const lens = make(t.ring, this.holeGlowC)
-    lens.tint = 0xe6dcff
+    lens.tint = this.material.lens
     const core = make(t.disc, this.holeCoreC)
     core.tint = 0x000000
     return { swirl, lens, core }

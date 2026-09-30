@@ -1,6 +1,7 @@
 import type { Hue, LevelData, NodeSpec, PaletteName, RuneLayerSpec } from '../sim/types'
 import { MAX_SIDES, MIN_SIDES } from '../sim/validate'
 import { PALETTE_NAMES } from '../model/Color'
+import { MAX_MOONS, OBSTACLE_MOTIONS, OBSTACLE_STYLES, type ObstacleLook } from '../model/Look'
 import { ANNIHILATING_COLOR, MIASMA_COLOR, PALETTES, hueColor } from '../render/Theme'
 import type { EditorState } from './state'
 
@@ -56,6 +57,24 @@ function paletteSelect(value: PaletteName, onSet: (v: PaletteName) => void) {
   for (const p of PALETTE_NAMES) s.append(el('option', { value: p, textContent: `${p}: ${HUES.map((h) => PALETTES[p].names[h]).join(', ')}` }))
   s.value = value
   return s
+}
+
+// A plain select; '' is the "default" entry.
+function choice(options: readonly string[], value: string, onSet: (v: string) => void, none = 'default') {
+  const s = el('select', { on: { change: (e) => onSet((e.target as HTMLSelectElement).value) } })
+  s.append(el('option', { value: '', textContent: none }))
+  for (const o of options) s.append(el('option', { value: o, textContent: o }))
+  s.value = value
+  return s
+}
+
+// Sets one field of an obstacle's look, dropping the look once it is empty.
+function setLook<K extends keyof ObstacleLook>(o: { look?: ObstacleLook }, key: K, value: ObstacleLook[K] | undefined): void {
+  const look: ObstacleLook = { ...o.look }
+  if (value === undefined) delete look[key]
+  else look[key] = value
+  if (Object.keys(look).length) o.look = look
+  else delete o.look
 }
 
 const btn = (label: string, title: string, onClick: () => void, cls = '') => el('button', { class: `ibtn ${cls}`, textContent: label, title, on: { click: onClick } })
@@ -179,6 +198,15 @@ export function renderInspector(host: HTMLElement, st: EditorState): void {
     host.append(
       el('h3', {}, `Obstacle ${sel.i + 1}`),
       el('div', { class: 'row' }, 'x/y ', num(o.x, (v) => edit((l) => (l.obstacles[sel.i].x = v))), num(o.y, (v) => edit((l) => (l.obstacles[sel.i].y = v)))),
+      el(
+        'div',
+        { class: 'row', title: 'How it looks: material, idle motion, moons (cosmetic only)' },
+        'look ',
+        choice(OBSTACLE_STYLES, o.look?.style ?? '', (v) => edit((l) => setLook(l.obstacles[sel.i], 'style', (v || undefined) as ObstacleLook['style'])), 'obsidian'),
+        choice(OBSTACLE_MOTIONS, o.look?.motion ?? '', (v) => edit((l) => setLook(l.obstacles[sel.i], 'motion', (v || undefined) as ObstacleLook['motion']))),
+        ' moons ',
+        num(o.look?.moons ?? 0, (v) => edit((l) => setLook(l.obstacles[sel.i], 'moons', v > 0 ? Math.min(MAX_MOONS, Math.round(v)) : undefined)), { min: 0, max: MAX_MOONS, width: 40 }),
+      ),
       el('div', { class: 'hint' }, 'Layers, current first:'),
       box,
       btn('+ layer', 'Add layer', () => edit((l) => l.obstacles[sel.i].layers.push({ ...(o.layers[o.layers.length - 1] ?? { sides: 3, radius: 30, hp: 6 }) }))),

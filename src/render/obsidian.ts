@@ -58,7 +58,7 @@ export function sheenBand(poly: Vec2[], at: number, half: number): Vec2[] {
   return clipHalfPlane(clipHalfPlane(poly, nx, ny, base + half), -nx, -ny, -(base - half))
 }
 
-const LIGHT = { x: -Math.SQRT1_2, y: -Math.SQRT1_2 }
+export const LIGHT = { x: -Math.SQRT1_2, y: -Math.SQRT1_2 }
 
 export interface ObsidianStyle {
   inset: number // bevel width (px); the table is the outline pulled in by this
@@ -66,6 +66,31 @@ export interface ObsidianStyle {
   rimAlpha?: number
   fractures?: number // seeded hairline cracks across the table
   seed?: number
+}
+
+// A faceted stone's colors: facets shade from `deep` (turned from the
+// light) to `lit` (facing it); `rim` and `glint` light its edges, `table`
+// fills the flat top, `edge` separates it from what is behind, and
+// `sheen` sets how glossy the table's static streak is.
+export interface FacetColors {
+  deep: number
+  lit: number
+  rim: number
+  glint: number
+  table: FillGradient | number
+  edge: number
+  sheen: number
+}
+
+// Lit top-left to dark, in each shape's local bounds.
+export function diagonalGradient(stops: string[]): FillGradient {
+  return new FillGradient({
+    type: 'linear',
+    start: { x: 0, y: 0 },
+    end: { x: 1, y: 1 },
+    textureSpace: 'local',
+    colorStops: stops.map((color, i) => ({ offset: i / (stops.length - 1), color })),
+  })
 }
 
 export function centroid(pts: Vec2[]): Vec2 {
@@ -109,7 +134,7 @@ export function insetPolygon(pts: Vec2[], d: number): Vec2[] {
   })
 }
 
-function seeded(seed: number): () => number {
+export function seeded(seed: number): () => number {
   let s = seed >>> 0 || 1
   return () => {
     s = Math.imul(s ^ (s >>> 15), 2246822507) + 0x9e3779b9
@@ -121,6 +146,11 @@ function seeded(seed: number): () => number {
 // Draws into g in its local space. Returns the table polygon for callers
 // that layer more detail (black holes, glints) on top.
 export function drawObsidian(g: Graphics, outline: Vec2[], style: ObsidianStyle): Vec2[] {
+  return drawFaceted(g, outline, style, { ...OBSIDIAN, table: tableGradient(), edge: 0x000000, sheen: 0.07 })
+}
+
+// Any faceted stone, obsidian's structure in other colors.
+export function drawFaceted(g: Graphics, outline: Vec2[], style: ObsidianStyle, colors: FacetColors): Vec2[] {
   const alpha = style.alpha ?? 1
   const n = outline.length
   const table = insetPolygon(outline, style.inset)
@@ -143,18 +173,19 @@ export function drawObsidian(g: Graphics, outline: Vec2[], style: ObsidianStyle)
     }
     const lit = Math.max(0, nx * LIGHT.x + ny * LIGHT.y)
     const shade = Math.min(1, lit * 0.85 + (i % 2 ? 0.04 : 0.12))
-    g.poly([a.x, a.y, b.x, b.y, tb.x, tb.y, ta.x, ta.y]).fill({ color: mix(OBSIDIAN.deep, OBSIDIAN.lit, shade), alpha })
+    g.poly([a.x, a.y, b.x, b.y, tb.x, tb.y, ta.x, ta.y]).fill({ color: mix(colors.deep, colors.lit, shade), alpha })
   }
-  g.poly(table.flatMap((p) => [p.x, p.y])).fill({ fill: tableGradient(), alpha })
+  const tableFill = typeof colors.table === 'number' ? { color: colors.table, alpha } : { fill: colors.table, alpha }
+  g.poly(table.flatMap((p) => [p.x, p.y])).fill(tableFill)
   // A static glossy streak on the table; obstacles add a moving glint.
   const span = Math.max(...table.map((p) => Math.abs((p.x - c.x) * LIGHT.x + (p.y - c.y) * LIGHT.y)))
   const band = sheenBand(table, -span * 0.35, span * 0.16)
-  if (band.length > 2) g.poly(band.flatMap((p) => [p.x, p.y])).fill({ color: OBSIDIAN.glint, alpha: 0.07 * alpha })
+  if (band.length > 2) g.poly(band.flatMap((p) => [p.x, p.y])).fill({ color: colors.glint, alpha: colors.sheen * alpha })
 
   // Facet seams: faint light where planes meet.
   for (let i = 0; i < n; i++) g.moveTo(outline[i].x, outline[i].y).lineTo(table[i].x, table[i].y)
-  g.stroke({ color: OBSIDIAN.rim, width: 0.6, alpha: 0.22 * alpha })
-  g.poly(table.flatMap((p) => [p.x, p.y])).stroke({ color: OBSIDIAN.rim, width: 0.7, alpha: 0.28 * alpha })
+  g.stroke({ color: colors.rim, width: 0.6, alpha: 0.22 * alpha })
+  g.poly(table.flatMap((p) => [p.x, p.y])).stroke({ color: colors.rim, width: 0.7, alpha: 0.28 * alpha })
 
   if (style.fractures) {
     const r = seeded(style.seed ?? 1)
@@ -173,12 +204,12 @@ export function drawObsidian(g: Graphics, outline: Vec2[], style: ObsidianStyle)
         g.lineTo(x, y)
       }
     }
-    g.stroke({ color: OBSIDIAN.rim, width: 0.6, alpha: 0.2 * alpha })
+    g.stroke({ color: colors.rim, width: 0.6, alpha: 0.2 * alpha })
   }
 
   // Rim: a dark outer line for separation, then the lit edge on top,
   // brightest where the edge faces the light.
-  g.poly(outline.flatMap((p) => [p.x, p.y])).stroke({ color: 0x000000, width: 2.2, alpha: 0.5 * alpha })
+  g.poly(outline.flatMap((p) => [p.x, p.y])).stroke({ color: colors.edge, width: 2.2, alpha: 0.5 * alpha })
   const rimAlpha = style.rimAlpha ?? 0.7
   for (let i = 0; i < n; i++) {
     const a = outline[i]
@@ -187,7 +218,7 @@ export function drawObsidian(g: Graphics, outline: Vec2[], style: ObsidianStyle)
     const my = (a.y + b.y) / 2 - c.y
     const ml = Math.hypot(mx, my) || 1
     const lit = Math.max(0, (mx / ml) * LIGHT.x + (my / ml) * LIGHT.y)
-    g.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ color: lit > 0.5 ? OBSIDIAN.glint : OBSIDIAN.rim, width: 1.1, alpha: (0.3 + lit * 0.7) * rimAlpha * alpha })
+    g.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ color: lit > 0.5 ? colors.glint : colors.rim, width: 1.1, alpha: (0.3 + lit * 0.7) * rimAlpha * alpha })
   }
   return table
 }

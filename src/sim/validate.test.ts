@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { validateLevel } from './validate'
+import type { LevelData } from './types'
 import { DEBUG_PACK, MANIFEST, PACK } from '../data/levels/pack'
 
 describe('level files', () => {
@@ -99,5 +100,17 @@ describe('validateLevel', () => {
     expect(validateLevel(l)).toEqual([])
     l.palette = 'neon'
     expect(validateLevel(l)).toEqual(['palette: must be one of jewel, cool, warm'])
+  })
+
+  it("checks an obstacle's look: a known style and motion, and up to four moons", () => {
+    const l = good()
+    l.obstacles[0].look = { style: 'geode', motion: 'spin', moons: 4 }
+    expect(validateLevel(l)).toEqual([])
+    l.obstacles[0].look = { style: 'plastic', motion: 'wobble', moons: 5 } as unknown as LevelData['obstacles'][0]['look']
+    expect(validateLevel(l)).toEqual([
+      'obstacles[0].look.style: must be one of obsidian, marble, magma, void, astrolabe, monolith, geode',
+      'obstacles[0].look.motion: must be one of sway, bob, spin, pulse, drift, still',
+      'obstacles[0].look.moons: must be an integer from 0 to 4',
+    ])
   })
 })

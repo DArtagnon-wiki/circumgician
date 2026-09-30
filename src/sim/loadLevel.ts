@@ -32,6 +32,7 @@ export function loadLevel(level: LevelData, seed = 1): SimState {
     index: 0,
     hp: o.layers[0]?.hp ?? 0,
     cleared: false,
+    ...(o.look ? { look: o.look } : {}),
     ...(clone.endless ? { endlessSeed: (clone.endless.seed * 31 + 1000 + i) >>> 0 } : {}),
   }))
   // Ice follows the obstacles it never counts among.

@@ -152,12 +152,12 @@
       "layers": [
         {
           "sides": 3,
-          "radius": 30,
+          "radius": 34,
           "hp": 4
         },
         {
           "sides": 3,
-          "radius": 30,
+          "radius": 32,
           "hp": 4
         },
         {
@@ -167,10 +167,13 @@
         },
         {
           "sides": 5,
-          "radius": 30,
+          "radius": 28,
           "hp": 3
         }
-      ]
+      ],
+      "look": {
+        "style": "astrolabe"
+      }
     },
     {
       "x": 305,
@@ -178,17 +181,17 @@
       "layers": [
         {
           "sides": 4,
-          "radius": 30,
+          "radius": 36,
           "hp": 3
         },
         {
           "sides": 4,
-          "radius": 30,
+          "radius": 34,
           "hp": 3
         },
         {
           "sides": 4,
-          "radius": 30,
+          "radius": 32,
           "hp": 3
         },
         {
@@ -198,10 +201,13 @@
         },
         {
           "sides": 6,
-          "radius": 30,
+          "radius": 28,
           "hp": 6
         }
-      ]
+      ],
+      "look": {
+        "style": "astrolabe"
+      }
     }
   ],
   "hand": [

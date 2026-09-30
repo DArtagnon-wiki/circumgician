@@ -1,4 +1,5 @@
 import type { Hue, MoteColor, PaletteName, ReleaseColor } from '../model/Color'
+import type { ObstacleLook } from '../model/Look'
 import type { Vec2 } from '../core/types'
 
 export type { Hue, MoteColor, PaletteName, ReleaseColor, Vec2 }
@@ -59,6 +60,7 @@ export interface ObstacleSpec {
   x: number
   y: number
   layers: ObstacleLayerSpec[] // current first
+  look?: ObstacleLook // how it is drawn; the sim never reads it
 }
 
 // A block of ice placed on the field: nothing can be cast over it and motes
@@ -168,6 +170,7 @@ export interface Obstacle {
   index: number
   hp: number
   cleared: boolean
+  look?: ObstacleLook
   endlessSeed?: number
   // Ice: placed in the level, a piece whose fuse ran out (endless), or one a
   // frost layer froze (`by`: that obstacle and layer). Holds its motes until

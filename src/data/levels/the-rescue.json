@@ -152,17 +152,17 @@
   ],
   "obstacles": [
     {
-      "x": 95,
-      "y": 170,
+      "x": 104,
+      "y": 134,
       "layers": [
         {
           "sides": 4,
-          "radius": 30,
+          "radius": 34,
           "hp": 4
         },
         {
           "sides": 4,
-          "radius": 30,
+          "radius": 32,
           "hp": 4
         },
         {
@@ -172,14 +172,17 @@
         },
         {
           "sides": 8,
-          "radius": 30,
+          "radius": 28,
           "hp": 4
         }
-      ]
+      ],
+      "look": {
+        "style": "geode"
+      }
     },
     {
-      "x": 305,
-      "y": 160,
+      "x": 300,
+      "y": 186,
       "layers": [
         {
           "sides": 3,
@@ -193,11 +196,14 @@
         },
         {
           "sides": 5,
-          "radius": 30,
+          "radius": 40,
           "hp": 12,
           "frost": true
         }
-      ]
+      ],
+      "look": {
+        "style": "geode"
+      }
     }
   ],
   "hand": [
