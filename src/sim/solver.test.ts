@@ -386,13 +386,12 @@ describe('shields', () => {
     expect(pool(pulled)).toEqual({ blue: 6 })
   })
 
-  it('while a shield is up nothing strikes the layer; pulled down, it can be struck', () => {
+  it('while a shield is up nothing strikes the layer: a striker waits; pulled down, it strikes', () => {
     const s = play(level, 'fill R1.0')
-    expect(labels(level, s)).toContain('R1.0 unlinked')
     expect(labels(level, s)).not.toContain('R1.0->O0')
+    expect(labels(level, s)).not.toContain('R1.0 unlinked')
     const down = after(level, s, 'pull R0.0=>O0')
     expect(labels(level, down)).toContain('R1.0->O0')
-    expect(labels(level, down)).not.toContain('R1.0 unlinked')
   })
 
   it('pullers never burst; the fall frees them, to be filled and fired', () => {
@@ -409,7 +408,7 @@ describe('shields', () => {
   it('pullers add up, and a full piece can latch on as it is', () => {
     const strong = testLevel({ motes: [...around(['red', 'red', 'blue', 'blue'], A), ...around(['red', 'red', 'blue', 'blue'], B), ...around(['blue', 'blue', 'blue', 'blue'], { x: 200, y: 650 })], obstacles: [shielded(4)], hand: [puller, puller, striker] })
     const one = play(strong, 'pull R0.0=>O0', 'fill R2.0')
-    expect(labels(strong, one)).toContain('R2.0 unlinked') // still up: two of four
+    expect(labels(strong, one)).not.toContain('R2.0->O0') // still up: two of four
     const full = after(strong, one, 'fill R1.0')
     expect(labels(strong, full)).toContain('pull R1.0=>O0')
     expect(labels(strong, after(strong, full, 'pull R1.0=>O0'))).toContain('R2.0->O0')

@@ -62,12 +62,12 @@ export function shieldPull(state: SimState, o: Obstacle, color: Hue): number {
   return pull
 }
 
-// Can a blow of this shape strike the obstacle now: no shield up, and the
-// layer takes the shape (on a two-shape layer, while no other piece holds
-// that shape's place in stasis)?
+// Does a blow of this shape strike the obstacle's layer (on a two-shape
+// layer, while no other piece holds that shape's place in stasis)? A layer
+// behind shields counts: a striker links to it and waits for them to fall.
 function canStrike(state: SimState, o: Obstacle, sides: number, self?: Piece): boolean {
   const layer = o.layers[o.index]
-  if (!layer || guarded(o) || !takesShape(layer, sides)) return false
+  if (!layer || !takesShape(layer, sides)) return false
   return layer.pair === undefined || !holderOf(state, o, sides, self)
 }
 
@@ -176,10 +176,14 @@ export function partnerOf(state: SimState, piece: Piece): Piece | null {
   return state.pieces.find((p) => p !== piece && p.stasis !== undefined && p.linkedObstacleId === piece.linkedObstacleId && p.energy.sides !== piece.energy.sides) ?? null
 }
 
-// Can the player burst this piece now? Once full, unless it is pulling, or
-// waits in stasis for a partner (with both there, either bursts the pair).
+// Can the player burst this piece now? Once full, unless it is pulling,
+// waits in stasis for a partner (with both there, either bursts the pair),
+// or waits for the shields on the layer it strikes to fall.
 export function canFire(state: SimState, piece: Piece): boolean {
-  return piece.state === 'full' && piece.pulling === undefined && (piece.stasis === undefined || partnerOf(state, piece) !== null)
+  if (piece.state !== 'full' || piece.pulling !== undefined) return false
+  if (piece.stasis !== undefined) return partnerOf(state, piece) !== null
+  const linked = linkedTo(state, piece)
+  return !linked || !guarded(linked)
 }
 
 // Called by the Sim before reading a layer that may not exist yet (endless).

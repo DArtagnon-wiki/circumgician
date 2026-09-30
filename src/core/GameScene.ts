@@ -464,7 +464,8 @@ export class GameScene {
       list.push({
         from: piece.pos,
         to: o.pos,
-        full: piece.state === 'full',
+        // A striker waiting on a shielded layer looks unready until it falls.
+        full: piece.state === 'full' && (pull !== undefined || upShields(o).length === 0),
         frost: pull === undefined && bitten(power, o),
         ...(stasis ? { stasis } : {}),
         ...(pull === undefined ? {} : { pull }),

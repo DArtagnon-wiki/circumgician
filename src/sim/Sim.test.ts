@@ -779,13 +779,15 @@ describe('shields', () => {
     expect(sim.state.stats.burned).toBe(0)
   })
 
-  it('while a shield is up nothing strikes the layer; once it is down, strikers link, and the fall frees the pullers', () => {
+  it('while a shield is up nothing strikes the layer: a striker waits for it to fall; the fall frees the pullers', () => {
     const sim = mk(level({ fuse: 6 }))
     const b = placeSlot(sim, 1, B)
-    expect(sim.piece(b)!.linkedObstacleId).toBeNull() // its shape matches, but the shield is up
+    expect(sim.piece(b)!.linkedObstacleId).toBe(sim.state.obstacles[0].id) // linked, waiting
+    stepFor(sim, 1)
+    expect(sim.piece(b)!.state).toBe('full')
+    expect(sim.detonate(b)).toBe(false)
     const a = placeSlot(sim, 0, A)
     stepFor(sim, 1)
-    expect(sim.piece(b)!.linkedObstacleId).toBe(sim.state.obstacles[0].id)
     expect(sim.detonate(b)).toBe(true)
     const fell = sim.state.time
     stepFor(sim, 1)

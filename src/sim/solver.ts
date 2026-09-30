@@ -30,11 +30,12 @@ import type { Hue, LevelData, MoteColor, RuneLayerSpec } from './types'
 //     together as one blow of their combined power. A piece whose shape
 //     matches only two-shape layers whose place for it is held goes
 //     unlinked, as in the game;
-//   - nothing strikes a layer while any of its shields is up. A piece with
-//     bowls of a shield's color latches on as a puller (full, or cast with
-//     only its bowls of the shields' colors filled, the rest to fill
-//     later); a shield is down once its pullers hold its strength in its
-//     color. Pullers can't burst until the layer falls, and then go free.
+//   - nothing strikes a layer while any of its shields is up: a piece of
+//     its shape waits for them to fall. A piece with bowls of a shield's
+//     color latches on as a puller (full, or cast with only its bowls of
+//     the shields' colors filled, the rest to fill later); a shield is down
+//     once its pullers hold its strength in its color. Pullers can't burst
+//     until the layer falls, and then go free.
 // A move is one of
 //   fill Rn.k      fill layer k of rune n from the free motes (`fill Rn.k ..nv`
 //                  when some of its bowls take a null or a void). If k is still
@@ -511,7 +512,9 @@ export function transitions(level: LevelData, s: Economy, opts: SolverOptions = 
     // A piece links to whichever match is nearest, so any of them can be
     // chosen by where it is cast; none means unlinked. A two-shape layer
     // matches while its place for this shape is free.
-    const targets = s.obstacles.flatMap((_, oi) => (current(oi)?.pair === undefined && current(oi)?.sides === sides && !up[oi].length ? [oi] : []))
+    const matches = s.obstacles.flatMap((_, oi) => (current(oi)?.pair === undefined && current(oi)?.sides === sides ? [oi] : []))
+    // A layer behind shields holds its strikers until the shields fall.
+    const targets = matches.filter((oi) => !up[oi].length)
     const blocks = s.ice.flatMap((b, bi) => (b.hp > 0 && b.sides === sides ? [bi] : []))
     const stases = s.obstacles.flatMap((_, oi) => {
       const spec = current(oi)
@@ -523,7 +526,7 @@ export function transitions(level: LevelData, s: Economy, opts: SolverOptions = 
     for (const target of blocks) out.push(fire(level, s, [p], target, true))
     for (const target of stases) out.push(lock(s, p, target))
     for (const target of latches) out.push(...pull(level, s, p.rune, p.layer, target, opts))
-    if (!targets.length && !blocks.length && !stases.length && !latches.length) out.push(fire(level, s, [p], null))
+    if (!matches.length && !blocks.length && !stases.length && !latches.length) out.push(fire(level, s, [p], null))
   }
   return out
 }
