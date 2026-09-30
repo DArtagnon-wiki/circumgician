@@ -1,4 +1,6 @@
-// Color carries gameplay meaning only through HUE_COLORS (motes, bowls,
+import type { Hue, PaletteName } from '../model/Color'
+
+// Color carries gameplay meaning only through the hue colors (motes, bowls,
 // tube liquid). Obstacles are neutral obsidian and rune bodies clear glass
 // regardless of shape, so a hue is never mistaken for a shape-identity hint.
 export const OBSTACLE_COLOR = 0x1c1430 // obsidian body (editor and fallbacks)
@@ -8,26 +10,51 @@ export const ACCENT_COLOR = 0xffffff
 export const BACKGROUND_TOP = 0x1b0d36
 export const BACKGROUND_BOTTOM = 0x07040e
 
-// Jewel tones. The keys stay the sim's hue names so levels, the editor and
-// the rules are untouched. Tuned for pairwise distance (CIEDE2000 >= 27 in
-// normal vision, >= 12 under simulated protan/deutan/tritan vision) and to
-// stand out from the violet backdrop.
-export const HUE_COLORS: Record<string, number> = {
-  red: 0xec2a52, // ruby
-  blue: 0x2f6bff, // sapphire
-  gold: 0xffb02e, // amber
-  teal: 0x1fd6a0, // jade
-  violet: 0xdd8bff, // amethyst
+export type SkyName = 'violet' | 'winter'
+
+// How a level's five hues look, what the player calls them, and the sky
+// they are seen against. The keys stay the sim's hue names, so levels, the
+// editor and the rules are the same in every palette.
+export interface Palette {
+  hues: Record<Hue, number>
+  names: Record<Hue, string>
+  sky: SkyName
 }
 
-// What the player calls each hue.
-export const HUE_NAMES: Record<string, string> = {
-  red: 'Ruby',
-  blue: 'Sapphire',
-  gold: 'Amber',
-  teal: 'Jade',
-  violet: 'Amethyst',
+// Each palette is tuned for pairwise distance (CIEDE2000 >= 27 in normal
+// vision, >= 12 under simulated protan/deutan/tritan vision), to stay clear
+// of opal, ash and ice, and to stand out from its sky (Theme.test.ts).
+export const PALETTES: Record<PaletteName, Palette> = {
+  // Jewel tones under the violet sky: the default.
+  jewel: {
+    hues: { red: 0xec2a52, blue: 0x2f6bff, gold: 0xffb02e, teal: 0x1fd6a0, violet: 0xdd8bff },
+    names: { red: 'Ruby', blue: 'Sapphire', gold: 'Amber', teal: 'Jade', violet: 'Amethyst' },
+    sky: 'violet',
+  },
+  // The winter levels: cool gems under a winter sky. Nothing pale, so no
+  // gem is lost against ice.
+  cool: {
+    hues: { red: 0xe10e93, blue: 0x1e7cd1, gold: 0xa7e238, teal: 0x3ac9b9, violet: 0xca9bff },
+    names: { red: 'Tourmaline', blue: 'Lapis', gold: 'Peridot', teal: 'Turquoise', violet: 'Kunzite' },
+    sky: 'winter',
+  },
 }
+
+let active: Palette = PALETTES.jewel
+
+// A scene sets its level's palette before it draws anything.
+export function usePalette(name: PaletteName = 'jewel'): Palette {
+  return (active = PALETTES[name] ?? PALETTES.jewel)
+}
+
+export const activePalette = (): Palette => active
+export const hueColor = (hue: Hue): number => active.hues[hue]
+export const hueName = (hue: Hue): string => active.names[hue]
+
+// Ice and frost: pale blue light and white rime, never a hue (hues are what
+// motes are, and every palette keeps clear of these).
+export const FROST = 0x9fd4ff
+export const RIME = 0xeaf7ff
 
 // The 'annihilating' release: dull ash, no hue at all, drawn cracked and
 // still. It must never read as another jewel tone (least of all ruby).
@@ -64,7 +91,7 @@ export const lighten = (c: number, t: number) => mix(c, 0xffffff, t)
 
 export function colorForMote(color: string): number {
   if (color === 'generic') return MIASMA_COLOR
-  return HUE_COLORS[color] ?? MIASMA_COLOR
+  return active.hues[color as Hue] ?? MIASMA_COLOR
 }
 
 export function colorForRelease(color: string): number {
@@ -73,12 +100,16 @@ export function colorForRelease(color: string): number {
 }
 
 export const ZONE_COLORS = {
-  fieldVeil: 0x0c0620, // tint laid over the legal placement area
   outsideVeil: 0x040208, // dims the rest of the middle zone
-  shelf: 0x120a24, // inventory shelf glass
   gilt: 0xd9b872, // thin gold filigree lines
-  etch: 0xc8b8ff, // etched lines in the field ring and arcane circles
-  fieldEdge: 0x9b7bff,
+}
+
+// What changes with the sky: the etched lines in the field ring, arcane
+// circles and constellations, the field's halo, the pane over the legal
+// placement area, and the inventory shelf's glass (top and bottom).
+export const SKY_TINTS: Record<SkyName, { etch: number; fieldEdge: number; fieldVeil: number; shelf: [number, number] }> = {
+  violet: { etch: 0xc8b8ff, fieldEdge: 0x9b7bff, fieldVeil: 0x0c0620, shelf: [0x1a0e32, 0x06030c] },
+  winter: { etch: 0xb4d6ff, fieldEdge: 0x6aaeff, fieldVeil: 0x03101f, shelf: [0x0a1a30, 0x02060c] },
 }
 
 export const INVALID_TINT = 0xff5d6c

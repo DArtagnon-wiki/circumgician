@@ -1,4 +1,5 @@
 import { Texture } from 'pixi.js'
+import type { SkyName } from './Theme'
 
 // Soft or intricate shapes are painted once at startup on offscreen 2D
 // canvases and drawn as batched, tintable Sprites: far cheaper on a phone
@@ -14,7 +15,7 @@ export interface Textures {
   beads: Texture[] // glowing glyph beads
   star: Texture // four-point sparkle
   starDot: Texture // plain point of light
-  nebula: Texture // full-screen backdrop (untinted, opaque)
+  nebula: Texture // the violet sky's full-screen backdrop (untinted, opaque)
   capsule: Texture // soft rounded bar, stretched along tubes
   swirl: Texture // two-armed spiral
   droplet: Texture // glossy drop pointing +x
@@ -30,6 +31,16 @@ export function textures(): Textures {
 }
 
 export const texturesReady = (): boolean => cache !== null
+
+// A sky's nebula. The violet one is painted with the rest at startup; any
+// other is painted the first time a level asks for it.
+const skies = new Map<SkyName, Texture>()
+export function skyTexture(sky: SkyName): Texture {
+  if (sky === 'violet') return textures().nebula
+  let t = skies.get(sky)
+  if (!t) skies.set(sky, (t = tex(nebula(400, 860, NEBULAE[sky]))))
+  return t
+}
 
 // ---------------------------------------------------------------------------
 // Noise
@@ -334,13 +345,54 @@ function disc(): HTMLCanvasElement {
   return paint(32, (x, y) => [1, 1, 1, 1 - smoothstep(0.8, 1, Math.hypot(x, y))])
 }
 
-// Deep violet nebula: a smooth base, broad colored glows, domain-warped
-// cloud filaments and dark dust lanes, dim fixed stars and a vignette.
-// Composited per pixel in float precision (canvas layering quantizes faint
-// alpha into visible blocks) and dithered so dark gradients don't band.
-// It is soft, so painting it at the virtual resolution costs nothing
-// visible on a retina screen.
-function nebula(w: number, h: number): HTMLCanvasElement {
+type RGB = [number, number, number]
+interface NebulaColors {
+  base: [RGB, RGB, RGB] // top, 45% down, bottom
+  blobs: number[][] // broad glows: x, y, radius (fractions of w, h, w), r, g, b, strength
+  filaments: [RGB, RGB] // screen-blended cloud color at the top and the bottom
+  bright: RGB // added where the filaments are densest
+  dust: RGB
+}
+
+const NEBULAE: Record<SkyName, NebulaColors> = {
+  // Deep violet: warm magenta filaments high, cooling to indigo.
+  violet: {
+    base: [[27, 13, 54], [19, 10, 43], [7, 4, 14]],
+    blobs: [
+      [0.78, 0.12, 0.8, 118, 44, 168, 0.34],
+      [0.18, 0.06, 0.55, 150, 40, 112, 0.22],
+      [0.1, 0.55, 0.85, 46, 34, 132, 0.26],
+      [0.9, 0.66, 0.6, 96, 36, 140, 0.16],
+      [0.5, 0.98, 0.65, 60, 24, 110, 0.14],
+    ],
+    filaments: [[150, 70, 190], [80, 70, 190]],
+    bright: [60, 30, 40],
+    dust: [6, 3, 14],
+  },
+  // A winter night: midnight blue, with aurora green-teal curtains high
+  // that cool to ice blue.
+  winter: {
+    base: [[9, 26, 52], [7, 18, 40], [2, 6, 14]],
+    blobs: [
+      [0.78, 0.12, 0.8, 30, 104, 150, 0.32],
+      [0.18, 0.06, 0.55, 36, 150, 118, 0.22],
+      [0.1, 0.55, 0.85, 28, 58, 140, 0.26],
+      [0.9, 0.66, 0.6, 58, 64, 150, 0.16],
+      [0.5, 0.98, 0.65, 20, 44, 110, 0.14],
+    ],
+    filaments: [[50, 190, 160], [60, 100, 210]],
+    bright: [30, 50, 40],
+    dust: [2, 6, 14],
+  },
+}
+
+// A nebula: a smooth base, broad colored glows, domain-warped cloud
+// filaments and dark dust lanes, dim fixed stars and a vignette. Composited
+// per pixel in float precision (canvas layering quantizes faint alpha into
+// visible blocks) and dithered so dark gradients don't band. It is soft, so
+// painting it at the virtual resolution costs nothing visible on a retina
+// screen.
+function nebula(w: number, h: number, colors: NebulaColors): HTMLCanvasElement {
   // Density fields at a third of the resolution, interpolated below.
   const q = 3
   const cw = Math.ceil(w / q) + 1
@@ -376,13 +428,10 @@ function nebula(w: number, h: number): HTMLCanvasElement {
   }
 
   // Broad colored glows: x, y, radius, r, g, b, strength.
-  const blobs = [
-    [0.78 * w, 0.12 * h, 0.8 * w, 118, 44, 168, 0.34],
-    [0.18 * w, 0.06 * h, 0.55 * w, 150, 40, 112, 0.22],
-    [0.1 * w, 0.55 * h, 0.85 * w, 46, 34, 132, 0.26],
-    [0.9 * w, 0.66 * h, 0.6 * w, 96, 36, 140, 0.16],
-    [0.5 * w, 0.98 * h, 0.65 * w, 60, 24, 110, 0.14],
-  ]
+  const blobs = colors.blobs.map(([x, y, r, ...rest]) => [x * w, y * h, r * w, ...rest])
+  const [top, mid, bottom] = colors.base
+  const [high, low] = colors.filaments
+  const { bright, dust: ground } = colors
   const [c, ctx] = canvas(w, h)
   const img = ctx.createImageData(w, h)
   const d = img.data
@@ -390,12 +439,15 @@ function nebula(w: number, h: number): HTMLCanvasElement {
   const vy = h * 0.45
   for (let y = 0; y < h; y++) {
     const t = y / h
-    // Base gradient: #1b0d36 -> #130a2b (45%) -> #07040e.
+    // Base gradient: top -> 45% down -> bottom.
     const k = t < 0.45 ? t / 0.45 : (t - 0.45) / 0.55
-    const br = t < 0.45 ? 27 - 8 * k : 19 - 12 * k
-    const bg = t < 0.45 ? 13 - 3 * k : 10 - 6 * k
-    const bb = t < 0.45 ? 54 - 11 * k : 43 - 29 * k
-    const warm = 150 - 70 * t
+    const [from, to] = t < 0.45 ? [top, mid] : [mid, bottom]
+    const br = from[0] + (to[0] - from[0]) * k
+    const bg = from[1] + (to[1] - from[1]) * k
+    const bb = from[2] + (to[2] - from[2]) * k
+    const cr = high[0] + (low[0] - high[0]) * t
+    const cg = high[1] + (low[1] - high[1]) * t
+    const cb = high[2] + (low[2] - high[2]) * t
     for (let x = 0; x < w; x++) {
       let r = br
       let g = bg
@@ -411,20 +463,20 @@ function nebula(w: number, h: number): HTMLCanvasElement {
         g += bl[4] * f
         b += bl[5] * f
       }
-      // Filaments, screen-blended: warm magenta high, cooling to indigo.
+      // Filaments, screen-blended.
       const fv = sample(fil, x, y) * 0.5
       if (fv > 0.001) {
-        const fr = (warm + 60 * fv) * fv
-        const fg = (70 + 30 * fv) * fv
-        const fb = (190 + 40 * fv) * fv
+        const fr = (cr + bright[0] * fv) * fv
+        const fg = (cg + bright[1] * fv) * fv
+        const fb = (cb + bright[2] * fv) * fv
         r = r + fr - (r * fr) / 255
         g = g + fg - (g * fg) / 255
         b = b + fb - (b * fb) / 255
       }
       const dv = sample(dust, x, y)
-      r = r * (1 - dv) + 6 * dv
-      g = g * (1 - dv) + 3 * dv
-      b = b * (1 - dv) + 14 * dv
+      r = r * (1 - dv) + ground[0] * dv
+      g = g * (1 - dv) + ground[1] * dv
+      b = b * (1 - dv) + ground[2] * dv
       const ex = x - vx
       const ey = y - vy
       const vig = 1 - 0.55 * smoothstep(0.25, 0.75, Math.sqrt(ex * ex + ey * ey) / h)
@@ -461,7 +513,7 @@ function build(): Textures {
     beads: [0, 1, 2, 3].map((k) => tex(bead(k))),
     star: tex(star()),
     starDot: tex(starDot()),
-    nebula: tex(nebula(400, 860)),
+    nebula: tex(nebula(400, 860, NEBULAE.violet)),
     capsule: tex(capsule()),
     swirl: tex(swirl()),
     droplet: tex(droplet()),

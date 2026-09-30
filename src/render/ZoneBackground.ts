@@ -1,8 +1,8 @@
 import { Container, FillGradient, Graphics, Sprite } from 'pixi.js'
 import { FIELD_ZONE, INVENTORY_ZONE, VIRTUAL_H, VIRTUAL_W } from '../sim/constants'
 import type { Rect, Vec2 } from '../sim/types'
-import { ZONE_COLORS } from './Theme'
-import { textures } from './textures'
+import { SKY_TINTS, ZONE_COLORS, type SkyName } from './Theme'
+import { skyTexture, textures } from './textures'
 import { drawObsidian } from './obsidian'
 
 const TAU = Math.PI * 2
@@ -47,9 +47,8 @@ function seeded(seed: number): () => number {
 
 // Concentric rings, a ruler of ticks, an inscribed heptagram and a band of
 // glyphs. Drawn once; the owner only rotates it.
-function arcaneCircle(r: number, seed: number): Graphics {
+function arcaneCircle(r: number, seed: number, color: number): Graphics {
   const g = new Graphics()
-  const color = ZONE_COLORS.etch
   const rand = seeded(seed)
   for (const [k, a] of [[1, 0.55], [0.93, 0.4], [0.64, 0.4], [0.58, 0.25], [0.18, 0.35]] as const) g.circle(0, 0, r * k).stroke({ color, width: 0.8, alpha: a })
   for (let i = 0; i < 90; i++) {
@@ -89,7 +88,7 @@ function linear(x0: number, y0: number, x1: number, y1: number, colorStops: { of
 // Gradients own GPU textures and are the same for every level, so they are
 // made once and shared rather than rebuilt (and leaked) per scene.
 const HORIZON = FIELD_ZONE.y - 12
-let gradients: { fade: FillGradient; shelf: FillGradient; gilt: FillGradient } | null = null
+let gradients: { fade: FillGradient; gilt: FillGradient } | null = null
 function sharedGradients() {
   return (gradients ??= {
     // The middle zone sinks into shadow below a soft horizon under the sky.
@@ -97,10 +96,6 @@ function sharedGradients() {
       { offset: 0, color: 'rgba(4,2,8,0)' },
       { offset: 40 / (INVENTORY_ZONE.y - HORIZON), color: 'rgba(4,2,8,0.5)' },
       { offset: 1, color: 'rgba(4,2,8,0.58)' },
-    ]),
-    shelf: linear(0, INVENTORY_ZONE.y, 0, INVENTORY_ZONE.y + INVENTORY_ZONE.h, [
-      { offset: 0, color: 'rgba(26,14,50,0.72)' },
-      { offset: 1, color: 'rgba(6,3,12,0.9)' },
     ]),
     gilt: linear(0, 0, VIRTUAL_W, 0, [
       { offset: 0, color: 'rgba(217,184,114,0)' },
@@ -110,18 +105,34 @@ function sharedGradients() {
   })
 }
 
+// The inventory shelf's glass takes on the sky's tint (one per sky, shared).
+const shelfGradients = new Map<SkyName, FillGradient>()
+const rgba = (c: number, a: number) => `rgba(${(c >> 16) & 255},${(c >> 8) & 255},${c & 255},${a})`
+function shelfGradient(sky: SkyName): FillGradient {
+  let g = shelfGradients.get(sky)
+  if (!g) {
+    const [top, bottom] = SKY_TINTS[sky].shelf
+    g = linear(0, INVENTORY_ZONE.y, 0, INVENTORY_ZONE.y + INVENTORY_ZONE.h, [
+      { offset: 0, color: rgba(top, 0.72) },
+      { offset: 1, color: rgba(bottom, 0.9) },
+    ])
+    shelfGradients.set(sky, g)
+  }
+  return g
+}
+
 function roundRectPath(g: Graphics, r: Rect, inset: number, radius: number): Graphics {
   return g.roundRect(r.x + inset, r.y + inset, r.w - inset * 2, r.h - inset * 2, Math.max(1, radius - inset))
 }
 
 // The field's etched ring: an engraved double line (each with a dark
 // under-cut) with rune ticks between, gilt pips at intervals and corners.
-function fieldRing(field: Rect): Graphics {
+function fieldRing(field: Rect, sky: SkyName): Graphics {
   const g = new Graphics()
   const R = 14
-  const etch = ZONE_COLORS.etch
+  const { etch, fieldEdge } = SKY_TINTS[sky]
   // Soft halo outside the ring.
-  roundRectPath(g, field, -3, R).stroke({ color: ZONE_COLORS.fieldEdge, width: 6, alpha: 0.08 })
+  roundRectPath(g, field, -3, R).stroke({ color: fieldEdge, width: 6, alpha: 0.08 })
   for (const [inset, width, alpha] of [[0, 1.3, 0.62], [6, 0.8, 0.34]] as const) {
     g.roundRect(field.x + inset + 0.8, field.y + inset + 1, field.w - inset * 2, field.h - inset * 2, R - inset).stroke({ color: 0x000000, width, alpha: 0.6 })
     roundRectPath(g, field, inset, R).stroke({ color: etch, width, alpha })
@@ -178,12 +189,12 @@ function blockerSlabs(blockers: Rect[]): Graphics {
   return g
 }
 
-function shelf(): Graphics {
+function shelf(sky: SkyName): Graphics {
   const g = new Graphics()
   const { y, h } = INVENTORY_ZONE
   const W = VIRTUAL_W
-  const { shelf: fill, gilt: line } = sharedGradients()
-  g.rect(0, y, W, h).fill(fill)
+  const line = sharedGradients().gilt
+  g.rect(0, y, W, h).fill(shelfGradient(sky))
   g.moveTo(0, y + 0.5).lineTo(W, y + 0.5).stroke({ fill: line, width: 1 })
   g.moveTo(40, y + 4).lineTo(W - 40, y + 4).stroke({ fill: line, width: 0.6, alpha: 0.35 })
   // Central filigree: a diamond flanked by two curls.
@@ -238,40 +249,42 @@ export class Starfield {
   }
 }
 
-function constellations(): Graphics {
+function constellations(sky: SkyName): Graphics {
   const g = new Graphics()
   for (const c of CONSTELLATIONS) {
     for (const [a, b] of c.edges) g.moveTo(...c.pts[a]).lineTo(...c.pts[b])
   }
-  g.stroke({ color: ZONE_COLORS.etch, width: 0.6, alpha: 0.2 })
+  g.stroke({ color: SKY_TINTS[sky].etch, width: 0.6, alpha: 0.2 })
   for (const c of CONSTELLATIONS) for (const [x, y] of c.pts) g.circle(x, y, 1.3).fill({ color: 0xffffff, alpha: 0.55 })
   return g
 }
 
-function nebulaSprite(): Sprite {
-  const s = new Sprite(textures().nebula)
+function nebulaSprite(sky: SkyName): Sprite {
+  const s = new Sprite(skyTexture(sky))
   s.setSize(VIRTUAL_W, VIRTUAL_H)
   return s
 }
 
 // Backdrop for a level: nebula, drifting stars, faint arcane circles and
 // constellations, the field and its etched ring, blocker slabs and the
-// inventory shelf. update() drifts the stars and turns the circles.
+// inventory shelf, all in the level's sky. update() drifts the stars and
+// turns the circles.
 export class ZoneBackground {
   readonly container = new Container()
   private stars = new Starfield(1234)
   private skyCircle: Graphics
   private fieldCircle: Graphics
 
-  constructor(field: Rect, blockers: Rect[]) {
+  constructor(field: Rect, blockers: Rect[], sky: SkyName = 'violet') {
+    const tints = SKY_TINTS[sky]
     this.container.eventMode = 'none'
-    this.container.addChild(nebulaSprite(), this.stars.container, constellations())
+    this.container.addChild(nebulaSprite(sky), this.stars.container, constellations(sky))
 
-    this.skyCircle = arcaneCircle(128, 7)
+    this.skyCircle = arcaneCircle(128, 7, tints.etch)
     this.skyCircle.position.set(VIRTUAL_W / 2, 150)
     this.skyCircle.alpha = 0.14
     const fieldR = Math.min(field.w, field.h) * 0.46
-    this.fieldCircle = arcaneCircle(fieldR, 11)
+    this.fieldCircle = arcaneCircle(fieldR, 11, tints.etch)
     this.fieldCircle.position.set(field.x + field.w / 2, field.y + field.h / 2)
     this.fieldCircle.alpha = 0.1
 
@@ -280,9 +293,9 @@ export class ZoneBackground {
     const veil = new Graphics()
     veil.rect(0, HORIZON, VIRTUAL_W, INVENTORY_ZONE.y - HORIZON).fill(sharedGradients().fade)
     veil.roundRect(field.x, field.y, field.w, field.h, 14).cut()
-    veil.roundRect(field.x, field.y, field.w, field.h, 14).fill({ color: ZONE_COLORS.fieldVeil, alpha: 0.4 })
+    veil.roundRect(field.x, field.y, field.w, field.h, 14).fill({ color: tints.fieldVeil, alpha: 0.4 })
 
-    this.container.addChild(this.skyCircle, veil, this.fieldCircle, fieldRing(field), blockerSlabs(blockers), shelf())
+    this.container.addChild(this.skyCircle, veil, this.fieldCircle, fieldRing(field, sky), blockerSlabs(blockers), shelf(sky))
   }
 
   setStarCount(n: number): void {
@@ -302,8 +315,8 @@ export class ZoneBackground {
 export class MenuBackdrop {
   readonly container = new Container()
   private stars = new Starfield(4321)
-  private outer = arcaneCircle(176, 3)
-  private inner = arcaneCircle(104, 5)
+  private outer = arcaneCircle(176, 3, SKY_TINTS.violet.etch)
+  private inner = arcaneCircle(104, 5, SKY_TINTS.violet.etch)
 
   constructor() {
     this.container.eventMode = 'none'
@@ -312,7 +325,7 @@ export class MenuBackdrop {
       c.position.set(VIRTUAL_W / 2, 330)
       c.alpha = a
     }
-    this.container.addChild(nebulaSprite(), this.stars.container, constellations(), this.outer, this.inner)
+    this.container.addChild(nebulaSprite('violet'), this.stars.container, constellations('violet'), this.outer, this.inner)
   }
 
   update(dt: number, time: number): void {
@@ -330,8 +343,8 @@ export class MenuBackdrop {
 }
 
 // Static variant for the level editor.
-export function drawZoneBackground(field: Rect, blockers: Rect[]): Container {
-  const bg = new ZoneBackground(field, blockers)
+export function drawZoneBackground(field: Rect, blockers: Rect[], sky: SkyName = 'violet'): Container {
+  const bg = new ZoneBackground(field, blockers, sky)
   bg.update(0, 0)
   return bg.container
 }

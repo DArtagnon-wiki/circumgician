@@ -1,3 +1,4 @@
+import { PALETTE_NAMES } from '../model/Color'
 import { FIELD_ZONE, ICE_RADIUS, OBSTACLE_ZONE } from './constants'
 import { circleInRect } from './geometry'
 import type { LevelData, Rect } from './types'
@@ -145,6 +146,7 @@ export function validateLevel(data: unknown): string[] {
 
   if (!isObj(data.goal) || data.goal.type !== 'clearAll') err('goal', 'must be {"type": "clearAll"}')
   if (data.endless !== undefined && (!isObj(data.endless) || !isInt(data.endless.seed))) err('endless', 'must be {"seed": integer}')
+  if (data.palette !== undefined && !(PALETTE_NAMES as readonly unknown[]).includes(data.palette)) err('palette', `must be one of ${PALETTE_NAMES.join(', ')}`)
 
   return errs
 }

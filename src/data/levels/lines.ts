@@ -67,23 +67,25 @@ const toTheCrux: ScriptStep[] = [
   tap(2), // six amber
 ]
 
-// Levels 12-17 (ice and frost): ruby and sapphire pools up top; a frozen
-// rune's ice sits bottom-left, far from the boss, so a blow cast top-right
-// links to the boss and one cast beside the ice links to the ice.
-const RUBY = at(100, 440)
-const SAPPHIRE = at(300, 440)
+// Levels 12-17 (ice and frost, the cool palette): each lays its two
+// starting colors out in its own formation, and the runes that use them are
+// cast left and right while feeding kicks the motes over. A frozen rune's
+// ice sits bottom-left, far from the boss, so a blow cast top-right links to
+// the boss and one cast beside the ice links to the ice.
+const LEFT = at(100, 440)
+const RIGHT = at(300, 440)
 const casts = (...pairs: [number, Spot][]): ScriptStep[] => pairs.flatMap(([slot, p]) => cast(slot, p))
-const AMBER_IN_ICE = { well: at(200, 540), ice: at(185, 632) }
-const amberToCrux = casts([0, RUBY], [1, SAPPHIRE], [2, RUBY], [3, SAPPHIRE], [4, AMBER_IN_ICE.well])
+const PERIDOT_IN_ICE = { well: at(200, 540), ice: at(185, 632) }
+const peridotToCrux = casts([0, LEFT], [1, RIGHT], [2, LEFT], [3, RIGHT], [4, PERIDOT_IN_ICE.well])
 const FROSTBITE = at(200, 570)
-const frostbiteToCrux = casts([0, RUBY], [1, SAPPHIRE], [2, RUBY], [3, SAPPHIRE], [2, RUBY], [3, FROSTBITE]) // the ruby triangle freezes, the amethyst hexagon thaws it
+const frostbiteToCrux = casts([0, LEFT], [1, RIGHT], [2, LEFT], [3, RIGHT], [2, LEFT], [3, FROSTBITE]) // the lapis triangle freezes, the tourmaline hexagon thaws it
 const RESCUE = { frozen: at(200, 590), chip: at(200, 410) }
-const rescueToCrux = casts([0, RUBY], [1, SAPPHIRE], [2, RUBY], [3, SAPPHIRE], [4, RESCUE.frozen], [5, RESCUE.chip])
-const WINTER = { frozen: at(84, 656), chip: at(190, 640), boss: at(316, 392), ruby: at(100, 392) }
-const twoWintersToCrux = casts([4, WINTER.frozen], [2, RUBY], [3, SAPPHIRE], [3, RUBY], [0, WINTER.ruby], [1, SAPPHIRE], [1, WINTER.chip])
-const deepWinterToCrux = casts([4, WINTER.frozen], [0, RUBY], [1, SAPPHIRE], [1, RUBY], [2, SAPPHIRE], [2, RUBY], [3, SAPPHIRE], [3, WINTER.chip])
+const rescueToCrux = casts([0, LEFT], [1, RIGHT], [2, LEFT], [3, RIGHT], [4, RESCUE.frozen], [5, RESCUE.chip])
+const WINTER = { frozen: at(84, 656), chip: at(190, 640), boss: at(316, 392), left: at(100, 392) }
+const twoWintersToCrux = casts([4, WINTER.frozen], [2, LEFT], [3, RIGHT], [3, LEFT], [0, WINTER.left], [1, RIGHT], [1, WINTER.chip])
+const deepWinterToCrux = casts([4, WINTER.frozen], [0, LEFT], [1, RIGHT], [1, LEFT], [2, RIGHT], [2, LEFT], [3, RIGHT], [3, WINTER.chip])
 const LONG = { chip: at(84, 550), ice: at(300, 622), mid: at(200, 580) }
-const longWinterToCrux = casts([4, WINTER.frozen], [0, RUBY], [1, SAPPHIRE], [1, RUBY], [2, SAPPHIRE], [2, SAPPHIRE], [2, RUBY], [3, SAPPHIRE], [3, LONG.chip])
+const longWinterToCrux = casts([4, WINTER.frozen], [0, LEFT], [1, RIGHT], [1, LEFT], [2, RIGHT], [2, RIGHT], [2, LEFT], [3, RIGHT], [3, LONG.chip])
 
 export const LINES: Record<string, Line[]> = {
   // Levels 1-3 are calm: plenty of every color, nothing that loses for good.
@@ -196,32 +198,32 @@ export const LINES: Record<string, Line[]> = {
     { name: 'an amber square first', expect: 'lost', steps: [...toTheCrux, place(0, P), feed(0), tap(0)] },
   ],
   'amber-in-ice': [
-    { name: 'intended', expect: 'won', steps: [...amberToCrux, ...casts([5, AMBER_IN_ICE.ice], [0, AMBER_IN_ICE.well])] },
-    { name: 'a jade triangle first', expect: 'lost', steps: [...amberToCrux, ...cast(2, AMBER_IN_ICE.well)] },
+    { name: 'intended', expect: 'won', steps: [...peridotToCrux, ...casts([5, PERIDOT_IN_ICE.ice], [0, PERIDOT_IN_ICE.well])] },
+    { name: 'a tourmaline triangle first', expect: 'lost', steps: [...peridotToCrux, ...cast(2, PERIDOT_IN_ICE.well)] },
   ],
   frostbite: [
-    { name: 'intended', expect: 'won', steps: [...frostbiteToCrux, ...casts([4, FROSTBITE], [0, RUBY], [1, SAPPHIRE])] },
-    { name: 'the jade triangle', expect: 'lost', steps: [...frostbiteToCrux, ...cast(5, FROSTBITE)] },
+    { name: 'intended', expect: 'won', steps: [...frostbiteToCrux, ...casts([4, FROSTBITE], [0, LEFT], [1, RIGHT])] },
+    { name: 'the turquoise triangle', expect: 'lost', steps: [...frostbiteToCrux, ...cast(5, FROSTBITE)] },
   ],
   'the-rescue': [
-    { name: 'intended', expect: 'won', steps: [...rescueToCrux, ...casts([3, RESCUE.chip], [4, RESCUE.frozen], [0, RUBY], [1, SAPPHIRE])] },
-    { name: 'the jade triangle at the boss', expect: 'lost', steps: [...rescueToCrux, ...cast(2, RESCUE.chip)] },
+    { name: 'intended', expect: 'won', steps: [...rescueToCrux, ...casts([3, RESCUE.chip], [4, RESCUE.frozen], [0, LEFT], [1, RIGHT])] },
+    { name: 'the kunzite triangle at the boss', expect: 'lost', steps: [...rescueToCrux, ...cast(2, RESCUE.chip)] },
   ],
   'two-winters': [
-    { name: 'intended', expect: 'won', steps: [...twoWintersToCrux, ...casts([5, WINTER.boss], [5, WINTER.frozen], [4, SAPPHIRE], [0, RUBY], [1, WINTER.chip])] },
-    { name: 'a jade triangle at the boss', expect: 'lost', steps: [...twoWintersToCrux, ...cast(2, WINTER.boss)] },
-    { name: 'a jade triangle finishing the rescue', expect: 'not-won', steps: [...twoWintersToCrux, ...cast(3, WINTER.chip)] },
+    { name: 'intended', expect: 'won', steps: [...twoWintersToCrux, ...casts([5, WINTER.boss], [5, WINTER.frozen], [4, RIGHT], [0, LEFT], [1, WINTER.chip])] },
+    { name: 'a lapis triangle at the boss', expect: 'lost', steps: [...twoWintersToCrux, ...cast(2, WINTER.boss)] },
+    { name: 'a lapis triangle finishing the rescue', expect: 'not-won', steps: [...twoWintersToCrux, ...cast(3, WINTER.chip)] },
   ],
   'deep-winter': [
-    { name: 'intended', expect: 'won', steps: [...deepWinterToCrux, ...casts([5, WINTER.boss], [5, WINTER.frozen], [4, SAPPHIRE], [3, RUBY], [4, at(200, 560)])] },
-    { name: 'a jade triangle at the boss', expect: 'lost', steps: [...deepWinterToCrux, ...cast(0, WINTER.boss)] },
-    { name: 'a jade triangle finishing the rescue', expect: 'not-won', steps: [...deepWinterToCrux, ...cast(1, WINTER.chip)] },
+    { name: 'intended', expect: 'won', steps: [...deepWinterToCrux, ...casts([5, WINTER.boss], [5, WINTER.frozen], [4, RIGHT], [3, LEFT], [4, at(200, 560)])] },
+    { name: 'a peridot triangle at the boss', expect: 'lost', steps: [...deepWinterToCrux, ...cast(0, WINTER.boss)] },
+    { name: 'a peridot triangle finishing the rescue', expect: 'not-won', steps: [...deepWinterToCrux, ...cast(1, WINTER.chip)] },
   ],
   'the-long-winter': [
-    { name: 'intended', expect: 'won', steps: [...longWinterToCrux, ...casts([5, WINTER.boss], [6, LONG.ice], [5, WINTER.frozen], [4, SAPPHIRE], [3, RUBY], [4, LONG.mid])] },
-    { name: 'a jade square at the boss', expect: 'lost', steps: [...longWinterToCrux, ...cast(0, WINTER.boss)] },
-    { name: 'breaking the amber ice first', expect: 'not-won', steps: [...longWinterToCrux, ...cast(6, LONG.ice)] },
-    { name: 'a jade square finishing the rescue', expect: 'not-won', steps: [...longWinterToCrux, ...cast(1, LONG.chip)] },
+    { name: 'intended', expect: 'won', steps: [...longWinterToCrux, ...casts([5, WINTER.boss], [6, LONG.ice], [5, WINTER.frozen], [4, RIGHT], [3, LEFT], [4, LONG.mid])] },
+    { name: 'a lapis square at the boss', expect: 'lost', steps: [...longWinterToCrux, ...cast(0, WINTER.boss)] },
+    { name: 'breaking the turquoise ice first', expect: 'not-won', steps: [...longWinterToCrux, ...cast(6, LONG.ice)] },
+    { name: 'a lapis square finishing the rescue', expect: 'not-won', steps: [...longWinterToCrux, ...cast(1, LONG.chip)] },
   ],
 }
 

@@ -1,7 +1,7 @@
-import type { Hue, MoteColor, ReleaseColor } from '../model/Color'
+import type { Hue, MoteColor, PaletteName, ReleaseColor } from '../model/Color'
 import type { Vec2 } from '../core/types'
 
-export type { Hue, MoteColor, ReleaseColor, Vec2 }
+export type { Hue, MoteColor, PaletteName, ReleaseColor, Vec2 }
 
 // ---------------------------------------------------------------------------
 // Level data — the JSON file format. Plain data only: every level file under
@@ -85,6 +85,8 @@ export interface LevelData {
   ice?: IceSpec[]
   hand: RuneSpec[]
   goal: GoalSpec
+  // How the level looks (default 'jewel'); the sim never reads it.
+  palette?: PaletteName
   // Endless only: rune/obstacle stacks extend forever via generators.
   endless?: { seed: number }
 }

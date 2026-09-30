@@ -2,12 +2,10 @@ import { Sprite } from 'pixi.js'
 import type { Vec2 } from '../sim/types'
 import type { Effects } from './Effects'
 import type { SmokeSystem } from './SmokeSystem'
+import { FROST, RIME } from './Theme'
 import { textures } from './textures'
 
-// Ice and frost: pale blue light and white rime, never a hue (hues are what
-// motes are).
-export const FROST = 0x9fd4ff
-export const RIME = 0xeaf7ff
+export { FROST, RIME }
 
 // Frost racing from `from` to `to` over `duration`: a cold light shedding
 // ice sparkles along its way.

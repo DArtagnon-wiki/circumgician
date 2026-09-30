@@ -77,4 +77,12 @@ describe('validateLevel', () => {
     l.hand[0].layers[0].nodes[0].release = 'annihilating'
     expect(validateLevel(l)).toContain('hand[0].layers[0].nodes[0].release: endless levels never annihilate')
   })
+
+  it('accepts a known palette and nothing else', () => {
+    const l = good()
+    l.palette = 'cool'
+    expect(validateLevel(l)).toEqual([])
+    l.palette = 'neon'
+    expect(validateLevel(l)).toEqual(['palette: must be one of jewel, cool'])
+  })
 })

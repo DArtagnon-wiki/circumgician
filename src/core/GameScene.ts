@@ -1,6 +1,6 @@
 import { Graphics, Point, type Application, type FederatedPointerEvent } from 'pixi.js'
 import { createLayers, type Layers } from '../render/Layers'
-import { ACCENT_COLOR, HUE_COLORS, HUE_NAMES, INVALID_TINT, RUNE_BODY_COLOR, colorForMote, lighten } from '../render/Theme'
+import { ACCENT_COLOR, INVALID_TINT, RUNE_BODY_COLOR, activePalette, colorForMote, hueColor, hueName, lighten, usePalette } from '../render/Theme'
 import { ZoneBackground } from '../render/ZoneBackground'
 import { ObstacleView } from '../render/ObstacleView'
 import { MIDDLE_SCALE, RuneView, handLook, pieceLook } from '../render/RuneView'
@@ -132,6 +132,8 @@ export class GameScene {
     this.layers.motes.addChild(this.smoke.container, this.moteLayers.halos, this.moteLayers.bodies, this.moteLayers.hearts)
     this.effects = new Effects(this.layers.effects)
     this.applyFit()
+    // Every color drawn from here on is the level's palette's.
+    const palette = usePalette(level.palette)
 
     const seed = opts.seed ?? (Math.random() * 2 ** 32) >>> 0
     this.sim = new Sim(level, {
@@ -139,7 +141,7 @@ export class GameScene {
       ensureLayers: opts.endless ? ensureEndlessLayers : undefined,
       fuse: opts.endless ? ENDLESS_TUNING.fuse : undefined,
     })
-    this.zoneBg = new ZoneBackground(level.field, level.blockers)
+    this.zoneBg = new ZoneBackground(level.field, level.blockers, palette.sky)
     this.layers.background.addChild(this.zoneBg.container)
     this.applyQuality()
     this.bindSimEvents()
@@ -528,7 +530,7 @@ export class GameScene {
       const delay = this.latestImpact()
       this.pendingResult = { kind: 'won', wait: RESULT_DELAY + delay }
       this.effects.after(delay, () => {
-        const hues = Object.values(HUE_COLORS)
+        const hues = Object.values(activePalette().hues)
         hues.forEach((c, i) => this.effects.ring({ x: 200, y: 450 }, c, 20 + i * 8, 260 + i * 30, 1.2, 3))
         this.effects.addShake(6)
         this.sfx.win()
@@ -612,7 +614,7 @@ export class GameScene {
   // spills, light blooms where its first mote lands, and its name rings out
   // over a jingle. Nothing pauses. Two new hues at once take turns.
   private onHueDiscovered(hue: Hue, at: Vec2): void {
-    const color = HUE_COLORS[hue]
+    const color = hueColor(hue)
     const delay = this.discoveries++ * 1.2
     this.effects.after(LAUNCH + delay, () => {
       this.effects.flash(color, 0.24, 0.9, { x: 0, y: 0, w: VIRTUAL_WIDTH, h: VIRTUAL_HEIGHT })
@@ -644,7 +646,7 @@ export class GameScene {
         })
       }
       this.effects.addShake(3)
-      this.hud?.announce('New color', HUE_NAMES[hue], `#${color.toString(16).padStart(6, '0')}`)
+      this.hud?.announce('New color', hueName(hue), `#${color.toString(16).padStart(6, '0')}`)
     })
   }
 

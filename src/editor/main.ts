@@ -7,6 +7,7 @@ import { el, renderInspector, swatch } from './inspector'
 import { validateLevel } from '../sim/validate'
 import { runCareless } from '../sim/headless'
 import { GameScene } from '../core/GameScene'
+import { usePalette } from '../render/Theme'
 import type { PackManifest } from '../data/levels/pack'
 import type { LevelData, MoteColor } from '../sim/types'
 
@@ -281,6 +282,8 @@ window.addEventListener('beforeunload', (e) => {
 })
 
 st.onChange(() => {
+  // Swatches show the hues as the level's palette draws them.
+  if (st.level) usePalette(st.level.palette)
   renderToolbar()
   renderInspector(inspector, st)
   renderErrors()

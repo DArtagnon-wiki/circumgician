@@ -1,6 +1,6 @@
 import { Application, Container, Graphics, Rectangle, Text, type FederatedPointerEvent } from 'pixi.js'
 import { drawZoneBackground } from '../render/ZoneBackground'
-import { colorForMote, OBSTACLE_COLOR, RUNE_BODY_COLOR } from '../render/Theme'
+import { colorForMote, OBSTACLE_COLOR, RUNE_BODY_COLOR, usePalette } from '../render/Theme'
 import { polygonPoints } from '../sim/geometry'
 import { DEFAULT_TETHER, FOOTPRINT_MARGIN, OBSTACLE_ZONE, REACH, VIRTUAL_H, VIRTUAL_W } from '../sim/constants'
 import type { Rect, Vec2 } from '../sim/types'
@@ -66,9 +66,10 @@ export class EditorCanvas {
     const L = this.state.level
     const sel = this.state.selection
     const g = this.g
+    const { sky } = usePalette(L.palette)
     g.clear()
     this.bg.removeChildren().forEach((c) => c.destroy({ children: true }))
-    this.bg.addChild(drawZoneBackground(L.field, L.blockers))
+    this.bg.addChild(drawZoneBackground(L.field, L.blockers, sky))
     this.labels.removeChildren().forEach((c) => c.destroy())
 
     // Blocker/field outlines for selection and the rubber-band preview.
