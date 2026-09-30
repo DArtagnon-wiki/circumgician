@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { Sim, type SimOptions } from './Sim'
 import { BURST_GAP, FLICK_MAX, FROZEN_INSET, ICE_RADIUS, KICK_MIN, MOTE_FRICTION, REACH, THAW_LAG } from './constants'
 import type { DetonationInfo } from './events'
-import { dist, nodePositions, strikeTime } from './geometry'
+import { dist, nodePositions, outerAngle, strikeTime } from './geometry'
 import { layer, mote, obstacle, ring, testLevel } from './testFixtures'
 import { runScript } from './headless'
 import { DEBUG_PACK } from '../data/levels/pack'
@@ -628,6 +628,105 @@ describe('null and void motes, prefilled bowls', () => {
     const sim = new Sim(level)
     sim.checkLoss()
     expect(sim.state.status).toBe('playing')
+  })
+})
+
+describe('two-shape layers', () => {
+  // O0: a two-shape layer (triangle + square, strength 6) over a triangle.
+  // Slot 0: a red square that strikes as a triangle; slot 1: a blue
+  // triangle that strikes as a square; slot 2: another red square.
+  const A = { x: 110, y: 500 }
+  const B = { x: 290, y: 500 }
+  const D = { x: 200, y: 650 }
+  const around = (color: MoteColor, at: { x: number; y: number }, n: number) => Array.from({ length: n }, (_, i) => mote(color, at.x + Math.cos(i * 1.6) * 10, at.y + Math.sin(i * 1.6) * 10))
+  const twoShape: ObstacleSpec = { x: 200, y: 150, layers: [{ sides: 3, pair: 4, radius: 30, hp: 6 }, { sides: 3, radius: 30, hp: 3 }] }
+  const redSquare = { layers: [layer(4, 40, 'red'), layer(3, 30, 'red')] }
+  const blueTriangle = { layers: [layer(3, 40, 'blue'), layer(4, 30, 'blue')] }
+  const level = (parts: Partial<LevelData> = {}) =>
+    testLevel({ obstacles: [twoShape], hand: [redSquare, blueTriangle, redSquare], motes: [...around('red', A, 4), ...around('blue', B, 3), ...around('red', D, 4)], ...parts })
+
+  it('a piece linked to one waits in stasis once full: its fuse goes out, its spin stops, and it never bursts alone', () => {
+    const sim = mk(level({ fuse: 3 }))
+    const a = placeSlot(sim, 0, A)
+    expect(sim.piece(a)!.linkedObstacleId).toBe(sim.state.obstacles[0].id)
+    stepFor(sim, 1)
+    const p = sim.piece(a)!
+    expect(p.state).toBe('full')
+    expect(p.stasis).toBeDefined()
+    expect(p.burnAt).toBeUndefined()
+    const angle = outerAngle(p, sim.state.time)
+    expect(sim.detonate(a)).toBe(false)
+    stepFor(sim, 5) // long past its fuse
+    expect(sim.state.stats.burned).toBe(0)
+    expect(outerAngle(sim.piece(a)!, sim.state.time)).toBeCloseTo(angle)
+  })
+
+  it('with both shapes there, tapping either bursts both as one blow of their combined power', () => {
+    const sim = mk(level())
+    const a = placeSlot(sim, 0, A)
+    const b = placeSlot(sim, 1, B)
+    stepFor(sim, 1)
+    expect(sim.piece(b)!.stasis).toBeDefined()
+    const bursts: [string, string | undefined, number][] = []
+    sim.bus.on('piece:detonated', ({ piece, info }) => bursts.push([piece.id, info.partner, info.damage]))
+    expect(sim.detonate(b)).toBe(true)
+    expect(sim.state.pieces).toEqual([])
+    expect(bursts).toEqual([
+      [b, a, 7],
+      [a, b, 7],
+    ])
+    stepFor(sim, 1)
+    const o = sim.state.obstacles[0]
+    expect([o.index, o.hp]).toEqual([1, 3])
+    expect(sim.state.stats).toMatchObject({ detonations: 2, landed: 6, wasted: 1 })
+  })
+
+  it("each shape's place holds one piece: another of that shape links elsewhere (here nowhere) and bursts alone", () => {
+    const sim = mk(level())
+    const a = placeSlot(sim, 0, A)
+    stepFor(sim, 1)
+    const c = placeSlot(sim, 2, D)
+    expect(sim.piece(c)!.linkedObstacleId).toBeNull()
+    stepFor(sim, 1)
+    expect(sim.piece(c)!.stasis).toBeUndefined()
+    expect(sim.detonate(c)).toBe(true)
+    expect(sim.state.stats.unlinked).toBe(1)
+    expect(sim.piece(a)!.stasis).toBeDefined()
+    // Both charging toward the same place: the first to fill takes it (in
+    // cast order, on a tie), and the other is moved off.
+    const race = mk(level())
+    const first = placeSlot(race, 0, A)
+    const second = placeSlot(race, 2, D)
+    expect(race.piece(second)!.linkedObstacleId).toBe(race.state.obstacles[0].id)
+    stepFor(race, 1)
+    expect(race.piece(first)!.stasis).toBeDefined()
+    expect(race.piece(second)!.state).toBe('full')
+    expect(race.piece(second)!.linkedObstacleId).toBeNull()
+  })
+
+  it('a piece in stasis with no partner left to come is a loss, once nothing else can move', () => {
+    const alone = new Sim(level({ hand: [redSquare] }))
+    placeSlot(alone, 0, A)
+    stepFor(alone, 2)
+    expect(alone.state.status).toBe('lost')
+    const waiting = new Sim(level())
+    placeSlot(waiting, 0, A)
+    stepFor(waiting, 2)
+    expect(waiting.state.status).toBe('playing')
+  })
+
+  it('if its layer falls to something else, a piece in stasis spins on with a fresh fuse and relinks', () => {
+    const sim = mk(level({ fuse: 3 }))
+    const a = placeSlot(sim, 0, A)
+    stepFor(sim, 1)
+    sim.debugCollapseAll()
+    const p = sim.piece(a)!
+    expect(p.stasis).toBeUndefined()
+    expect(p.burnAt).toBeCloseTo(sim.state.time + 3)
+    expect(p.linkedObstacleId).toBe(sim.state.obstacles[0].id) // now a plain triangle
+    expect(sim.detonate(a)).toBe(true)
+    stepFor(sim, 1)
+    expect(sim.state.obstacles[0].hp).toBe(0)
   })
 })
 

@@ -29,6 +29,7 @@
     "fail-no-motes",
     "sandbox-ice-frost",
     "sandbox-fire",
-    "sandbox-blanks"
+    "sandbox-blanks",
+    "sandbox-pairs"
   ]
 }

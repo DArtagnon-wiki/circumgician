@@ -2,6 +2,7 @@ import { KICK_GAIN, MOTE_FRICTION, REACH } from './constants'
 import { dist, outerLayer } from './geometry'
 import { colorsCanCover } from './progress'
 import { takesAnyBowl } from '../model/Color'
+import { canFire } from './rules'
 import { Sim, type SimOptions } from './Sim'
 import { nextRandom } from './rng'
 import { canonicalBlanks, type Move } from './solver'
@@ -9,7 +10,7 @@ import type { LevelData, Mote, Piece, RuneLayerSpec, SimStatus, Vec2 } from './t
 
 export type ScriptStep =
   | { place: number; at: Vec2 } // cast the layer in that hand slot at a field position
-  | { tap: number; layer?: number } // wait for a piece from that slot (the oldest, or that stack layer) to fill, then detonate it
+  | { tap: number; layer?: number } // wait for a piece from that slot (the oldest, or that stack layer) to fill (and, in stasis, for its partner), then detonate it
   | { wait: number } // seconds
   | { flick: number; toward: Vec2 } // kick the level's nth mote so it coasts to a point
   | { feed: number; layer?: number } // kick the free motes a charging piece from that slot can use into it, nearest first, until it fills
@@ -26,10 +27,12 @@ export interface RunResult {
 const DT = 1 / 30
 
 // The run in the solver's terms (solver.ts): a fill when a piece becomes
-// full, a fire at each detonation. Obstacles and ice are numbered apart,
+// full, a lock when it goes into stasis, a fire at each detonation (one for
+// a pair, the earlier rune first). Obstacles and ice are numbered apart,
 // each in the order the sim holds them (ice in the order it formed).
 function recordMoves(sim: Sim): Move[] {
   const moves: Move[] = []
+  const realIndex = (id: string | null) => sim.state.obstacles.filter((o) => !o.frozen).findIndex((o) => o.id === id)
   sim.bus.on('piece:full', ({ piece }) => {
     // Which bowls took a null or a void, written the way the solver writes it.
     const perNode = piece.held.map((id) => {
@@ -39,11 +42,26 @@ function recordMoves(sim: Sim): Move[] {
     const blanks = canonicalBlanks(piece.layer, perNode.join(''))
     moves.push({ kind: 'fill', rune: piece.slot, layer: piece.depth, ...(/[nv]/.test(blanks) ? { blanks } : {}) })
   })
+  sim.bus.on('piece:stasis', ({ piece }) => {
+    moves.push({ kind: 'lock', rune: piece.slot, layer: piece.depth, target: realIndex(piece.linkedObstacleId) })
+  })
+  // A pair bursts back to back, as one move.
+  let first: Piece | null = null
   sim.bus.on('piece:detonated', ({ piece, info }) => {
     const hit = sim.state.obstacles.find((o) => o.id === info.obstacleId)
     const kin = sim.state.obstacles.filter((o) => !o.frozen === !hit?.frozen)
     const target = hit ? kin.indexOf(hit) : null
-    moves.push({ kind: 'fire', rune: piece.slot, layer: piece.depth, target, ...(hit?.frozen ? { ice: true } : {}) })
+    if (!info.partner) {
+      moves.push({ kind: 'fire', rune: piece.slot, layer: piece.depth, target, ...(hit?.frozen ? { ice: true } : {}) })
+      return
+    }
+    if (!first) {
+      first = piece
+      return
+    }
+    const [a, b] = [first, piece].sort((x, y) => x.slot - y.slot || x.depth - y.depth)
+    first = null
+    moves.push({ kind: 'fire', rune: a.slot, layer: a.depth, target, with: { rune: b.slot, layer: b.depth } })
   })
   return moves
 }
@@ -171,10 +189,11 @@ export function runScript(level: LevelData, steps: ScriptStep[], opts: SimOption
       const piece = pieceFrom(sim, step.tap, step.layer)
       if (!piece) return fail(`no piece on the field from slot ${step.tap}${step.layer === undefined ? '' : ` layer ${step.layer}`}`)
       const start = sim.state.time
-      while (piece.state === 'charging' && onField(sim, piece) && sim.state.status === 'playing' && sim.state.time - start < fillTimeout) sim.step(DT)
+      while (!canFire(sim.state, piece) && onField(sim, piece) && sim.state.status === 'playing' && sim.state.time - start < fillTimeout) sim.step(DT)
       if (sim.state.status !== 'playing') break
       if (!onField(sim, piece)) return fail(`slot ${step.tap}'s piece burned before it burst`)
       if (piece.state !== 'full') return fail(`slot ${step.tap}'s piece did not fill`)
+      if (!canFire(sim.state, piece)) return fail(`slot ${step.tap}'s piece waits in stasis for a partner`)
       sim.detonate(piece.id)
     }
   }
@@ -200,7 +219,7 @@ export function runCompetent(level: LevelData, seed: number, maxSeconds = 600, o
     if (cooldown > 0) continue
     cooldown = 0.9
     for (const p of s().pieces) if (p.state === 'full' && !fullSince.has(p.id)) fullSince.set(p.id, s().time)
-    const full = s().pieces.filter((p) => p.state === 'full')
+    const full = s().pieces.filter((p) => canFire(s(), p))
     const linked = full.find((p) => p.linkedObstacleId)
     const due = (p: Piece) => Math.min(p.freezeAt ?? Infinity, p.burnAt ?? Infinity) - s().time < 2
     const stale = full.find((p) => s().time - (fullSince.get(p.id) ?? 0) > 4 || due(p))
@@ -242,7 +261,7 @@ export function runCompetent(level: LevelData, seed: number, maxSeconds = 600, o
         }
       }
     }
-    const busy = s().pieces.some((p) => p.state === 'full') || s().motes.some((m) => m.state === 'traveling' || m.state === 'ejecting')
+    const busy = s().pieces.some((p) => canFire(s(), p)) || s().motes.some((m) => m.state === 'traveling' || m.state === 'ejecting')
     const fallback = !busy && idleWait > 8 && !s().pieces.some((p) => p.state === 'charging') ? fallbackCast(sim) : null
     if (best) {
       sim.place(best.id, best.at)
@@ -335,7 +354,7 @@ export function runCareless(level: LevelData, seed: number, maxSeconds = 240): R
     cooldown -= DT
     if (cooldown > 0) continue
     cooldown = 1 + nextRandom(agent)
-    const full = sim.state.pieces.find((p) => p.state === 'full')
+    const full = sim.state.pieces.find((p) => canFire(sim.state, p))
     if (full) {
       sim.detonate(full.id)
       continue

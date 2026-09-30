@@ -314,3 +314,54 @@ describe('null and void motes, prefilled bowls', () => {
     expect(economyWon(level, replay(level, run.moves)!)).toBe(true)
   })
 })
+
+describe('two-shape layers', () => {
+  const A = { x: 110, y: 500 }
+  const B = { x: 290, y: 500 }
+  const around = (color: MoteColor, at: { x: number; y: number }, n: number) => Array.from({ length: n }, (_, i) => mote(color, at.x + Math.cos(i * 1.6) * 10, at.y + Math.sin(i * 1.6) * 10))
+  const twoShape = (hp: number) => ({ x: 200, y: 150, layers: [{ sides: 3, pair: 4, radius: 30, hp }] })
+  const redSquare = { layers: [layer(4, 40, 'red'), layer(3, 36, 'red')] } // strikes as a triangle
+  const blueTriangle = { layers: [layer(3, 40, 'blue'), layer(4, 36, 'blue')] } // strikes as a square
+  const level = testLevel({ motes: [...around('red', A, 4), ...around('blue', B, 3)], obstacles: [twoShape(6)], hand: [redSquare, blueTriangle] })
+  const play = (lvl: typeof level, ...moves: string[]) => moves.reduce((s, m) => after(lvl, s, m), initialEconomy(lvl))
+
+  it('a full piece of either shape goes into stasis there, and never bursts alone', () => {
+    const s = play(level, 'fill R0.0')
+    expect(labels(level, s)).toEqual(['fill R1.0', 'R0.0=>O0'])
+    expect(labels(level, after(level, s, 'R0.0=>O0'))).toEqual(['fill R1.0'])
+  })
+
+  it('the pair bursts as one blow of their combined power', () => {
+    const s = play(level, 'fill R0.0', 'R0.0=>O0', 'fill R1.0', 'R1.0=>O0')
+    const [pair, ...rest] = transitions(level, s)
+    expect(rest).toEqual([])
+    expect(moveLabel(pair.move)).toBe('R0.0+R1.0->O0')
+    expect(pair.blow).toMatchObject({ damage: 6, wasted: 1, with: { rune: 1, layer: 0 } })
+    expect(economyWon(level, pair.next)).toBe(true)
+    expect(pool(pair.next)).toEqual({ red: 4, blue: 3 })
+    expect(profileLevel(level).plans.map((p) => p.blows.length)).toEqual([1])
+  })
+
+  it('with its place held, another piece of that shape goes unlinked; with no partner to come, it is lost', () => {
+    const twins = testLevel({ motes: motes({ red: 8 }), obstacles: [twoShape(6)], hand: [redSquare, redSquare] })
+    const s = play(twins, 'fill R0.0', 'R0.0=>O0', 'fill R1.0')
+    expect(labels(twins, s)).toEqual(['R1.0 unlinked'])
+    expect(economyLost(twins, after(twins, s, 'R1.0 unlinked'))).toBe(true)
+  })
+
+  it('a two-shape layer takes its strength from both its shapes', () => {
+    expect(damageShort(level, initialEconomy(level))).toBe(false) // 4 + 3 against 6
+    const strong = { ...level, obstacles: [twoShape(8)] }
+    expect(damageShort(strong, initialEconomy(strong))).toBe(true)
+  })
+
+  it("a sim run's stasis and pair burst replay in the model", () => {
+    const run = runScript(level, [{ place: 0, at: A }, { place: 1, at: B }, { tap: 1 }], { settle: 3 })
+    expect(run.error).toBeUndefined()
+    expect(run.status).toBe('won')
+    const labelsRun = run.moves.map(moveLabel)
+    expect(labelsRun.slice(-1)).toEqual(['R0.0+R1.0->O0'])
+    expect([...labelsRun].sort()).toEqual(['R0.0+R1.0->O0', 'R0.0=>O0', 'R1.0=>O0', 'fill R0.0', 'fill R1.0'])
+    expect(economyWon(level, replay(level, run.moves)!)).toBe(true)
+  })
+})

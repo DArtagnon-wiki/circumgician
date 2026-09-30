@@ -24,7 +24,12 @@ import type { LevelData, MoteColor, RuneLayerSpec } from './types'
 //     the motes locked inside. It never counts toward the win;
 //   - a blow that leaves a frost layer standing still lands, but the piece
 //     freezes into ice of its own shape (strength its sides) holding its
-//     released motes; when that layer falls, all the ice it froze thaws.
+//     released motes; when that layer falls, all the ice it froze thaws;
+//   - a two-shape layer is struck only by a pair: a full piece of each of
+//     its shapes goes into stasis on it (one per shape), and the two burst
+//     together as one blow of their combined power. A piece whose shape
+//     matches only two-shape layers whose place for it is held goes
+//     unlinked, as in the game.
 // A move is one of
 //   fill Rn.k      fill layer k of rune n from the free motes (`fill Rn.k ..nv`
 //                  when some of its bowls take a null or a void). If k is still
@@ -34,6 +39,9 @@ import type { LevelData, MoteColor, RuneLayerSpec } from './types'
 //   Rn.k->Im       ...or into ice m (the level's first, then frozen pieces
 //                  in the order they froze)
 //   Rn.k unlinked  detonate it with nothing to hit
+//   Rn.k=>Om       put that full piece in stasis on obstacle m's two-shape
+//                  layer, holding its shape's place
+//   Rn.k+Rp.q->Om  burst two pieces in stasis there as one blow
 // Casting an empty piece only matters for what it uncovers, so it happens
 // inside the fill that needs it. Room on the field is the one limit on
 // digging: `maxPlaced` caps the pieces on the field at once. The default,
@@ -62,6 +70,7 @@ export interface EconomyPiece {
   // Once full, what each bowl holds when not a mote that counts: 'n' a null,
   // 'v' a void, '.' otherwise. Omitted when every bowl counts.
   blanks?: string
+  locked?: number // in stasis on this obstacle's two-shape layer
 }
 
 // A block of ice, as the game creates them: the level's, then each piece a
@@ -82,14 +91,20 @@ export interface Economy {
   burned?: number // layers burned by digging (levels with a fuse)
 }
 
-// A fire's target indexes the obstacles, or the ice when `ice` is set. A
-// fill's `blanks` says which bowls took a null or a void (see EconomyPiece).
-export type Move = { kind: 'fill'; rune: number; layer: number; blanks?: string } | { kind: 'fire'; rune: number; layer: number; target: number | null; ice?: boolean }
+// A fire's target indexes the obstacles, or the ice when `ice` is set; a
+// pair's fire names its second piece in `with`. A fill's `blanks` says which
+// bowls took a null or a void (see EconomyPiece).
+export type Move =
+  | { kind: 'fill'; rune: number; layer: number; blanks?: string }
+  | { kind: 'lock'; rune: number; layer: number; target: number }
+  | { kind: 'fire'; rune: number; layer: number; target: number | null; ice?: boolean; with?: { rune: number; layer: number } }
 
-// One detonation, counted the way the result screen counts it.
+// One detonation (a pair's counts once), counted the way the result screen
+// counts it.
 export interface Blow {
   rune: number
   layer: number // stack layer that detonated
+  with?: { rune: number; layer: number } // a pair's second piece
   target: number | null // obstacle (or ice) hit, null when unlinked
   ice?: boolean // the target is ice
   targetLayer: number // obstacle layer hit (-1 when unlinked)
@@ -151,12 +166,15 @@ export function economyKey(level: LevelData, s: Economy, opts: SolverOptions = {
   if (room(opts) === Infinity) {
     const mark = (r: number, k: number) => {
       const st = status(s, r, k)
-      return st === 'open' ? 'o' : st === 'fired' ? 'x' : `F${s.pieces.find((p) => p.rune === r && p.layer === k)?.blanks ?? ''};`
+      if (st !== 'full') return st === 'open' ? 'o' : 'x'
+      const p = s.pieces.find((q) => q.rune === r && q.layer === k)!
+      return `F${p.blanks ?? ''}${p.locked === undefined ? '' : `@${p.locked}`};`
     }
     const layers = level.hand.map((_, r) => Array.from({ length: castable(level, r) }, (_, k) => mark(r, k)).join('')).join(',')
     return `${s.pool.join(',')}|${layers}|${obs}`
   }
-  return `${s.pool.join(',')}|${s.hand.join(',')}|${s.pieces.map((p) => `${p.rune}.${p.layer}${p.full ? `f${p.blanks ?? ''}` : ''}`).join(',')}|${obs}`
+  const piece = (p: EconomyPiece) => `${p.rune}.${p.layer}${p.full ? `f${p.blanks ?? ''}` : ''}${p.locked === undefined ? '' : `@${p.locked}`}`
+  return `${s.pool.join(',')}|${s.hand.join(',')}|${s.pieces.map(piece).join(',')}|${obs}`
 }
 
 export function economyWon(level: LevelData, s: Economy): boolean {
@@ -165,12 +183,22 @@ export function economyWon(level: LevelData, s: Economy): boolean {
 
 // Per obstacle shape, can the layers not yet detonated still deal the HP
 // left? When not, no win remains (the solver prunes there), though the
-// game plays on until nothing can move.
+// game plays on until nothing can move. A two-shape layer takes its HP from
+// both its shapes, which must also cover their own layers.
 export function damageShort(level: LevelData, s: Economy): boolean {
   const need = new Map<number, number>()
+  const pairs = new Map<string, number>() // two-shape layers' HP, by 'a+b'
   s.obstacles.forEach((o, oi) => {
     const layers = level.obstacles[oi].layers
-    for (let i = o.index; i < layers.length; i++) need.set(layers[i].sides, (need.get(layers[i].sides) ?? 0) + (i === o.index ? o.hp : layers[i].hp))
+    for (let i = o.index; i < layers.length; i++) {
+      const { sides, pair } = layers[i]
+      const hp = i === o.index ? o.hp : layers[i].hp
+      if (pair === undefined) need.set(sides, (need.get(sides) ?? 0) + hp)
+      else {
+        const key = `${Math.min(sides, pair)}+${Math.max(sides, pair)}`
+        pairs.set(key, (pairs.get(key) ?? 0) + hp)
+      }
+    }
   })
   const can = new Map<number, number>()
   const add = (rune: number, layer: number) => {
@@ -182,6 +210,10 @@ export function damageShort(level: LevelData, s: Economy): boolean {
     for (let k = index; k < castable(level, r); k++) add(r, k)
   })
   for (const [sides, hp] of need) if ((can.get(sides) ?? 0) < hp) return true
+  for (const [key, hp] of pairs) {
+    const [a, b] = key.split('+').map(Number)
+    if ((can.get(a) ?? 0) + (can.get(b) ?? 0) < (need.get(a) ?? 0) + (need.get(b) ?? 0) + hp) return true
+  }
   return false
 }
 
@@ -296,18 +328,27 @@ function fill(level: LevelData, s: Economy, rune: number, layer: number, opts: S
   }))
 }
 
-function fire(level: LevelData, s: Economy, rune: number, layer: number, target: number | null, ice = false): Transition {
-  const layers = level.hand[rune].layers
-  const outer = layers[layer]
-  const blanks = s.pieces.find((p) => p.rune === rune && p.layer === layer)?.blanks ?? ''
-  const power = outer.sides - (blanks.match(/[nv]/g)?.length ?? 0)
-  // Ash takes whatever it holds; a void comes out a void; the rest take
-  // their bowl's color.
-  const released = tally(outer.nodes.flatMap((n, i) => (n.release === 'annihilating' ? [] : [blanks[i] === 'v' ? 'void' : n.release])))
+// Bursts a full piece, or a pair in stasis as one blow of their combined
+// power.
+function fire(level: LevelData, s: Economy, pieces: EconomyPiece[], target: number | null, ice = false): Transition {
+  const [first, second] = pieces
+  const { rune, layer } = first
+  const outer = level.hand[rune].layers[layer]
+  let power = 0
+  let released = ECONOMY_COLORS.map(() => 0)
+  for (const p of pieces) {
+    const spec = level.hand[p.rune].layers[p.layer]
+    const blanks = p.blanks ?? ''
+    power += spec.sides - (blanks.match(/[nv]/g)?.length ?? 0)
+    // Ash takes whatever it holds; a void comes out a void; the rest take
+    // their bowl's color.
+    released = plus(released, tally(spec.nodes.flatMap((n, i) => (n.release === 'annihilating' ? [] : [blanks[i] === 'v' ? 'void' : n.release]))))
+  }
+  const partner = second ? { with: { rune: second.rune, layer: second.layer } } : {}
   let pool = s.pool
   let blocks = s.ice
   const obstacles = s.obstacles.map((o) => ({ ...o }))
-  const blow: Blow = { rune, layer, target, ...(ice ? { ice } : {}), targetLayer: -1, damage: 0, wasted: 0, unlinked: target === null }
+  const blow: Blow = { rune, layer, ...partner, target, ...(ice ? { ice } : {}), targetLayer: -1, damage: 0, wasted: 0, unlinked: target === null }
   let frozen = false
   const strike = (hp: number) => {
     blow.damage = Math.min(hp, power)
@@ -327,7 +368,7 @@ function fire(level: LevelData, s: Economy, rune: number, layer: number, target:
     const o = obstacles[target]
     const spec = level.obstacles[target].layers[o.index]
     blow.targetLayer = o.index
-    if (spec.frost && power < o.hp) {
+    if (spec.frost && !second && power < o.hp) {
       // Frostbitten: the piece freezes, holding what it released.
       frozen = true
       blocks = [...blocks, { sides: outer.sides, hp: outer.sides, motes: released, by: [target, o.index] }]
@@ -347,8 +388,13 @@ function fire(level: LevelData, s: Economy, rune: number, layer: number, target:
     }
   }
   if (!frozen) pool = plus(pool, released)
-  const pieces = s.pieces.filter((p) => !(p.rune === rune && p.layer === layer))
-  return { move: { kind: 'fire', rune, layer, target, ...(ice ? { ice } : {}) }, next: { pool, hand: s.hand, pieces, obstacles, ice: blocks, ...(s.burned ? { burned: s.burned } : {}) }, blow }
+  const left = s.pieces.filter((p) => !pieces.includes(p))
+  return { move: { kind: 'fire', rune, layer, target, ...(ice ? { ice } : {}), ...partner }, next: { pool, hand: s.hand, pieces: left, obstacles, ice: blocks, ...(s.burned ? { burned: s.burned } : {}) }, blow }
+}
+
+// A full piece takes up stasis on obstacle `target`'s two-shape layer.
+function lock(s: Economy, piece: EconomyPiece, target: number): Transition {
+  return { move: { kind: 'lock', rune: piece.rune, layer: piece.layer, target }, next: { ...s, pieces: s.pieces.map((p) => (p === piece ? { ...p, locked: target } : p)) } }
 }
 
 // Every legal move from s.
@@ -357,31 +403,48 @@ export function transitions(level: LevelData, s: Economy, opts: SolverOptions = 
   level.hand.forEach((_, r) => {
     for (let k = 0; k < castable(level, r); k++) if (status(s, r, k) === 'open') out.push(...fill(level, s, r, k, opts))
   })
+  const shapeOf = (p: EconomyPiece) => level.hand[p.rune].layers[p.layer + 1].sides
+  const current = (oi: number) => level.obstacles[oi].layers[s.obstacles[oi].index]
   for (const p of s.pieces) {
     if (!p.full) continue
-    // A piece links to whichever matching obstacle (or ice) is nearest, so
-    // any of them can be chosen by where it is cast; none means unlinked.
-    const energy = level.hand[p.rune].layers[p.layer + 1]
-    const targets = s.obstacles.flatMap((o, oi) => (level.obstacles[oi].layers[o.index]?.sides === energy.sides ? [oi] : []))
-    const blocks = s.ice.flatMap((b, bi) => (b.hp > 0 && b.sides === energy.sides ? [bi] : []))
-    for (const target of targets) out.push(fire(level, s, p.rune, p.layer, target))
-    for (const target of blocks) out.push(fire(level, s, p.rune, p.layer, target, true))
-    if (!targets.length && !blocks.length) out.push(fire(level, s, p.rune, p.layer, null))
+    const sides = shapeOf(p)
+    if (p.locked !== undefined) {
+      // In stasis it bursts only with its partner (each pair once, from its
+      // earlier piece).
+      for (const q of s.pieces) if (q.locked === p.locked && byRuneLayer(p, q) < 0 && shapeOf(q) !== sides) out.push(fire(level, s, [p, q], p.locked))
+      continue
+    }
+    // A piece links to whichever match is nearest, so any of them can be
+    // chosen by where it is cast; none means unlinked. A two-shape layer
+    // matches while its place for this shape is free.
+    const targets = s.obstacles.flatMap((_, oi) => (current(oi)?.pair === undefined && current(oi)?.sides === sides ? [oi] : []))
+    const blocks = s.ice.flatMap((b, bi) => (b.hp > 0 && b.sides === sides ? [bi] : []))
+    const stases = s.obstacles.flatMap((_, oi) => {
+      const spec = current(oi)
+      if (spec?.pair === undefined || (spec.sides !== sides && spec.pair !== sides)) return []
+      return s.pieces.some((q) => q.locked === oi && shapeOf(q) === sides) ? [] : [oi]
+    })
+    for (const target of targets) out.push(fire(level, s, [p], target))
+    for (const target of blocks) out.push(fire(level, s, [p], target, true))
+    for (const target of stases) out.push(lock(s, p, target))
+    if (!targets.length && !blocks.length && !stases.length) out.push(fire(level, s, [p], null))
   }
   return out
 }
 
 // The game's loss test (progress.ts), as far as the model can see it:
-// nothing full, and nothing left that could fill.
+// nothing to do. (A full piece can always burst, unless it waits in stasis
+// for a partner.)
 export function economyLost(level: LevelData, s: Economy, opts: SolverOptions = {}): boolean {
   if (economyWon(level, s)) return false
-  if (s.pieces.some((p) => p.full)) return false
   return !transitions(level, s, opts).length
 }
 
 export function moveLabel(m: Move): string {
   if (m.kind === 'fill') return `fill R${m.rune}.${m.layer}${m.blanks ? ` ${m.blanks}` : ''}`
-  return m.target === null ? `R${m.rune}.${m.layer} unlinked` : `R${m.rune}.${m.layer}->${m.ice ? 'I' : 'O'}${m.target}`
+  if (m.kind === 'lock') return `R${m.rune}.${m.layer}=>O${m.target}`
+  const who = `R${m.rune}.${m.layer}${m.with ? `+R${m.with.rune}.${m.with.layer}` : ''}`
+  return m.target === null ? `${who} unlinked` : `${who}->${m.ice ? 'I' : 'O'}${m.target}`
 }
 
 // Memoized questions about one level's states. Every move fills a layer or
@@ -564,7 +627,7 @@ export function tensionBands(level: LevelData, opts: SolverOptions = {}): Tensio
     const k = solver.key(s)
     const known = fewest.get(k)
     if (known !== undefined) return [known, most.get(k)!]
-    if (level.fuse === undefined || !s.pieces.some((p) => p.full)) {
+    if (level.fuse === undefined || !s.pieces.some((p) => p.full && p.locked === undefined)) {
       const t = solver.tension(s)
       const d = economyDepth(s)
       const b = bands.get(d) ?? { depth: d, states: 0, min: 1, mean: 0, max: 0, minPeril: 1 }
@@ -618,7 +681,7 @@ export interface LevelProfile {
 
 const PLAN_CAP = 24
 
-const blowId = (b: Blow) => `${b.rune}.${b.layer}>${b.target === null ? '-' : `${b.ice ? 'I' : ''}${b.target}.${b.targetLayer}`}`
+const blowId = (b: Blow) => `${b.rune}.${b.layer}${b.with ? `+${b.with.rune}.${b.with.layer}` : ''}>${b.target === null ? '-' : `${b.ice ? 'I' : ''}${b.target}.${b.targetLayer}`}`
 
 // Walks every state on a winning line: the decisions met there, the moves
 // that lose (traps) and how long each stays hidden, and the distinct plans.

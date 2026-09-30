@@ -2,7 +2,7 @@ import { createSimBus, type SimBus } from './events'
 import { loadLevel } from './loadLevel'
 import { flickMote, kickMote, updateCatching, updateMotion } from './motion'
 import { certainLoss, isWon } from './progress'
-import { burnPiece, canPlace, castRune, damageObstacle, detonatePiece, findLink, freezePiece, relinkAll, type EnsureLayers } from './rules'
+import { burnPiece, canFire, canPlace, castRune, damageObstacle, detonatePiece, enterStasis, findLink, freezePiece, relinkAll, type EnsureLayers } from './rules'
 import { middleLayer } from './geometry'
 import type { LevelData, Obstacle, Piece, Rune, SimState, Vec2 } from './types'
 
@@ -56,6 +56,8 @@ export class Sim {
     s.time += dt
     updateMotion(s, this.bus, dt)
     if (s.status !== 'playing') return
+    // A piece that just filled on a two-shape layer waits there, fuse out.
+    if (enterStasis(s, this.bus)) relinkAll(s, this.bus)
     for (const piece of [...s.pieces]) if (piece.freezeAt !== undefined && s.time >= piece.freezeAt) freezePiece(s, this.bus, piece)
     let burned = false
     for (const piece of [...s.pieces]) {
@@ -91,11 +93,13 @@ export class Sim {
     return castRune(this.state, this.bus, rune, pos, this.opts.ensureLayers, { freeze: this.opts.fuse, burn: this.level.fuse })
   }
 
-  // `force` (debug only) detonates a charging piece as if it were full.
+  // Bursts a full piece (one in stasis only once its partner is there too,
+  // and then both). `force` (debug only) bursts a charging piece as if it
+  // were full.
   detonate(pieceId: string, force = false): boolean {
     const piece = this.piece(pieceId)
     if (!piece || this.state.status !== 'playing') return false
-    if (piece.state !== 'full' && !(force && piece.state === 'charging')) return false
+    if (!canFire(this.state, piece) && !(force && piece.state === 'charging')) return false
     this.snapshot()
     detonatePiece(this.state, this.bus, piece, this.opts.ensureLayers)
     this.afterAction()

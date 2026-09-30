@@ -12,11 +12,11 @@ function percent(x: number): string {
   return `${Math.round(x * 100)}%`
 }
 
-const blowLabel = (b: Blow) => moveLabel({ kind: 'fire', rune: b.rune, layer: b.layer, target: b.target, ice: b.ice })
+const blowLabel = (b: Blow) => moveLabel({ kind: 'fire', rune: b.rune, layer: b.layer, target: b.target, ice: b.ice, with: b.with })
 
 export function formatProfile(level: LevelData, p: LevelProfile, maxTraps = 8): string {
   const out = [`${level.name} (${level.id})`]
-  out.push(`  obstacles  ${level.obstacles.map((o, i) => `O${i} ${o.layers.map((l) => `${shape(l.sides)} ${l.hp}`).join(' > ')}`).join(' | ')}`)
+  out.push(`  obstacles  ${level.obstacles.map((o, i) => `O${i} ${o.layers.map((l) => `${shape(l.sides)}${l.pair === undefined ? '' : `+${shape(l.pair)}`} ${l.hp}`).join(' > ')}`).join(' | ')}`)
   if (!p.winnable) {
     out.push('  UNWINNABLE: no order of fills and detonations clears every obstacle')
     return out.join('\n')

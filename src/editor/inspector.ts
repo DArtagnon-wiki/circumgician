@@ -9,6 +9,7 @@ const HUES = ['red', 'blue', 'gold', 'teal', 'violet'] as const
 const MOTE_COLORS = [...HUES, 'generic', 'null', 'void'] as const
 const PREFILLS = ['–', 'real', 'null', 'void'] as const
 const RELEASES = [...MOTE_COLORS, 'annihilating'] as const
+const PAIR_SHAPES = ['3', '4', '5', '6', '7', '8']
 
 const hex = (n: number) => '#' + n.toString(16).padStart(6, '0')
 export const swatch = (c: string) =>
@@ -203,6 +204,19 @@ export function renderInspector(host: HTMLElement, st: EditorState): void {
           el('span', { class: 'idx' }, String(j + 1)),
           'sides ',
           num(layer.sides, (v) => edit((l) => (l.obstacles[sel.i].layers[j].sides = v)), { min: MIN_SIDES, max: MAX_SIDES, width: 44 }),
+          // A two-shape layer: struck only by a pair, one of each shape.
+          el(
+            'span',
+            { title: 'Second shape: only a pair of blows, one of each shape, fired together strikes it' },
+            '+',
+            choice(PAIR_SHAPES.filter((n) => n !== String(layer.sides)), layer.pair === undefined ? '' : String(layer.pair), (v) =>
+              edit((l) => {
+                const target = l.obstacles[sel.i].layers[j]
+                if (v) target.pair = Number(v)
+                else delete target.pair
+              }),
+            '–'),
+          ),
           'r ',
           num(layer.radius, (v) => edit((l) => (l.obstacles[sel.i].layers[j].radius = v)), { min: 8, width: 48 }),
           'hp ',

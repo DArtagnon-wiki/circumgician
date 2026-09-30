@@ -1,7 +1,8 @@
 import { Container, Graphics, Sprite } from 'pixi.js'
-import type { ObstacleMotion } from '../model/Look'
+import type { ObstacleMotion, ObstacleStyle } from '../model/Look'
 import type { Obstacle, ObstacleLayerSpec, Vec2 } from '../sim/types'
 import { localVertices } from './drawPolygon'
+import { polygonPoints } from '../sim/geometry'
 import { FROST, RIME } from './Frost'
 import { makeMaterial, type Material } from './obstacleStyles'
 import { textures } from './textures'
@@ -46,6 +47,17 @@ export class ObstacleView {
   private nextGlints: Sprite[] = []
   private body = new Container()
   private material: Material
+  // A two-shape layer's second shape: a body of the same material behind
+  // the first, both outlines woven through each other (see drawInterlace).
+  private pairMaterial: Material | null = null
+  private pairC = new Container()
+  private weaveG = new Graphics()
+  private engageG = new Graphics() // additive: the outlines of shapes held in stasis
+  private outlines = new Map<number, Vec2[]>() // the current layer's shapes, by sides
+  private engaged = ''
+  private armed = false
+  private seed: number
+  private style: ObstacleStyle
   private motion: ObstacleMotion
   private phase: number // desynchronises neighbours' idling
   private home: Vec2
@@ -75,17 +87,20 @@ export class ObstacleView {
 
   constructor(obstacle: Obstacle) {
     const seed = Math.round(obstacle.pos.x * 13 + obstacle.pos.y * 7)
+    this.seed = seed
     this.phase = (seed % 97) * 0.37
     this.frozen = !!obstacle.frozen
     // Ice is always obsidian under its glaze.
-    this.material = makeMaterial(this.frozen ? 'obsidian' : (obstacle.look?.style ?? 'obsidian'), seed)
+    this.style = this.frozen ? 'obsidian' : (obstacle.look?.style ?? 'obsidian')
+    this.material = makeMaterial(this.style, seed)
     this.motion = this.frozen ? 'sway' : (obstacle.look?.motion ?? this.material.motion)
     this.home = { ...obstacle.pos }
     this.nextC.addChild(this.nextG, this.glintC)
     this.frostG.blendMode = 'add'
     this.flashG.blendMode = 'add'
     this.holeGlowC.blendMode = 'add'
-    this.body.addChild(this.material.art, this.overG, this.frostG, this.holeGlowC, this.holeCoreC, this.flashG)
+    this.engageG.blendMode = 'add'
+    this.body.addChild(this.pairC, this.material.art, this.overG, this.frostG, this.weaveG, this.engageG, this.holeGlowC, this.holeCoreC, this.flashG)
     this.container.addChild(this.moonBack, this.nextC, this.body, this.moonFront)
     this.container.position.set(obstacle.pos.x, obstacle.pos.y)
     const moons = this.frozen ? 0 : (obstacle.look?.moons ?? 0)
@@ -94,6 +109,27 @@ export class ObstacleView {
 
   hit(): void {
     this.flash = 1
+  }
+
+  // Which of a two-shape layer's shapes have a piece holding their place in
+  // stasis (by sides), and whether both do (the pair is armed).
+  setEngaged(sides: number[], armed: boolean): void {
+    const key = sides.join(',')
+    this.armed = armed
+    if (key === this.engaged) return
+    this.engaged = key
+    this.drawEngaged()
+  }
+
+  private drawEngaged(): void {
+    const g = this.engageG
+    g.clear()
+    for (const sides of this.engaged ? this.engaged.split(',').map(Number) : []) {
+      const pts = this.outlines.get(sides)?.flatMap((p) => [p.x, p.y])
+      if (!pts) continue
+      g.poly(pts).stroke({ color: 0xc9d4ff, width: 5, alpha: 0.35, join: 'round' })
+      g.poly(pts).stroke({ color: 0xffffff, width: 1.6, alpha: 0.9, join: 'round' })
+    }
   }
 
   hold(seconds: number, index: number, hp: number): void {
@@ -162,8 +198,10 @@ export class ObstacleView {
     }
 
     this.material.update(time)
+    if (layer.pair !== undefined) this.pairMaterial?.update(time)
+    this.engageG.alpha = this.armed ? 0.65 + 0.35 * Math.sin(time * 6) : 0.75
     this.syncMoons(layer, next, time)
-    this.syncHoles(hp, layer.radius * Math.cos(Math.PI / layer.sides), time, dt, e)
+    this.syncHoles(hp, innerRadius(layer), time, dt, e)
   }
 
   // Where idling puts the obstacle this frame: an offset, a turn and a
@@ -205,8 +243,24 @@ export class ObstacleView {
   }
 
   private drawLayer(layer: ObstacleLayerSpec, next: ObstacleLayerSpec | undefined): void {
-    const R = layer.radius
+    const [R, R2] = layerRadii(layer)
     const outline = localVertices(layer.sides, R)
+    this.outlines = new Map([[layer.sides, outline]])
+    // A two-shape layer: the second shape turned to sit between the first's
+    // corners, a body of its own behind, and the two outlines interlaced.
+    this.weaveG.clear()
+    this.pairC.visible = layer.pair !== undefined
+    if (layer.pair !== undefined) {
+      const second = polygonPoints({ x: 0, y: 0 }, layer.pair, R2, -Math.PI / 2 + interleave(layer.sides, layer.pair))
+      this.outlines.set(layer.pair, second)
+      if (!this.pairMaterial) {
+        this.pairMaterial = makeMaterial(this.style, this.seed + 1)
+        this.pairC.addChild(this.pairMaterial.art)
+      }
+      this.pairMaterial.build(second, R2)
+      drawInterlace(this.weaveG, outline, second, this.material.trim, Math.max(2, layer.radius / 15))
+    }
+    this.drawEngaged()
     this.table = this.material.build(outline, R)
     this.overG.clear()
     if (layer.boss) drawGildedFractures(this.overG, outline, this.table, R)
@@ -230,13 +284,13 @@ export class ObstacleView {
     }
 
     this.flashG.clear()
-    this.flashG.poly(outline.flatMap((p) => [p.x, p.y])).fill({ color: 0xe9ddff })
+    for (const shape of this.outlines.values()) this.flashG.poly(shape.flatMap((p) => [p.x, p.y])).fill({ color: 0xe9ddff })
 
     this.nextG.clear()
     this.glintC.removeChildren().forEach((c) => c.destroy())
     this.nextGlints = []
     if (next) {
-      const r = circumscribing(R, next.sides)
+      const r = circumscribing(layer.radius, next.sides)
       const pts = localVertices(next.sides, r).flatMap((p) => [p.x, p.y])
       // A ghost of the material: a smoky edge with a thin bright line.
       const m = this.material
@@ -340,6 +394,99 @@ export class ObstacleView {
     for (const s of [h.swirl, h.lens, h.core]) s.visible = false
     this.spare.push(h)
   }
+}
+
+// Circumradii of a layer's shape and, on a two-shape layer, its second:
+// the two of equal area, the larger reaching the layer's radius, so each
+// shape's corners stand clear of the other's edges.
+function layerRadii(layer: ObstacleLayerSpec): [number, number] {
+  if (layer.pair === undefined) return [layer.radius, 0]
+  const area = (n: number) => (n / 2) * Math.sin((2 * Math.PI) / n)
+  const k = Math.sqrt(area(layer.sides) / area(layer.pair)) // second's radius over the first's
+  return k > 1 ? [layer.radius / k, layer.radius] : [layer.radius, layer.radius * k]
+}
+
+// Room for the strength's holes: inside both shapes.
+function innerRadius(layer: ObstacleLayerSpec): number {
+  const [R, R2] = layerRadii(layer)
+  const inner = R * Math.cos(Math.PI / layer.sides)
+  return layer.pair === undefined ? inner : Math.min(inner, R2 * Math.cos(Math.PI / layer.pair))
+}
+
+// The turn (from vertex-up) that sets a `b`-gon's corners as far as they
+// can be from an `a`-gon's, so each pokes out between the other's.
+function interleave(a: number, b: number): number {
+  let best = 0
+  let bestGap = -1
+  const steps = 240
+  for (let k = 0; k < steps; k++) {
+    const turn = (k / steps) * ((2 * Math.PI) / b)
+    let gap = Infinity
+    for (let i = 0; i < a; i++)
+      for (let j = 0; j < b; j++) {
+        const d = Math.abs((((i / a - j / b) * 2 * Math.PI - turn) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)
+        gap = Math.min(gap, d, 2 * Math.PI - d)
+      }
+    if (gap > bestGap + 1e-9) {
+      bestGap = gap
+      best = turn
+    }
+  }
+  return best
+}
+
+const BAND_EDGE = 0x0c0616
+
+// Two outlines woven through each other, each a pale band with dark edges.
+// Both are star-shaped about the center, so their crossings come in the
+// same order around it along each; the band on top alternates crossing by
+// crossing. `b` is drawn over `a` whole, then a piece of `a` is laid back
+// over `b` at every other crossing.
+function drawInterlace(g: Graphics, a: Vec2[], b: Vec2[], color: number, w: number): void {
+  const band = (pts: Vec2[]) => {
+    const flat = pts.flatMap((p) => [p.x, p.y])
+    g.poly(flat).stroke({ color: BAND_EDGE, width: w + 2, join: 'round' })
+    g.poly(flat).stroke({ color, width: w, join: 'round' })
+  }
+  band(a)
+  band(b)
+  const crossings: { at: number; a0: Vec2; a1: Vec2; t: number; sin: number }[] = []
+  a.forEach((a0, i) => {
+    const a1 = a[(i + 1) % a.length]
+    b.forEach((b0, j) => {
+      const b1 = b[(j + 1) % b.length]
+      const rx = a1.x - a0.x
+      const ry = a1.y - a0.y
+      const sx = b1.x - b0.x
+      const sy = b1.y - b0.y
+      const den = rx * sy - ry * sx
+      if (Math.abs(den) < 1e-9) return
+      const t = ((b0.x - a0.x) * sy - (b0.y - a0.y) * sx) / den
+      const u = ((b0.x - a0.x) * ry - (b0.y - a0.y) * rx) / den
+      if (t <= 0 || t >= 1 || u <= 0 || u >= 1) return
+      const x = a0.x + rx * t
+      const y = a0.y + ry * t
+      crossings.push({ at: Math.atan2(y, x), a0, a1, t, sin: Math.abs(den) / (Math.hypot(rx, ry) * Math.hypot(sx, sy)) })
+    })
+  })
+  crossings.sort((p, q) => p.at - q.at)
+  crossings.forEach(({ a0, a1, t, sin }, k) => {
+    if (k % 2) return
+    // Enough of `a` to cover `b`'s band where they cross, within a's edge.
+    const len = Math.hypot(a1.x - a0.x, a1.y - a0.y)
+    const half = ((w + 4) / Math.max(0.2, sin) / 2) / len
+    const from = { x: a0.x + (a1.x - a0.x) * Math.max(0, t - half), y: a0.y + (a1.y - a0.y) * Math.max(0, t - half) }
+    const to = { x: a0.x + (a1.x - a0.x) * Math.min(1, t + half), y: a0.y + (a1.y - a0.y) * Math.min(1, t + half) }
+    const nx = -(a1.y - a0.y) / len
+    const ny = (a1.x - a0.x) / len
+    g.moveTo(from.x, from.y).lineTo(to.x, to.y).stroke({ color, width: w, cap: 'butt' })
+    for (const side of [1, -1]) {
+      const o = side * (w / 2 + 0.5)
+      g.moveTo(from.x + nx * o, from.y + ny * o)
+        .lineTo(to.x + nx * o, to.y + ny * o)
+        .stroke({ color: BAND_EDGE, width: 1, cap: 'butt' })
+    }
+  })
 }
 
 // Gold veins across the facets, from the table's corners out to the rim.

@@ -19,6 +19,7 @@ import { Sim } from '../sim/Sim'
 import { ENDLESS_TUNING, ensureEndlessLayers } from '../sim/endless'
 import { EJECT_TIME, FLICK_GAIN, MOTE_FRICTION, REACH, THAW_LAG } from '../sim/constants'
 import { middleAngle, outerAngle, outerLayer } from '../sim/geometry'
+import { partnerOf } from '../sim/rules'
 import type { Hue, LevelData, Mote, Obstacle, Piece, Rune, Vec2 } from '../sim/types'
 import type { DetonationInfo } from '../sim/events'
 import { createDebugPanel, isDebugMode } from '../debug/DebugPanel'
@@ -84,6 +85,7 @@ const TAP_SLOP = 6 // px a touch may wander and still be a tap
 const FLICK_WINDOW = 0.1 // s: the end of a swipe sets its speed
 const NO_MOTES = new Map<string, Mote>()
 const FROST_BACK = 0.3 // frost racing back from a frost layer to the piece it bites
+const STASIS_RING = 0xc9d4ff // a piece latching into stasis
 
 // One instance per level attempt. The Sim owns all rules; this class only
 // renders its state, turns input into sim actions and adds juice.
@@ -273,7 +275,14 @@ export class GameScene {
     this.zoneBg.update(dt, this.clock)
     this.syncMotes(s.motes, dt, s.time)
     this.smoke.update(dt)
-    for (const o of s.obstacles) this.obstacleViews.get(o.id)?.sync(o, dt, s.time)
+    for (const o of s.obstacles) {
+      const view = this.obstacleViews.get(o.id)
+      if (!view) continue
+      // A two-shape layer lights the shapes whose places are held in stasis.
+      const held = s.pieces.filter((p) => p.stasis !== undefined && p.linkedObstacleId === o.id).map((p) => p.energy.sides)
+      view.setEngaged(held, held.length > 1)
+      view.sync(o, dt, s.time)
+    }
     this.syncHand(dt)
     this.syncPieces(dt)
     this.drawLinks()
@@ -385,16 +394,22 @@ export class GameScene {
       view.body.scale.set(scale)
       view.setHitRadius(piece.layer.radius * scale + 10)
       if (piece.burnAt !== undefined) this.burnFuse(view, piece, dt)
-      else view.setFuse(piece.freezeAt === undefined ? null : Math.max(0, (piece.freezeAt - s.time) / ENDLESS_TUNING.fuse), piece.layer.radius, s.time)
-      view.sync(pieceLook(piece), outerAngle(piece, s.time), middleAngle(piece, s.time), s.time, dt, motes)
+      else view.setFuse(piece.freezeAt === undefined ? null : Math.max(0, (piece.freezeAt - s.time) / (piece.freezeFor ?? ENDLESS_TUNING.fuse)), piece.layer.radius, s.time)
+      view.sync(pieceLook(piece, this.stasisOf(piece)), outerAngle(piece, s.time), middleAngle(piece, s.time), s.time, dt, motes)
     }
+  }
+
+  // A piece in stasis waits for its partner, or is armed once both are there.
+  private stasisOf(piece: Piece): 'waiting' | 'armed' | undefined {
+    if (piece.stasis === undefined) return undefined
+    return partnerOf(this.sim.state, piece) ? 'armed' : 'waiting'
   }
 
   // A level's fuse burning down around a piece: sparks fly from its tip,
   // and it sizzles once as it runs low.
   private burnFuse(view: RuneView, piece: Piece, dt: number): void {
     const s = this.sim.state
-    const left = Math.max(0, (piece.burnAt! - s.time) / (piece.burnAt! - piece.placedAt))
+    const left = Math.max(0, (piece.burnAt! - s.time) / (piece.burnFor ?? piece.burnAt! - piece.placedAt))
     view.setFuse(left, piece.layer.radius, s.time, 'ember')
     let wait = (this.sparks.get(piece.id) ?? 0) - dt
     const every = left < 0.3 ? 0.03 : 0.07
@@ -428,7 +443,8 @@ export class GameScene {
         return c === 'null' || c === 'void'
       }).length
       const power = piece.layer.sides - blank
-      list.push({ from: piece.pos, to: o.pos, full: piece.state === 'full', frost: bitten(power, o), ...(blank ? { pips: { lit: power, blank }, fromRadius: piece.layer.radius } : {}) })
+      const stasis = this.stasisOf(piece)
+      list.push({ from: piece.pos, to: o.pos, full: piece.state === 'full', frost: bitten(power, o), ...(stasis ? { stasis } : {}), ...(blank ? { pips: { lit: power, blank }, fromRadius: piece.layer.radius } : {}) })
     }
     if (this.drag) {
       const target = this.sim.previewLink(this.drag.runeId, this.drag.pos)
@@ -528,6 +544,19 @@ export class GameScene {
       this.effects.ring(piece.pos, ACCENT_COLOR, piece.layer.radius, piece.layer.radius + 26, 0.45, 2)
       this.sfx.full()
     })
+    // Latched onto a two-shape layer: clamps close round it; with its
+    // partner already there, the pair arms.
+    bus.on('piece:stasis', ({ piece }) => {
+      this.effects.ring(piece.pos, STASIS_RING, piece.layer.radius + 30, piece.layer.radius + 12, 0.35, 2)
+      const partner = partnerOf(this.sim.state, piece)
+      if (!partner) {
+        this.sfx.stasis()
+        return
+      }
+      for (const p of [piece, partner]) this.effects.ring(p.pos, 0xffffff, p.layer.radius + 6, p.layer.radius + 34, 0.5, 2)
+      this.sfx.armed()
+    })
+    bus.on('piece:released', ({ piece }) => this.effects.ring(piece.pos, STASIS_RING, piece.layer.radius + 12, piece.layer.radius + 36, 0.4, 1.5))
     bus.on('piece:detonated', ({ piece, info }) => this.onDetonated(piece.id, info))
     bus.on('hue:discovered', ({ hue, mote }) => this.onHueDiscovered(hue, { ...mote.home }))
     // A piece whose fuse burned down before it burst: it and the motes it
@@ -624,7 +653,8 @@ export class GameScene {
     const target = info.obstacleId ? this.sim.state.obstacles.find((o) => o.id === info.obstacleId) : undefined
     const timing = detonationTiming(pos, target?.pos ?? null)
     if (target) {
-      this.impacts.set(target.id, timing.impact)
+      // A pair's two blows land as one, with the later of them.
+      this.impacts.set(target.id, Math.max(timing.impact, this.impacts.get(target.id) ?? 0))
       this.obstacleViews.get(target.id)?.hold(timing.impact, target.index, target.hp)
       this.effects.after(timing.impact, () => this.effects.addShake(5 + info.damage))
     } else {
@@ -815,9 +845,13 @@ export class GameScene {
     const piece = this.sim.piece(pieceId)
     if (!piece || this.sim.state.status !== 'playing') return
     // A charging piece has nothing to do on tap, so the touch falls through
-    // to the board (motes near a piece stay within reach).
-    if (piece.state === 'full') this.sim.detonate(pieceId)
-    else this.onBoardPointerDown(e, true)
+    // to the board (motes near a piece stay within reach). One in stasis
+    // bursts only once its partner is there too.
+    if (piece.state !== 'full') this.onBoardPointerDown(e, true)
+    else if (!this.sim.detonate(pieceId)) {
+      this.effects.ring(piece.pos, STASIS_RING, piece.layer.radius + 16, piece.layer.radius + 8, 0.25, 1.5)
+      this.sfx.notReady()
+    }
   }
 
   // Drag tracking uses window-level DOM pointer events, not Pixi per-object

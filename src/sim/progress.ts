@@ -1,4 +1,4 @@
-import { canPlace } from './rules'
+import { canFire, canPlace } from './rules'
 import { footprintRadius, outerLayer } from './geometry'
 import { takesAnyBowl } from '../model/Color'
 import type { LossReason, SimState } from './types'
@@ -57,15 +57,16 @@ function chargingPieceCanFill(state: SimState): boolean {
 }
 
 // The game ends in a loss only when the player can no longer do anything
-// that moves it along: nothing full to burst, nothing charging that could
-// still fill, and no rune worth casting. A board that can no longer be won
+// that moves it along: nothing full to burst (a piece in stasis without its
+// partner can't), nothing charging that could still fill, and no rune worth
+// casting. A board that can no longer be won
 // plays on while moves remain, so a wrong turn is the player's to find
 // (the way a maze doesn't announce a dead end). Anything uncertain (pending
 // motion, a legal placement) counts as still playable.
 export function certainLoss(state: SimState): LossReason | null {
   if (state.status !== 'playing' || isWon(state)) return null
   if (state.motes.some((m) => m.state === 'traveling' || m.state === 'ejecting' || m.vel)) return null
-  if (state.pieces.some((p) => p.state === 'full')) return null
+  if (state.pieces.some((p) => canFire(state, p))) return null
   if (anyUsefulCast(state)) return null
   if (chargingPieceCanFill(state)) return null
   return 'stuck'

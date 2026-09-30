@@ -72,6 +72,20 @@ describe('validateLevel', () => {
     expect(errs.some((e) => e.startsWith('ice[1].motes[0]:'))).toBe(true)
   })
 
+  it('accepts two-shape layers of two different shapes, never frost', () => {
+    const l = good()
+    const first = l.obstacles[0].layers[0]
+    first.pair = first.sides === 4 ? 3 : 4
+    expect(validateLevel(l)).toEqual([])
+    first.pair = first.sides
+    first.frost = true
+    const errs = validateLevel(l)
+    expect(errs).toContain('obstacles[0].layers[0].pair: must be a different shape from sides')
+    expect(errs).toContain('obstacles[0].layers[0].pair: a two-shape layer cannot be frost')
+    first.pair = 2
+    expect(validateLevel(l)).toContain('obstacles[0].layers[0].pair: must be an integer 3..12')
+  })
+
   it('forbids annihilation in endless levels', () => {
     const l = good()
     l.endless = { seed: 1 }

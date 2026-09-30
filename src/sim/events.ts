@@ -14,6 +14,9 @@ export interface DetonationInfo {
   released: string[]
   annihilated: string[]
   frozeInto?: string // frostbitten: the ice it froze into, holding its motes
+  // Burst with this piece as one blow of their combined power (a two-shape
+  // layer's pair); `damage` is the pair's.
+  partner?: string
 }
 
 export type SimEvents = {
@@ -23,6 +26,8 @@ export type SimEvents = {
   'mote:claimed': { mote: Mote; piece: Piece; node: number }
   'mote:held': { mote: Mote; piece: Piece; node: number }
   'piece:full': { piece: Piece }
+  'piece:stasis': { piece: Piece } // full and holding its shape's place on a two-shape layer
+  'piece:released': { piece: Piece } // out of stasis (the layer fell without it), with a fresh fuse
   'piece:detonated': { piece: Piece; info: DetonationInfo }
   'piece:frozen': { piece: Piece; obstacle: Obstacle } // its fuse ran out (endless)
   'piece:burned': { piece: Piece; motes: Mote[] } // its fuse ran out before it burst; the motes it held burned with it

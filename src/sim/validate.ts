@@ -98,6 +98,10 @@ export function validateLevel(data: unknown): string[] {
         if (!isNum(l.radius) || l.radius <= 0) err(`${lp}.radius`, 'must be a positive number')
         if (!isInt(l.hp) || (l.hp as number) < 1) err(`${lp}.hp`, 'must be an integer >= 1')
         if (l.frost !== undefined && typeof l.frost !== 'boolean') err(`${lp}.frost`, 'must be true or false')
+        if (l.pair !== undefined) {
+          if (sides(`${lp}.pair`, l.pair) && l.pair === l.sides) err(`${lp}.pair`, 'must be a different shape from sides')
+          if (l.frost) err(`${lp}.pair`, 'a two-shape layer cannot be frost')
+        }
       })
       if (o.look !== undefined) {
         const look = o.look

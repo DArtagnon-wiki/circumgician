@@ -12,6 +12,9 @@ export interface Link {
   invalid?: boolean // preview over a spot the rune can't be placed
   frost?: boolean // the blow won't break the frost layer it strikes: the piece will freeze
   tether?: boolean // ice held by the frost layer that froze it (from: the ice)
+  // A piece in stasis on a two-shape layer: a taut double wire, still while
+  // it waits, racing with its partner's once both are there.
+  stasis?: 'waiting' | 'armed'
   // A piece holding blanks: its power in lit pips, its blanks hollow, set
   // out along the thread from the rune's edge (`fromRadius` out).
   pips?: { lit: number; blank: number }
@@ -56,7 +59,8 @@ export class LinkThreads {
       }
       const color = l.invalid ? INVALID_TINT : l.frost ? FROST : THREAD
       const dim = l.preview ? 0.55 : 1
-      const bright = l.full ? 1.6 : 1
+      const still = l.stasis === 'waiting'
+      const bright = l.full && !still ? 1.6 : 1.2
       const speed = l.full ? 3.4 : 1.5 // wave speed, rad/s
       // Soft glow under the thread.
       g.moveTo(l.from.x, l.from.y).lineTo(l.to.x, l.to.y).stroke({ color, width: l.full ? 5 : 3.5, alpha: 0.06 * dim * bright })
@@ -65,13 +69,16 @@ export class LinkThreads {
       const nx = -dy / len
       const ny = dx / len
       const jag = (k: number) => (l.frost && k > 0 && k < SEGMENTS ? (k % 2 ? 3 : -3) : 0)
+      const wires = l.stasis ? [-1.6, 1.6] : [0]
       for (let k = 0; k < SEGMENTS; k++) {
         const t0 = k / SEGMENTS
         const t1 = (k + 1) / SEGMENTS
-        const wave = 0.5 + 0.5 * Math.sin(time * speed * 2 - t0 * 9)
-        g.moveTo(l.from.x + dx * t0 + nx * jag(k), l.from.y + dy * t0 + ny * jag(k))
-          .lineTo(l.from.x + dx * t1 + nx * jag(k + 1), l.from.y + dy * t1 + ny * jag(k + 1))
-          .stroke({ color, width: l.full || l.frost ? 1.4 : 1, alpha: Math.min(1, (0.18 + 0.3 * wave) * dim * bright * (l.frost ? 1.5 : 1)) })
+        const wave = still ? 0.6 : 0.5 + 0.5 * Math.sin(time * speed * 2 - t0 * 9)
+        for (const w of wires) {
+          g.moveTo(l.from.x + dx * t0 + nx * (jag(k) + w), l.from.y + dy * t0 + ny * (jag(k) + w))
+            .lineTo(l.from.x + dx * t1 + nx * (jag(k + 1) + w), l.from.y + dy * t1 + ny * (jag(k + 1) + w))
+            .stroke({ color, width: l.full || l.frost ? 1.4 : 1, alpha: Math.min(1, (0.18 + 0.3 * wave) * dim * bright * (l.frost ? 1.5 : 1)) })
+        }
       }
       if (l.pips) {
         const total = l.pips.lit + l.pips.blank
@@ -87,7 +94,7 @@ export class LinkThreads {
       }
       // Glyph beads drifting toward the obstacle, fading in and out at the ends.
       const n = Math.max(1, Math.floor(len / BEAD_GAP))
-      const drift = (l.full ? 34 : 14) * (l.preview ? 0.6 : 1)
+      const drift = still ? 0 : (l.full ? 34 : 14) * (l.preview ? 0.6 : 1)
       const glyphs = textures().beads
       const flake = textures().star
       for (let k = 0; k < n; k++) {

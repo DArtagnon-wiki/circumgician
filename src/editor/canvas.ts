@@ -96,11 +96,16 @@ export class EditorCanvas {
     L.obstacles.forEach((o, i) => {
       const layer = o.layers[0]
       if (!layer) return
+      // A two-shape layer's second shape, turned half a step, behind.
+      if (layer.pair !== undefined) {
+        const second = polygonPoints({ x: o.x, y: o.y }, layer.pair, layer.radius, -Math.PI / 2 + Math.PI / layer.pair)
+        g.poly(second.flatMap((p) => [p.x, p.y])).fill({ color: OBSTACLE_COLOR, alpha: 0.9 }).stroke({ color: 0xffffff, width: 2 })
+      }
       const pts = polygonPoints({ x: o.x, y: o.y }, layer.sides, layer.radius, -Math.PI / 2)
       g.poly(pts.flatMap((p) => [p.x, p.y])).fill({ color: OBSTACLE_COLOR, alpha: 0.9 }).stroke({ color: 0xffffff, width: 2 })
       if (sel?.kind === 'obstacle' && sel.i === i) g.circle(o.x, o.y, layer.radius + 8).stroke({ color: SELECT_COLOR, width: 2 })
       this.label(String(layer.hp), o.x, o.y, 18, 0xffffff)
-      const depth = o.layers.map((l) => `${l.sides}:${l.hp}`).join(' > ')
+      const depth = o.layers.map((l) => `${l.sides}${l.pair === undefined ? '' : `+${l.pair}`}:${l.hp}`).join(' > ')
       this.label(depth, o.x, o.y + layer.radius + 14, 10, 0xb8a8e0)
     })
 

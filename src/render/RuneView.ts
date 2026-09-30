@@ -74,6 +74,9 @@ export interface RuneLook {
   state: 'idle' | 'charging' | 'full'
   held: (string | null)[]
   prefill?: (MoteColor | null)[] // in hand: what prefilled cups will hold
+  // A piece in stasis on a two-shape layer: still, waiting for its partner,
+  // or armed once the partner is there too (a tap bursts both).
+  stasis?: 'waiting' | 'armed'
 }
 
 const NONE_HELD: (string | null)[] = []
@@ -95,9 +98,11 @@ export function handLook(rune: Rune): RuneLook | null {
   }
 }
 
-export function pieceLook(piece: Piece): RuneLook {
-  return { key: 'piece', outer: piece.layer, middle: piece.energy, middleIsEnergy: true, centerIsEnergy: false, insight: 'full', state: piece.state, held: piece.held }
+export function pieceLook(piece: Piece, stasis?: 'waiting' | 'armed'): RuneLook {
+  return { key: 'piece', outer: piece.layer, middle: piece.energy, middleIsEnergy: true, centerIsEnergy: false, insight: 'full', state: piece.state, held: piece.held, ...(stasis ? { stasis } : {}) }
 }
+
+const STASIS = 0xc9d4ff // the clamps and aura of a piece in stasis
 
 interface Bowl {
   c: Container
@@ -141,6 +146,7 @@ export class RuneView {
   private drawnKey = ''
   private hit = new Circle(0, 0, 0)
   private fuseG = new Graphics()
+  private stasisG = new Graphics()
   private heat = 0 // a burning fuse near its end: the glass glows hot (0..1)
   readonly id: string
 
@@ -155,7 +161,7 @@ export class RuneView {
     this.bowlGlowC.blendMode = 'add'
     this.sparkleC.blendMode = 'add'
     this.outerC.addChild(this.glassG, this.liquidC, this.bowlGlowC, this.bowlC, this.sparkleC)
-    this.body.addChild(this.aura, this.fuseG, this.middleC, this.centerC, this.outerC)
+    this.body.addChild(this.aura, this.fuseG, this.stasisG, this.middleC, this.centerC, this.outerC)
     this.container.addChild(this.body)
     this.container.hitArea = this.hit
     this.container.eventMode = 'static'
@@ -173,10 +179,14 @@ export class RuneView {
     this.middleC.rotation = middleRot + base
     this.centerC.rotation = -(outerRot + base) * 0.5
 
-    const full = look.state === 'full'
+    // A piece waiting in stasis is still: its liquid stops and it glows
+    // steady, like a charging one. Armed, it is full again, and more.
+    const still = look.stasis === 'waiting'
+    const full = look.state === 'full' && !still
     const pulse = full ? 0.5 + 0.5 * Math.sin(time * 6) : 0
     // Inventory icons flow slowly; a full piece's liquid races and glows.
-    const speed = (full ? 40 : 18) * (look.state === 'idle' ? 0.35 : 1)
+    const speed = still ? 0 : (full ? 40 : 18) * (look.state === 'idle' ? 0.35 : 1)
+    this.drawStasis(look, outerRot, time)
     const releaseColor = (r: ReleaseColor, node: number) => (r === 'generic' ? opal(time, node * 0.7) : colorForRelease(r))
 
     // Drawn small, bowls and liquid grow back toward a readable size.
@@ -262,10 +272,36 @@ export class RuneView {
     })
 
     this.aura.scale.set(((outer.radius + BOWL_R) * 2.9) / 128)
-    this.aura.alpha = !quality.settings.glows ? 0 : full ? 0.22 + pulse * 0.2 : look.state === 'charging' ? 0.06 : 0
-    this.aura.tint = this.heat ? mix(0xeadfff, EMBER, this.heat) : 0xeadfff
+    this.aura.alpha = !quality.settings.glows ? 0 : still ? 0.16 : full ? 0.22 + pulse * 0.2 : look.state === 'charging' ? 0.06 : 0
+    this.aura.tint = this.heat ? mix(0xeadfff, EMBER, this.heat) : look.stasis ? STASIS : 0xeadfff
     this.glassG.tint = this.heat ? mix(0xffffff, 0xffb27a, this.heat) : 0xffffff
     if (this.heat && quality.settings.glows) this.aura.alpha = Math.max(this.aura.alpha, this.heat * (0.25 + 0.2 * Math.abs(Math.sin(time * 11))))
+  }
+
+  // Stasis: a clamp over each bowl, just outside it where a fuse would
+  // burn, holding the piece still. Armed, the clamps pulse in time with its
+  // partner's (the time is shared).
+  private drawStasis(look: RuneLook, outerRot: number, time: number): void {
+    const g = this.stasisG
+    g.clear()
+    if (!look.stasis) return
+    const { sides, radius } = look.outer
+    const r = fuseRadius(radius)
+    const armed = look.stasis === 'armed'
+    const beat = armed ? 0.5 + 0.5 * Math.sin(time * 6) : 0
+    const color = armed ? mix(STASIS, 0xffffff, beat) : STASIS
+    const alpha = armed ? 0.7 + 0.3 * beat : 0.55
+    const span = Math.min(0.32, Math.PI / sides - 0.12)
+    for (let i = 0; i < sides; i++) {
+      const a = outerRot + (i * 2 * Math.PI) / sides
+      const [x0, y0] = [Math.cos(a - span), Math.sin(a - span)]
+      const [x1, y1] = [Math.cos(a + span), Math.sin(a + span)]
+      g.moveTo(x0 * (r - 5), y0 * (r - 5))
+        .lineTo(x0 * r, y0 * r)
+        .arc(0, 0, r, a - span, a + span)
+        .lineTo(x1 * (r - 5), y1 * (r - 5))
+        .stroke({ color, width: armed ? 2.2 : 1.6, alpha, cap: 'round', join: 'round' })
+    }
   }
 
   // What the bowls hold right now, in world space, for a detonation's

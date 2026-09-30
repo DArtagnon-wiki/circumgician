@@ -44,6 +44,10 @@ export interface ObstacleLayerSpec {
   // piece turns to ice where it stood, holding its (transformed) motes until
   // the ice is broken or this layer falls (see rules.ts).
   frost?: boolean
+  // A two-shape layer: only two pieces fired as one blow strike it, one
+  // whose energy has `sides` and one whose energy has `pair` sides (another
+  // shape). Each waits in stasis once full until the other is (see rules.ts).
+  pair?: number
 }
 
 export type Insight = 'none' | 'shape' | 'full'
@@ -167,6 +171,13 @@ export interface Piece {
   linkedObstacleId: string | null
   freezeAt?: number // sim time its fuse runs out (endless)
   burnAt?: number // sim time it burns unless burst first (levels with a fuse)
+  freezeFor?: number // each fuse's length, for a fresh one after stasis
+  burnFor?: number
+  // Stasis (sim time it began): full and linked to a two-shape layer, it
+  // holds that shape's place there and waits for the other shape's piece.
+  // Its fuse is off, its spin stopped, and it only bursts with its partner.
+  stasis?: number
+  stillFor?: number // seconds its spin stood still in earlier stasis
 }
 
 export interface Obstacle {

@@ -23,15 +23,20 @@ export function isFinal(rune: Rune, depth: number): boolean {
 
 export const angularSpeed = (radius: number): number => SPIN_K / radius
 
+// Seconds a piece has spun: since casting, less any time in stasis.
+export function spinTime(piece: Piece, time: number): number {
+  return time - piece.placedAt - (piece.stillFor ?? 0) - (piece.stasis === undefined ? 0 : time - piece.stasis)
+}
+
 // A piece's glass angle (radians, clockwise in screen space). Starts with a
-// vertex pointing up when cast. Purely a function of time since casting.
+// vertex pointing up when cast. Purely a function of its spin time.
 export function outerAngle(piece: Piece, time: number): number {
-  return -Math.PI / 2 + angularSpeed(piece.layer.radius) * (time - piece.placedAt)
+  return -Math.PI / 2 + angularSpeed(piece.layer.radius) * spinTime(piece, time)
 }
 
 // Its energy counter-rotates at the speed its own radius implies.
 export function middleAngle(piece: Piece, time: number): number {
-  return -Math.PI / 2 - angularSpeed(piece.energy.radius) * (time - piece.placedAt)
+  return -Math.PI / 2 - angularSpeed(piece.energy.radius) * spinTime(piece, time)
 }
 
 export function polygonPoints(center: Vec2, sides: number, radius: number, angle: number): Vec2[] {

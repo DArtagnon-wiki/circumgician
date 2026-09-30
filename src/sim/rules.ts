@@ -2,7 +2,7 @@ import { BURST_GAP, DEFAULT_TETHER, EJECT_TIME, FOOTPRINT_MARGIN, THAW_LAG } fro
 import type { DetonationInfo, SimBus } from './events'
 import { circleHitsRect, circleInRect, clampToRect, dist, footprintRadius, iceSpots, middleAngle, middleLayer, nodePositions, outerAngle, outerLayer, strikeTime } from './geometry'
 import { addsPower, isHue } from '../model/Color'
-import type { Hue, Mote, MoteColor, Obstacle, Piece, Rune, RuneLayerSpec, SimState, Vec2 } from './types'
+import type { Hue, Mote, MoteColor, Obstacle, ObstacleLayerSpec, Piece, Rune, RuneLayerSpec, SimState, Vec2 } from './types'
 
 // Where node i's released mote settles: along that node's REST direction
 // (vertex 0 pointing up), BURST_GAP outside the outer radius. Independent
@@ -24,14 +24,28 @@ export function canPlace(state: SimState, rune: Rune, pos: Vec2): boolean {
   return true
 }
 
-// Nearest uncleared obstacle (any distance) whose current layer has as many
-// sides as the energy shape. Ties go to the earlier obstacle.
-export function findLink(state: SimState, energy: RuneLayerSpec | undefined, pos: Vec2): Obstacle | null {
+// Does a layer take a blow of this shape: its own, or on a two-shape layer
+// either of its two?
+const takesShape = (layer: ObstacleLayerSpec, sides: number) => layer.sides === sides || layer.pair === sides
+
+// The piece in stasis holding the place for this shape on an obstacle's
+// two-shape layer (other than `except`), if one is.
+function holderOf(state: SimState, obstacle: Obstacle, sides: number, except?: Piece): Piece | undefined {
+  return state.pieces.find((p) => p !== except && p.stasis !== undefined && p.linkedObstacleId === obstacle.id && p.energy.sides === sides)
+}
+
+// Nearest uncleared obstacle (any distance) whose current layer takes the
+// energy's shape; on a two-shape layer, only while no other piece holds
+// that shape's place in stasis. Ties go to the earlier obstacle. `self` is
+// the piece asking, whose own place doesn't count against it.
+export function findLink(state: SimState, energy: RuneLayerSpec | undefined, pos: Vec2, self?: Piece): Obstacle | null {
   if (!energy) return null
   let best: Obstacle | null = null
   let bestD = Infinity
   for (const o of state.obstacles) {
-    if (o.cleared || o.layers[o.index]?.sides !== energy.sides) continue
+    const layer = o.layers[o.index]
+    if (o.cleared || !layer || !takesShape(layer, energy.sides)) continue
+    if (layer.pair !== undefined && holderOf(state, o, energy.sides, self)) continue
     const d = dist(pos, o.pos)
     if (d < bestD) {
       bestD = d
@@ -41,14 +55,66 @@ export function findLink(state: SimState, energy: RuneLayerSpec | undefined, pos
   return best
 }
 
+// Every piece not in stasis links to its nearest match. A full piece that
+// links to a two-shape layer takes up stasis there, which can move others
+// off that place, so links settle in rounds (each puts one more piece in
+// stasis, so they end).
 export function relinkAll(state: SimState, bus: SimBus): void {
-  for (const piece of state.pieces) {
-    const id = findLink(state, piece.energy, piece.pos)?.id ?? null
-    if (id !== piece.linkedObstacleId) {
-      piece.linkedObstacleId = id
-      bus.emit('piece:linked', { piece })
+  for (;;) {
+    for (const piece of state.pieces) {
+      if (piece.stasis !== undefined) continue
+      const id = findLink(state, piece.energy, piece.pos, piece)?.id ?? null
+      if (id !== piece.linkedObstacleId) {
+        piece.linkedObstacleId = id
+        bus.emit('piece:linked', { piece })
+      }
     }
+    if (!enterStasis(state, bus)) return
   }
+}
+
+const linkedTo = (state: SimState, piece: Piece): Obstacle | null => state.obstacles.find((o) => o.id === piece.linkedObstacleId && !o.cleared) ?? null
+
+// Full pieces linked to a two-shape layer go into stasis there, one per
+// shape (the first in cast order wins a contested place): the fuse goes
+// out, the spin stops, and each waits for the other shape's piece. Returns
+// whether any did; callers relink (see relinkAll).
+export function enterStasis(state: SimState, bus: SimBus): boolean {
+  let any = false
+  for (const piece of state.pieces) {
+    if (piece.state !== 'full' || piece.stasis !== undefined) continue
+    const o = linkedTo(state, piece)
+    if (!o || o.layers[o.index]?.pair === undefined || holderOf(state, o, piece.energy.sides, piece)) continue
+    piece.stasis = state.time
+    delete piece.burnAt
+    delete piece.freezeAt
+    bus.emit('piece:stasis', { piece })
+    any = true
+  }
+  return any
+}
+
+// Out of stasis (its layer fell to something else): it spins on, with a
+// fresh fuse. Callers relink.
+function releaseStasis(state: SimState, bus: SimBus, piece: Piece): void {
+  piece.stillFor = (piece.stillFor ?? 0) + state.time - piece.stasis!
+  delete piece.stasis
+  if (piece.freezeFor !== undefined) piece.freezeAt = state.time + piece.freezeFor
+  if (piece.burnFor !== undefined) piece.burnAt = state.time + piece.burnFor
+  bus.emit('piece:released', { piece })
+}
+
+// The partner a piece in stasis waits for: the other shape's piece in
+// stasis on the same layer.
+export function partnerOf(state: SimState, piece: Piece): Piece | null {
+  if (piece.stasis === undefined) return null
+  return state.pieces.find((p) => p !== piece && p.stasis !== undefined && p.linkedObstacleId === piece.linkedObstacleId && p.energy.sides !== piece.energy.sides) ?? null
+}
+
+// Can the player burst this piece now? Once full, unless it waits in stasis
+// for a partner (with both there, either bursts the pair).
+export function canFire(state: SimState, piece: Piece): boolean {
+  return piece.state === 'full' && (piece.stasis === undefined || partnerOf(state, piece) !== null)
 }
 
 // Called by the Sim before reading a layer that may not exist yet (endless).
@@ -80,8 +146,8 @@ export function castRune(state: SimState, bus: SimBus, rune: Rune, pos: Vec2, en
     state: 'charging',
     held: Array.from({ length: layer.sides }, () => null),
     linkedObstacleId: findLink(state, energy, pos)?.id ?? null,
-    ...(fuses.freeze !== undefined ? { freezeAt: state.time + fuses.freeze } : {}),
-    ...(burn !== undefined ? { burnAt: state.time + burn } : {}),
+    ...(fuses.freeze !== undefined ? { freezeAt: state.time + fuses.freeze, freezeFor: fuses.freeze } : {}),
+    ...(burn !== undefined ? { burnAt: state.time + burn, burnFor: burn } : {}),
   }
   state.pieces.push(piece)
   // Prefilled cups come with their motes already in them.
@@ -101,6 +167,7 @@ export function castRune(state: SimState, bus: SimBus, rune: Rune, pos: Vec2, en
   if (piece.held.every((id) => id !== null)) {
     piece.state = 'full'
     bus.emit('piece:full', { piece })
+    if (enterStasis(state, bus)) relinkAll(state, bus)
   }
   return piece
 }
@@ -123,73 +190,84 @@ function frostbites(obstacle: Obstacle | null, blow: number): obstacle is Obstac
   return !!obstacle && !obstacle.frozen && !!obstacle.layers[obstacle.index]?.frost && blow < obstacle.hp
 }
 
+// Bursts a piece. One in stasis bursts with its partner, as one blow of
+// their combined power.
 export function detonatePiece(state: SimState, bus: SimBus, piece: Piece, ensure?: EnsureLayers): void {
-  const outer = piece.layer
-  const pos = piece.pos
-  const obstacle = state.obstacles.find((o) => o.id === piece.linkedObstacleId && !o.cleared) ?? null
-  const power = blowPower(state, piece)
-  const ice = frostbites(obstacle, power) ? newIce(state, pos, outer.sides, outer.radius, { obstacle: obstacle.id, layer: obstacle.index }) : null
-  const spots = ice ? iceSpots(pos, outer.sides, outer.radius) : []
-  const info: DetonationInfo = {
-    pos: { ...pos },
-    outer,
-    energy: piece.energy,
-    outerAngle: outerAngle(piece, state.time),
-    energyAngle: middleAngle(piece, state.time),
-    damage: obstacle ? power : 0,
-    obstacleId: obstacle?.id ?? null,
-    released: [],
-    annihilated: [],
-    ...(ice ? { frozeInto: ice.id } : {}),
-  }
+  const partner = partnerOf(state, piece)
+  const blow = partner ? [piece, partner] : [piece]
+  const linked = linkedTo(state, piece)
+  // Nothing strikes a two-shape layer alone (only a debug burst gets here).
+  const obstacle = linked && (partner || linked.layers[linked.index]?.pair === undefined) ? linked : null
+  const power = blow.reduce((sum, p) => sum + blowPower(state, p), 0)
+  const ice = !partner && frostbites(obstacle, power) ? newIce(state, piece.pos, piece.layer.sides, piece.layer.radius, { obstacle: obstacle.id, layer: obstacle.index }) : null
 
   // 1. Resolve each node's mote: annihilate, or recolor and burst outward
   //    (or, frostbitten, stay locked in the ice where its node stood).
   const annihilate = new Set<string>()
   const discovered: { hue: Hue; mote: Mote }[] = []
-  piece.held.forEach((moteId, i) => {
-    if (moteId === null) return
-    const mote = state.motes.find((m) => m.id === moteId)
-    if (!mote) return
-    const release = outer.nodes[i].release
-    if (release === 'annihilating') {
-      annihilate.add(mote.id)
-      info.annihilated.push(mote.id)
-      return
+  const bursts = blow.map((p) => {
+    const outer = p.layer
+    const pos = p.pos
+    const spots = ice ? iceSpots(pos, outer.sides, outer.radius) : []
+    const info: DetonationInfo = {
+      pos: { ...pos },
+      outer,
+      energy: p.energy,
+      outerAngle: outerAngle(p, state.time),
+      energyAngle: middleAngle(p, state.time),
+      damage: obstacle ? power : 0,
+      obstacleId: obstacle?.id ?? null,
+      released: [],
+      annihilated: [],
+      ...(ice ? { frozeInto: ice.id } : {}),
+      ...(partner ? { partner: (p === piece ? partner : piece).id } : {}),
     }
-    // A void never changes; every other mote takes the bowl's output.
-    if (mote.color !== 'void') mote.color = release
-    if (isHue(mote.color) && !state.seenHues.includes(mote.color)) {
-      state.seenHues.push(mote.color)
-      discovered.push({ hue: mote.color, mote })
-    }
-    if (ice) {
-      lockInIce(mote, ice, spots[i])
-      return
-    }
-    mote.home = clampToRect(landingPoint(pos, outer.sides, outer.radius, i), state.field, Math.min(mote.tether + 2, state.field.w / 2, state.field.h / 2))
-    mote.state = 'ejecting'
-    mote.ejectFrom = { ...mote.pos }
-    mote.t = 0
-    delete mote.pieceId
-    delete mote.node
-    delete mote.travelFrom
-    info.released.push(mote.id)
+    p.held.forEach((moteId, i) => {
+      if (moteId === null) return
+      const mote = state.motes.find((m) => m.id === moteId)
+      if (!mote) return
+      const release = outer.nodes[i].release
+      if (release === 'annihilating') {
+        annihilate.add(mote.id)
+        info.annihilated.push(mote.id)
+        return
+      }
+      // A void never changes; every other mote takes the bowl's output.
+      if (mote.color !== 'void') mote.color = release
+      if (isHue(mote.color) && !state.seenHues.includes(mote.color)) {
+        state.seenHues.push(mote.color)
+        discovered.push({ hue: mote.color, mote })
+      }
+      if (ice) {
+        lockInIce(mote, ice, spots[i])
+        return
+      }
+      mote.home = clampToRect(landingPoint(pos, outer.sides, outer.radius, i), state.field, Math.min(mote.tether + 2, state.field.w / 2, state.field.h / 2))
+      mote.state = 'ejecting'
+      mote.ejectFrom = { ...mote.pos }
+      mote.t = 0
+      delete mote.pieceId
+      delete mote.node
+      delete mote.travelFrom
+      info.released.push(mote.id)
+    })
+    return { piece: p, info }
   })
   if (annihilate.size) state.motes = state.motes.filter((m) => !annihilate.has(m.id))
-  state.stats.detonations++
+  state.stats.detonations += blow.length
   state.stats.destroyed += annihilate.size
-  if (!obstacle) state.stats.unlinked++
+  if (!obstacle) state.stats.unlinked += blow.length
 
-  // 2. The piece is used up (or frozen solid).
-  state.pieces = state.pieces.filter((p) => p !== piece)
+  // 2. The pieces are used up (or frozen solid).
+  state.pieces = state.pieces.filter((p) => !blow.includes(p))
   if (ice) state.obstacles.push(ice)
-  bus.emit('piece:detonated', { piece, info })
+  for (const b of bursts) bus.emit('piece:detonated', b)
   for (const d of discovered) bus.emit('hue:discovered', d)
 
-  // 3. Damage the obstacle (after the piece has left, so relinking sees the
-  //    freed field), then relink everything still on the field.
-  if (obstacle) damageObstacle(state, bus, obstacle, power, ensure, strikeTime(pos, obstacle.pos))
+  // 3. Damage the obstacle when the last blow lands (after the pieces have
+  //    left, so relinking sees the freed field), then relink everything
+  //    still on the field.
+  if (obstacle) damageObstacle(state, bus, obstacle, power, ensure, Math.max(...blow.map((p) => strikeTime(p.pos, obstacle.pos))))
   relinkAll(state, bus)
 }
 
@@ -280,6 +358,8 @@ export function damageObstacle(state: SimState, bus: SimBus, obstacle: Obstacle,
   const next = obstacle.layers[obstacle.index]
   if (next) obstacle.hp = next.hp
   else obstacle.cleared = true
+  // Pieces waiting in stasis on the layer that fell go back into play.
+  for (const p of state.pieces) if (p.stasis !== undefined && p.linkedObstacleId === obstacle.id) releaseStasis(state, bus, p)
   if (obstacle.frozen) {
     // Broken ice is not a layer broken: no score.
     releaseIce(state, obstacle, landsIn)
