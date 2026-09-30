@@ -55,6 +55,22 @@ describe('validateLevel', () => {
     expect(errs).toContain('obstacles[1].layers: needs at least one layer')
   })
 
+  it('accepts ice and frost layers, and checks them', () => {
+    const l = good()
+    l.obstacles[0].layers[0].frost = true
+    l.ice = [{ x: 100, y: 420, sides: 4, motes: ['red', 'generic'] }]
+    expect(validateLevel(l)).toEqual([])
+    l.obstacles[0].layers[0].frost = 'yes'
+    l.ice = [{ x: 10, y: 420, sides: 3, hp: 0, motes: ['red', 'blue', 'gold', 'teal'] }, { x: 200, y: 500, sides: 2, motes: ['pink'] }]
+    const errs = validateLevel(l)
+    expect(errs).toContain('obstacles[0].layers[0].frost: must be true or false')
+    expect(errs).toContain('ice[0]: must lie inside the field')
+    expect(errs).toContain('ice[0].hp: must be an integer >= 1')
+    expect(errs).toContain('ice[0].motes: holds at most 3 (one per vertex)')
+    expect(errs).toContain('ice[1].sides: must be an integer 3..12')
+    expect(errs.some((e) => e.startsWith('ice[1].motes[0]:'))).toBe(true)
+  })
+
   it('forbids annihilation in endless levels', () => {
     const l = good()
     l.endless = { seed: 1 }

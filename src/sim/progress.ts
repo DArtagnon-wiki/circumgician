@@ -4,8 +4,10 @@ import type { LossReason, RuneLayerSpec, SimState } from './types'
 
 const SCAN_STEP = 6
 
+// Every obstacle cleared. Ice never counts: breaking it is never required.
 export function isWon(state: SimState): boolean {
-  return state.obstacles.length > 0 && state.obstacles.every((o) => o.cleared)
+  const real = state.obstacles.filter((o) => !o.frozen)
+  return real.length > 0 && real.every((o) => o.cleared)
 }
 
 // Necessary condition for winning: damage to an obstacle layer of shape s
@@ -17,7 +19,7 @@ function damageCanSuffice(state: SimState): boolean {
   if (state.runes.some((r) => r.endlessSeed !== undefined) || state.obstacles.some((o) => o.endlessSeed !== undefined)) return true
   const need = new Map<number, number>()
   for (const o of state.obstacles) {
-    if (o.cleared) continue
+    if (o.cleared || o.frozen) continue
     o.layers.forEach((l, i) => {
       if (i < o.index) return
       need.set(l.sides, (need.get(l.sides) ?? 0) + (i === o.index ? o.hp : l.hp))

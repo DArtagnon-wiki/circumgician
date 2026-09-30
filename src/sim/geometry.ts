@@ -1,4 +1,4 @@
-import { FOOTPRINT_MARGIN, REACH, SPIN_K } from './constants'
+import { FOOTPRINT_MARGIN, FROZEN_INSET, REACH, SPIN_K, STRIKE_FLIGHT, STRIKE_LAUNCH } from './constants'
 import type { Piece, Rect, Rune, RuneLayerSpec, Vec2 } from './types'
 
 export const dist = (a: Vec2, b: Vec2): number => Math.hypot(a.x - b.x, a.y - b.y)
@@ -41,6 +41,18 @@ export function polygonPoints(center: Vec2, sides: number, radius: number, angle
     pts.push({ x: center.x + radius * Math.cos(a), y: center.y + radius * Math.sin(a) })
   }
   return pts
+}
+
+// Where motes locked in ice sit: just inside its vertices, at rest (vertex
+// 0 up), whatever angle the piece that froze had.
+export function iceSpots(center: Vec2, sides: number, radius: number): Vec2[] {
+  return polygonPoints(center, sides, radius * FROZEN_INSET, -Math.PI / 2)
+}
+
+// Seconds from a tap until its blow lands on an obstacle at `to`.
+export function strikeTime(from: Vec2, to: Vec2): number {
+  const f = STRIKE_FLIGHT
+  return STRIKE_LAUNCH + Math.min(f.max, Math.max(f.min, f.base + dist(from, to) * f.perPx))
 }
 
 export function nodePositions(piece: Piece, time: number): Vec2[] {

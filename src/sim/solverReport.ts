@@ -12,7 +12,7 @@ function percent(x: number): string {
   return `${Math.round(x * 100)}%`
 }
 
-const blowLabel = (b: Blow) => moveLabel({ kind: 'fire', rune: b.rune, layer: b.layer, target: b.target })
+const blowLabel = (b: Blow) => moveLabel({ kind: 'fire', rune: b.rune, layer: b.layer, target: b.target, ice: b.ice })
 
 export function formatProfile(level: LevelData, p: LevelProfile, maxTraps = 8): string {
   const out = [`${level.name} (${level.id})`]

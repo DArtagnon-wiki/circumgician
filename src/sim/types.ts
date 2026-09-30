@@ -32,6 +32,10 @@ export interface ObstacleLayerSpec {
   radius: number
   hp: number
   boss?: boolean // endless: breaking it raises run insight
+  // A frost layer freezes a piece that strikes it without breaking it: the
+  // piece turns to ice where it stood, holding its (transformed) motes until
+  // the ice is broken or this layer falls (see rules.ts).
+  frost?: boolean
 }
 
 export type Insight = 'none' | 'shape' | 'full'
@@ -56,6 +60,18 @@ export interface ObstacleSpec {
   layers: ObstacleLayerSpec[] // current first
 }
 
+// A block of ice placed on the field: nothing can be cast over it and motes
+// are pushed off it. A blow whose energy has its shape breaks it, freeing
+// the motes locked inside. Ice is never needed to win.
+export interface IceSpec {
+  x: number
+  y: number
+  sides: number
+  radius?: number // default ICE_RADIUS
+  hp?: number // strength; default its sides
+  motes?: MoteColor[] // locked inside, at most one per vertex
+}
+
 export type GoalSpec = { type: 'clearAll' }
 
 export interface LevelData {
@@ -66,6 +82,7 @@ export interface LevelData {
   blockers: Rect[]
   motes: MoteSpec[]
   obstacles: ObstacleSpec[]
+  ice?: IceSpec[]
   hand: RuneSpec[]
   goal: GoalSpec
   // Endless only: rune/obstacle stacks extend forever via generators.
@@ -145,7 +162,10 @@ export interface Obstacle {
   hp: number
   cleared: boolean
   endlessSeed?: number
-  frozen?: { motes: string[] } // a piece that froze where it stood, and the motes it holds
+  // Ice: placed in the level, a piece whose fuse ran out (endless), or one a
+  // frost layer froze (`by`: that obstacle and layer). Holds its motes until
+  // broken, or until that frost layer falls. Never needed to win.
+  frozen?: { motes: string[]; by?: { obstacle: string; layer: number } }
 }
 
 export type SimStatus = 'playing' | 'won' | 'lost'

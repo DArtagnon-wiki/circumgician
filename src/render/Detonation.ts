@@ -1,5 +1,6 @@
 import { Container, Sprite } from 'pixi.js'
-import { polygonPoints } from '../sim/geometry'
+import { STRIKE_LAUNCH } from '../sim/constants'
+import { polygonPoints, strikeTime } from '../sim/geometry'
 import type { ReleaseColor, Vec2 } from '../sim/types'
 import type { Effects } from './Effects'
 import type { SmokeSystem } from './SmokeSystem'
@@ -13,12 +14,14 @@ import { textures } from './textures'
 //    spills; annihilating liquid fizzles to ash);
 // 3. the orb flies to the linked obstacle and splashes on impact, or with
 //    no link dissolves into smoke.
+// A frostbitten piece keeps its glass: it freezes where it stands (the
+// scene swaps in its ice), so nothing shatters or spills.
 // Purely visual: the sim resolved everything at t = 0, and the scene holds
-// the obstacle's display until `impact`.
+// the obstacle's display until `impact` (the sim's strikeTime).
 
 const GATHER = 0.16
-const IMPLODE = 0.09
-export const LAUNCH = GATHER + IMPLODE // the glass bursts and the tubes spill
+const IMPLODE = STRIKE_LAUNCH - GATHER
+export const LAUNCH = STRIKE_LAUNCH // the glass bursts and the tubes spill
 
 export interface Liquid {
   x: number
@@ -35,13 +38,11 @@ export interface DetonationParams {
   liquids: Liquid[] // bowls' contents, world space
   releases: ReleaseColor[] // per node, for the spill
   target: Vec2 | null // linked obstacle
+  frozen?: boolean // frostbitten: the glass holds and nothing spills
 }
 
 export function detonationTiming(from: Vec2, to: Vec2 | null): { launch: number; impact: number } {
-  const launch = LAUNCH
-  if (!to) return { launch, impact: launch }
-  const d = Math.hypot(to.x - from.x, to.y - from.y)
-  return { launch, impact: launch + Math.min(0.42, Math.max(0.22, 0.12 + d / 1300)) }
+  return { launch: LAUNCH, impact: to ? strikeTime(from, to) : LAUNCH }
 }
 
 const easeIn = (u: number) => u * u
@@ -104,7 +105,7 @@ export function playDetonation(fx: Effects, smoke: SmokeSystem, p: DetonationPar
   // Glass shards along the outer polygon's tubes.
   const nodes = polygonPoints(p.pos, p.sides, p.radius, p.angle)
   const shards: Shard[] = []
-  for (let i = 0; i < p.sides; i++) {
+  for (let i = 0; i < (p.frozen ? 0 : p.sides); i++) {
     const a = nodes[i]
     const b = nodes[(i + 1) % p.sides]
     for (const f of [0.25, 0.5, 0.75]) {
@@ -184,12 +185,12 @@ export function playDetonation(fx: Effects, smoke: SmokeSystem, p: DetonationPar
         sh.vx = (dx / d) * v
         sh.vy = (dy / d) * v - 30
       }
-      for (let k = 0; k < 5; k++) {
+      for (let k = 0; k < (p.frozen ? 0 : 5); k++) {
         const a = Math.random() * Math.PI * 2
         const r = p.radius * (0.3 + Math.random() * 0.6)
         fx.particle(t.star, { x: p.pos.x + Math.cos(a) * r, y: p.pos.y + Math.sin(a) * r, scale: 0.8, scaleTo: 0.1, tint: 0xf1e9ff, add: true, life: 0.3, delay: Math.random() * 0.1 })
       }
-      spill(fx, smoke, nodes, p.releases, seed)
+      if (!p.frozen) spill(fx, smoke, nodes, p.releases, seed)
       if (!p.target) {
         // Nowhere to go: the orb dissolves into smoke.
         for (let k = 0; k < 10; k++) {

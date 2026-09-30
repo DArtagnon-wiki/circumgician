@@ -13,6 +13,7 @@ export interface DetonationInfo {
   obstacleId: string | null
   released: string[]
   annihilated: string[]
+  frozeInto?: string // frostbitten: the ice it froze into, holding its motes
 }
 
 export type SimEvents = {
@@ -27,6 +28,7 @@ export type SimEvents = {
   'hue:discovered': { hue: Hue; mote: Mote } // a detonation made the first mote of this hue
   'obstacle:damaged': { obstacle: Obstacle; damage: number }
   'obstacle:collapsed': { obstacle: Obstacle; previous: ObstacleLayerSpec; cleared: boolean }
+  'ice:thawed': { ice: Obstacle; by: Obstacle } // its frost layer fell: the motes it held go free
   'sim:won': undefined
   'sim:lost': undefined
   'sim:restored': undefined // undo/restart replaced the whole state

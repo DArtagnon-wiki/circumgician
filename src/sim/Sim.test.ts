@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { Sim, type SimOptions } from './Sim'
-import { BURST_GAP, REACH } from './constants'
-import { dist, nodePositions } from './geometry'
+import { BURST_GAP, FROZEN_INSET, ICE_RADIUS, REACH, THAW_LAG } from './constants'
+import type { DetonationInfo } from './events'
+import { dist, nodePositions, strikeTime } from './geometry'
 import { layer, mote, obstacle, ring, testLevel } from './testFixtures'
 import { runScript } from './headless'
 import { DEBUG_PACK } from '../data/levels/pack'
-import type { LevelData } from './types'
+import type { LevelData, ObstacleSpec, ReleaseColor, RuneLayerSpec } from './types'
 
 const DT = 1 / 30
 const C = { x: 200, y: 500 }
@@ -432,8 +433,10 @@ describe('fuse (endless)', () => {
     expect(sim.state.stats).toMatchObject({ landed: 4, wasted: 1 })
     expect(sim.state.broken).toBe(0)
     expect(sim.state.score).toBe(0)
-    stepFor(sim, 1)
     const red = sim.state.motes.filter((m) => m.color === 'red')
+    stepFor(sim, 0.3)
+    for (const m of red) expect(dist(m.pos, C)).toBeLessThan(40) // waiting for the blow to land
+    stepFor(sim, 1.2)
     expect(red).toHaveLength(2)
     for (const m of red) {
       expect(m.state).toBe('free')
@@ -441,6 +444,180 @@ describe('fuse (endless)', () => {
       expect(dist(m.pos, C)).toBeCloseTo(40 + BURST_GAP, 0)
     }
     expect(sim.canPlace(sim.state.runes.find((r) => r.slot === 0)!.id, C)).toBe(true) // the ground is clear again
+  })
+})
+
+describe('ice', () => {
+  const I = { x: 100, y: 420 }
+  // A square whose energy is a square: the ice's shape.
+  const level = testLevel({
+    hand: [{ layers: [layer(4, 40, 'red'), layer(4, 30, 'red')] }],
+    motes: ring('red', C.x, C.y, 40, 4),
+    obstacles: [obstacle(200, 150, [3, 4])],
+    ice: [{ x: I.x, y: I.y, sides: 4, motes: ['gold', 'gold'] }],
+  })
+
+  it("a level's ice holds its motes, after the free ones, and blocks casting", () => {
+    const sim = mk(level)
+    const ice = sim.state.obstacles.find((o) => o.frozen)!
+    expect(ice.layers).toEqual([{ sides: 4, radius: ICE_RADIUS, hp: 4 }])
+    expect(sim.state.motes.map((m) => [m.id, m.color, m.state])).toEqual([
+      ['mote-0', 'red', 'free'],
+      ['mote-1', 'red', 'free'],
+      ['mote-2', 'red', 'free'],
+      ['mote-3', 'red', 'free'],
+      ['mote-4', 'gold', 'frozen'],
+      ['mote-5', 'gold', 'frozen'],
+    ])
+    expect(ice.frozen!.motes).toEqual(['mote-4', 'mote-5'])
+    expect(sim.state.seenHues).toContain('gold')
+    const rune = sim.state.runes[0]
+    expect(sim.canPlace(rune.id, { x: I.x + 60, y: I.y })).toBe(false)
+    expect(sim.canPlace(rune.id, { x: I.x + 90, y: I.y })).toBe(true)
+    stepFor(sim, 5)
+    for (const m of sim.state.motes.filter((x) => x.color === 'gold')) {
+      expect(m.state).toBe('frozen')
+      expect(dist(m.pos, I)).toBeCloseTo(ICE_RADIUS * FROZEN_INSET, 5)
+    }
+  })
+
+  it('a blow of its shape breaks it: its motes burst out unchanged once the blow lands', () => {
+    const sim = mk(level)
+    const ice = sim.state.obstacles.find((o) => o.frozen)!
+    const id = placeSlot(sim, 0)
+    expect(sim.piece(id)!.linkedObstacleId).toBe(ice.id)
+    stepFor(sim, 5)
+    sim.detonate(id)
+    expect(ice.cleared).toBe(true)
+    expect(sim.state.stats).toMatchObject({ landed: 4, wasted: 0 })
+    expect(sim.state.broken).toBe(0)
+    const gold = sim.state.motes.filter((m) => m.color === 'gold')
+    expect(gold.map((m) => m.state)).toEqual(['ejecting', 'ejecting'])
+    stepFor(sim, strikeTime(C, I) - 0.05)
+    for (const m of gold) expect(dist(m.pos, I)).toBeCloseTo(ICE_RADIUS * FROZEN_INSET, 5)
+    stepFor(sim, 1)
+    for (const m of gold) {
+      expect(m.state).toBe('free')
+      expect(dist(m.home, I)).toBeCloseTo(ICE_RADIUS + BURST_GAP, 5)
+    }
+    expect(sim.state.status).toBe('playing') // the obstacle still stands
+  })
+
+  it('is never needed to win', () => {
+    const sim = mk({ ...level, obstacles: [obstacle(200, 150, [4, 4])], ice: [{ x: I.x, y: I.y, sides: 5 }] })
+    const id = placeSlot(sim, 0)
+    stepFor(sim, 5)
+    sim.detonate(id)
+    expect(sim.state.status).toBe('won')
+  })
+
+  it('motes locked in ice cannot fill anything: with nothing else to do, the level is lost', () => {
+    const sim = new Sim({ ...level, motes: [], obstacles: [obstacle(200, 150, [4, 4])], ice: [{ x: I.x, y: I.y, sides: 4, motes: ['red', 'red', 'red', 'red'] }] })
+    sim.checkLoss()
+    expect(sim.state.lostBecause).toBe('stuck')
+  })
+})
+
+describe('frost', () => {
+  const B = { x: 300, y: 640 }
+  const frostBoss: ObstacleSpec = {
+    x: 200,
+    y: 150,
+    layers: [
+      { sides: 3, radius: 30, hp: 6, frost: true },
+      { sides: 4, radius: 30, hp: 3 },
+    ],
+  }
+  const turn = (release: ReleaseColor[]): RuneLayerSpec => ({ sides: 4, radius: 40, nodes: release.map((r) => ({ catch: 'red', release: r })) })
+  const level = testLevel({
+    obstacles: [frostBoss],
+    hand: [
+      { layers: [turn(['blue', 'blue', 'blue', 'blue']), layer(3, 30, 'red')] }, // strikes for 4: short of 6
+      { layers: [layer(3, 40, 'gold'), layer(3, 30, 'gold')] }, // strikes for 3
+      { layers: [layer(4, 40, 'gold'), layer(4, 30, 'gold')] }, // a square's energy: breaks a frozen square
+    ],
+    motes: [...ring('red', C.x, C.y, 40, 4), ...ring('gold', B.x, B.y, 40, 3)],
+  })
+
+  function frostbitten(lvl = level) {
+    const sim = mk(lvl)
+    const infos: DetonationInfo[] = []
+    sim.bus.on('piece:detonated', ({ info }) => infos.push(info))
+    const id = placeSlot(sim, 0)
+    stepFor(sim, 5)
+    sim.detonate(id)
+    const boss = sim.state.obstacles[0]
+    const ice = sim.state.obstacles.find((o) => o.frozen)
+    return { sim, infos, boss, ice }
+  }
+
+  it('a blow that leaves a frost layer standing freezes the piece where it stood, holding its transformed motes', () => {
+    const { sim, infos, boss, ice } = frostbitten()
+    expect(boss.hp).toBe(2) // the damage still lands
+    expect(boss.index).toBe(0)
+    expect(ice).toBeDefined()
+    expect(infos[0].frozeInto).toBe(ice!.id)
+    expect(ice!.pos).toEqual(C)
+    expect(ice!.layers).toEqual([{ sides: 4, radius: 40, hp: 4 }])
+    expect(ice!.frozen!.by).toEqual({ obstacle: boss.id, layer: 0 })
+    const locked = sim.state.motes.filter((m) => ice!.frozen!.motes.includes(m.id))
+    expect(locked).toHaveLength(4)
+    for (const m of locked) {
+      expect(m.color).toBe('blue')
+      expect(m.state).toBe('frozen')
+      expect(m.frozenIn).toBe(ice!.id)
+    }
+    expect(sim.state.seenHues).toContain('blue')
+    stepFor(sim, 5)
+    expect(locked.every((m) => m.state === 'frozen')).toBe(true)
+  })
+
+  it("the frost layer's fall thaws every piece it froze", () => {
+    const { sim, boss, ice } = frostbitten()
+    const thawed: string[] = []
+    sim.bus.on('ice:thawed', ({ ice: i, by }) => thawed.push(`${i.id}<${by.id}`))
+    const id = placeSlot(sim, 1, B)
+    expect(sim.piece(id)!.linkedObstacleId).toBe(boss.id)
+    stepFor(sim, 5)
+    sim.detonate(id) // 3 >= 2: the frost layer falls
+    expect(boss.index).toBe(1)
+    expect(thawed).toEqual([`${ice!.id}<${boss.id}`])
+    expect(ice!.cleared).toBe(true)
+    const blue = sim.state.motes.filter((m) => m.color === 'blue')
+    stepFor(sim, strikeTime(B, boss.pos) + THAW_LAG - 0.05)
+    for (const m of blue) expect(m.state).toBe('ejecting') // still waiting in the ice
+    stepFor(sim, 1)
+    for (const m of blue) {
+      expect(m.state).toBe('free')
+      expect(dist(m.pos, C)).toBeCloseTo(40 + BURST_GAP, 0)
+    }
+  })
+
+  it('breaking the frozen piece frees its motes; the frost layer stands', () => {
+    const { sim, boss, ice } = frostbitten({ ...level, motes: [...ring('red', C.x, C.y, 40, 4), ...ring('gold', B.x, B.y, 40, 4)] })
+    const id = placeSlot(sim, 2, B)
+    expect(sim.piece(id)!.linkedObstacleId).toBe(ice!.id)
+    stepFor(sim, 5)
+    sim.detonate(id)
+    expect(ice!.cleared).toBe(true)
+    expect(boss.hp).toBe(2)
+    stepFor(sim, 2)
+    expect(sim.state.motes.filter((m) => m.color === 'blue').map((m) => m.state)).toEqual(['free', 'free', 'free', 'free'])
+  })
+
+  it('annihilating tubes burn their motes at the strike', () => {
+    const { sim, ice } = frostbitten({ ...level, hand: [{ layers: [turn(['annihilating', 'blue', 'annihilating', 'blue']), layer(3, 30, 'red')] }, ...level.hand.slice(1)] })
+    expect(ice!.frozen!.motes).toHaveLength(2)
+    expect(sim.state.stats.destroyed).toBe(2)
+    expect(sim.state.motes.filter((m) => m.color === 'red')).toHaveLength(0)
+  })
+
+  it('a blow that breaks the frost layer outright is an ordinary blow', () => {
+    const { sim, boss, ice } = frostbitten({ ...level, obstacles: [{ ...frostBoss, layers: [{ ...frostBoss.layers[0], hp: 4 }, frostBoss.layers[1]] }] })
+    expect(boss.index).toBe(1)
+    expect(ice).toBeUndefined()
+    stepFor(sim, 2)
+    expect(sim.state.motes.filter((m) => m.color === 'blue').map((m) => m.state)).toEqual(['free', 'free', 'free', 'free'])
   })
 })
 
@@ -469,7 +646,7 @@ describe('undo', () => {
 
 describe('loss check', () => {
   it('both debug fail levels lose on their obvious play', () => {
-    for (const level of DEBUG_PACK) {
+    for (const level of DEBUG_PACK.filter((l) => l.id.startsWith('fail-'))) {
       const res = runScript(level, [{ place: 0, at: { x: 200, y: 500 } }], { settle: 10 })
       expect(res.status, level.id).toBe('lost')
     }

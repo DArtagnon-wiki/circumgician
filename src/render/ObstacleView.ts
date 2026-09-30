@@ -2,13 +2,13 @@ import { Container, Graphics, Sprite } from 'pixi.js'
 import type { Obstacle, ObstacleLayerSpec, Vec2 } from '../sim/types'
 import { localVertices } from './drawPolygon'
 import { drawObsidian, OBSIDIAN, sheenBand } from './obsidian'
+import { FROST, RIME } from './Frost'
 import { textures } from './textures'
 
 const NEXT_PAD = 3 // gap between the current polygon and the next-shape outline
 const REVEAL_TIME = 0.45 // next outline shrinking into place after a collapse
 const IMPLODE_TIME = 0.35
 const GILT = 0xe6c170
-const FROST = 0x9fd4ff // a frozen piece's ice (endless)
 const GLINT_EVERY = 4.2 // seconds between specular sweeps
 const GLINT_TIME = 0.9
 
@@ -35,8 +35,9 @@ interface Dying {
 // then. Its strength is black holes swirling inside (one per HP), and its
 // next layer (if any) a ghostly obsidian outline circumscribed around it,
 // dotted with that layer's strength. When the current layer collapses, the
-// outline shrinks into place. Bosses carry gilded fractures; a frozen piece
-// (endless) is rimed in ice.
+// outline shrinks into place. Bosses carry gilded fractures, frost layers
+// veins of ice; ice itself (a level's blocks, frozen pieces) is obsidian
+// rimed and glazed in frost.
 export class ObstacleView {
   readonly container = new Container()
   private nextC = new Container()
@@ -86,6 +87,11 @@ export class ObstacleView {
 
   hold(seconds: number, index: number, hp: number): void {
     this.holds.push({ left: seconds, index, hp })
+  }
+
+  // Keep showing what is on screen now for `seconds` (ice waiting to thaw).
+  holdAsIs(seconds: number): void {
+    if (this.drawnIndex >= 0) this.holds.push({ left: seconds, index: this.drawnIndex, hp: this.shownHp })
   }
 
   sync(obstacle: Obstacle, dt: number, time: number): void {
@@ -155,12 +161,21 @@ export class ObstacleView {
     this.table = drawObsidian(g, outline, { inset: R * 0.34, rimAlpha: 0.9 })
     if (layer.boss) drawGildedFractures(g, outline, this.table, R)
     this.frostG.clear()
+    if (layer.frost) drawFrostVeins(this.frostG, outline, this.table, R)
     if (this.frozen) {
-      // A frozen piece: rimed in ice, with frost creeping in from each corner.
+      // Ice: glazed, rimed, with frost creeping in from each corner and
+      // crystal facets meeting at the heart.
       const pts = outline.flatMap((p) => [p.x, p.y])
-      this.frostG.poly(pts).fill({ color: FROST, alpha: 0.14 })
-      this.frostG.poly(pts).stroke({ color: FROST, width: 2.5, alpha: 0.8 })
-      for (const p of outline) this.frostG.moveTo(p.x * 0.9, p.y * 0.9).lineTo(p.x * 0.5, p.y * 0.5).stroke({ color: 0xeaf7ff, width: 1.2, alpha: 0.45 })
+      this.frostG.poly(pts).fill({ color: FROST, alpha: 0.2 })
+      this.frostG.poly(this.table.flatMap((p) => [p.x, p.y])).fill({ color: RIME, alpha: 0.08 })
+      this.frostG.poly(pts).stroke({ color: FROST, width: 2.5, alpha: 0.85 })
+      this.frostG.poly(pts).stroke({ color: RIME, width: 0.8, alpha: 0.7 })
+      for (const p of outline) this.frostG.moveTo(p.x * 0.9, p.y * 0.9).lineTo(p.x * 0.5, p.y * 0.5).stroke({ color: RIME, width: 1.2, alpha: 0.5 })
+      outline.forEach((p, i) => {
+        const q = outline[(i + 1) % outline.length]
+        const m = { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }
+        this.frostG.moveTo(m.x * 0.82, m.y * 0.82).lineTo(m.x * 0.62 + (i % 2 ? 2 : -2), m.y * 0.62).stroke({ color: RIME, width: 0.8, alpha: 0.35 })
+      })
     }
 
     this.flashG.clear()
@@ -175,7 +190,8 @@ export class ObstacleView {
       // A ghost of obsidian: a dark smoky edge with a thin glint line.
       this.nextG.poly(pts).fill({ color: OBSIDIAN.deep, alpha: 0.22 })
       this.nextG.poly(pts).stroke({ color: OBSIDIAN.deep, width: 4, alpha: 0.55 })
-      this.nextG.poly(pts).stroke({ color: next.boss ? GILT : 0xb9a2ff, width: 1, alpha: 0.6 })
+      const trim = next.boss ? GILT : next.frost ? FROST : 0xb9a2ff
+      this.nextG.poly(pts).stroke({ color: trim, width: next.frost ? 1.3 : 1, alpha: next.frost ? 0.8 : 0.6 })
       // Its strength: one dark pip per HP, spaced evenly along the rim and
       // offset half a step so they sit between the vertex glints.
       const verts = localVertices(next.sides, r)
@@ -188,7 +204,7 @@ export class ObstacleView {
         const b = verts[(i + 1) % next.sides]
         const x = a.x + (b.x - a.x) * (u - i)
         const y = a.y + (b.y - a.y) * (u - i)
-        this.nextG.circle(x, y, pip + 0.9).fill({ color: next.boss ? GILT : 0xcdb8ff, alpha: 0.6 })
+        this.nextG.circle(x, y, pip + 0.9).fill({ color: next.boss ? GILT : next.frost ? FROST : 0xcdb8ff, alpha: 0.6 })
         this.nextG.circle(x, y, pip).fill({ color: 0x030108 })
       }
       const star = textures().star
@@ -197,7 +213,7 @@ export class ObstacleView {
         s.anchor.set(0.5)
         s.position.set(p.x, p.y)
         s.scale.set(0.42)
-        s.tint = next.boss ? 0xffe2a6 : 0xd9c8ff
+        s.tint = next.boss ? 0xffe2a6 : next.frost ? RIME : 0xd9c8ff
         s.blendMode = 'add'
         this.glintC.addChild(s)
         this.nextGlints.push(s)
@@ -288,6 +304,28 @@ function drawGildedFractures(g: Graphics, outline: Vec2[], table: Vec2[], R: num
   }
   g.stroke({ color: GILT, width: Math.max(0.9, R / 34), alpha: 0.85, cap: 'round', join: 'round' })
   g.poly(outline.flatMap((p) => [p.x, p.y])).stroke({ color: GILT, width: 1, alpha: 0.45 })
+}
+
+// Veins of ice through the facets: from each table corner a crack runs to
+// its vertex and forks, and rime crusts the rim. (Drawn additively.)
+function drawFrostVeins(g: Graphics, outline: Vec2[], table: Vec2[], R: number): void {
+  const n = outline.length
+  g.poly(outline.flatMap((p) => [p.x, p.y])).fill({ color: FROST, alpha: 0.1 })
+  for (let i = 0; i < n; i++) {
+    const a = table[i]
+    const b = outline[i]
+    const k1 = { x: a.x + (b.x - a.x) * 0.4 + (i % 2 ? 1.8 : -1.8), y: a.y + (b.y - a.y) * 0.4 + (i % 2 ? -1.2 : 1.2) }
+    const k2 = { x: a.x + (b.x - a.x) * 0.72 - (i % 2 ? 1.4 : -1.4), y: a.y + (b.y - a.y) * 0.72 }
+    g.moveTo(a.x, a.y).lineTo(k1.x, k1.y).lineTo(k2.x, k2.y).lineTo(b.x * 0.94, b.y * 0.94)
+    // A fork toward the next edge's midpoint.
+    const c = outline[(i + 1) % n]
+    const m = { x: (b.x + c.x) / 2, y: (b.y + c.y) / 2 }
+    g.moveTo(k1.x, k1.y).lineTo(k1.x + (m.x - k1.x) * 0.55, k1.y + (m.y - k1.y) * 0.55)
+  }
+  g.stroke({ color: FROST, width: Math.max(1.2, R / 24), alpha: 0.85, cap: 'round', join: 'round' })
+  g.poly(outline.flatMap((p) => [p.x, p.y])).stroke({ color: FROST, width: 2.2, alpha: 0.5 })
+  g.poly(outline.flatMap((p) => [p.x, p.y])).stroke({ color: RIME, width: 0.8, alpha: 0.6 })
+  for (const p of outline) g.circle(p.x * 0.93, p.y * 0.93, Math.max(1.2, R / 22)).fill({ color: RIME, alpha: 0.55 })
 }
 
 interface HoleLayout {

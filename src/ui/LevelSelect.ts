@@ -9,8 +9,9 @@ export interface LevelSelectActions {
   onBack: () => void
   onHowToPlay: () => void
   // Guaranteed-fail fixtures for manually verifying the loss condition,
-  // only passed (non-empty) when ?debug=1 is active; renders as a small
-  // separate section, invisible in the normal player experience.
+  // and sandboxes for trying out mechanics; only passed (non-empty) when
+  // ?debug=1 is active. Renders as a small separate section, invisible in
+  // the normal player experience.
   debugLevels?: LevelData[]
   onSelectDebug?: (index: number) => void
 }
@@ -65,7 +66,7 @@ export function showLevelSelect(actions: LevelSelectActions): HTMLElement {
   if (actions.debugLevels && actions.debugLevels.length > 0 && actions.onSelectDebug) {
     const debugTitle = document.createElement('div')
     debugTitle.className = 'levels-debug-title'
-    debugTitle.textContent = 'Debug: Fail Tests'
+    debugTitle.textContent = 'Debug: Tests and Sandboxes'
     debugSection.append(debugTitle)
     actions.debugLevels.forEach((level, index) => {
       const button = document.createElement('button')

@@ -239,6 +239,15 @@ export class Sfx {
 
   // Deep obsidian crack: a sharp snap over a falling rumble, and stone
   // chips; clearing an obstacle adds a rising glass flourish.
+  // Ice giving way: a bright crack, then shards tinkling down and a breath
+  // of released cold.
+  iceBreak(): void {
+    this.noise(0.07, { type: 'bandpass', freq: 4200, q: 1.8, peak: 0.24 })
+    this.noise(0.55, { type: 'highpass', freq: 2600, to: 900, q: 0.7, peak: 0.07, reverb: 0.4 })
+    for (let k = 0; k < 7; k++) this.ping(3300 - k * 240 + Math.random() * 160, 0.35, 0.028, 0.03 + k * 0.045, 0.45)
+    this.tone(220, 0.3, 0.07, 0, 'sine', 140)
+  }
+
   obstacleCleared(cleared: boolean): void {
     this.noise(0.06, { type: 'bandpass', freq: 1300, q: 2.5, peak: 0.3 })
     this.noise(0.9, { type: 'lowpass', freq: 180, to: 60, peak: 0.24, attack: 0.01 })

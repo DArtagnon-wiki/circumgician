@@ -13,12 +13,20 @@ import type { LevelData, MoteColor } from './types'
 //   - damage never carries into the next layer: the excess is wasted;
 //   - every caught mote is released recolored by its node, except at
 //     'annihilating' nodes, which destroy theirs;
-//   - generic motes fill any node.
+//   - generic motes fill any node;
+//   - ice (the level's blocks, and pieces frozen by frost) is struck like
+//     an obstacle of one layer, by energy of its shape; broken, it frees
+//     the motes locked inside. It never counts toward the win;
+//   - a blow that leaves a frost layer standing still lands, but the piece
+//     freezes into ice of its own shape (strength its sides) holding its
+//     released motes; when that layer falls, all the ice it froze thaws.
 // A move is one of
 //   fill Rn.k      fill layer k of rune n from the free motes. If k is still
 //                  in hand, it is cast first, and any layers above it are
 //                  cast as empty pieces (digging down to it)
 //   Rn.k->Om       detonate that full piece into obstacle m
+//   Rn.k->Im       ...or into ice m (the level's first, then frozen pieces
+//                  in the order they froze)
 //   Rn.k unlinked  detonate it with nothing to hit
 // Casting an empty piece only matters for what it uncovers, so it happens
 // inside the fill that needs it. Room on the field is the one limit on
@@ -40,20 +48,32 @@ export interface EconomyPiece {
   full: boolean
 }
 
+// A block of ice, as the game creates them: the level's, then each piece a
+// frost layer froze.
+export interface EconomyIce {
+  sides: number
+  hp: number // 0 once broken or thawed
+  motes: number[] // locked inside, per color
+  by: [obstacle: number, layer: number] | null // the frost layer that froze it
+}
+
 export interface Economy {
   pool: number[] // free motes per color, in ECONOMY_COLORS order
   hand: number[] // per rune, the layer in hand (layers above it were cast)
   pieces: EconomyPiece[] // cast and not yet detonated, sorted by rune then layer
   obstacles: { index: number; hp: number }[] // index past the last layer = cleared
+  ice: EconomyIce[]
 }
 
-export type Move = { kind: 'fill'; rune: number; layer: number } | { kind: 'fire'; rune: number; layer: number; target: number | null }
+// A fire's target indexes the obstacles, or the ice when `ice` is set.
+export type Move = { kind: 'fill'; rune: number; layer: number } | { kind: 'fire'; rune: number; layer: number; target: number | null; ice?: boolean }
 
 // One detonation, counted the way the result screen counts it.
 export interface Blow {
   rune: number
   layer: number // stack layer that detonated
-  target: number | null // obstacle hit, null when unlinked
+  target: number | null // obstacle (or ice) hit, null when unlinked
+  ice?: boolean // the target is ice
   targetLayer: number // obstacle layer hit (-1 when unlinked)
   damage: number // HP removed
   wasted: number // damage past the layer's remaining HP
@@ -78,14 +98,20 @@ const room = (opts: SolverOptions) => opts.maxPlaced ?? DEFAULT_ROOM
 // Layers a rune can cast: every stack entry but the last.
 const castable = (level: LevelData, rune: number) => level.hand[rune].layers.length - 1
 
+const tally = (colors: MoteColor[]) => {
+  const n = ECONOMY_COLORS.map(() => 0)
+  for (const c of colors) n[ECONOMY_COLORS.indexOf(c)]++
+  return n
+}
+const plus = (a: number[], b: number[]) => a.map((v, i) => v + b[i])
+
 export function initialEconomy(level: LevelData): Economy {
-  const pool = ECONOMY_COLORS.map(() => 0)
-  for (const m of level.motes) pool[ECONOMY_COLORS.indexOf(m.color)]++
   return {
-    pool,
+    pool: tally(level.motes.map((m) => m.color)),
     hand: level.hand.map(() => 0),
     pieces: [],
     obstacles: level.obstacles.map((o) => ({ index: 0, hp: o.layers[0]?.hp ?? 0 })),
+    ice: (level.ice ?? []).map((b) => ({ sides: b.sides, hp: b.hp ?? b.sides, motes: tally(b.motes ?? []), by: null })),
   }
 }
 
@@ -102,7 +128,8 @@ function status(s: Economy, rune: number, layer: number): 'open' | 'full' | 'fir
 // distinguishes them), so the key names each layer's status alone. With a
 // cap, which layers are already on the field matters too.
 export function economyKey(level: LevelData, s: Economy, opts: SolverOptions = {}): string {
-  const obs = s.obstacles.map((o) => `${o.index}:${o.hp}`).join(',')
+  const ice = s.ice.map((b) => (b.hp ? `${b.sides}:${b.hp}:${b.motes.join('.')}${b.by ? `<${b.by.join('.')}` : ''}` : 'x')).join(',')
+  const obs = `${s.obstacles.map((o) => `${o.index}:${o.hp}`).join(',')}|${ice}`
   if (room(opts) === Infinity) {
     const mark = { open: 'o', full: 'F', fired: 'x' }
     const layers = level.hand.map((_, r) => Array.from({ length: castable(level, r) }, (_, k) => mark[status(s, r, k)]).join('')).join(',')
@@ -173,29 +200,58 @@ function fill(level: LevelData, s: Economy, rune: number, layer: number, opts: S
     pieces = [...s.pieces, ...dug, { rune, layer, full: true }].sort(byRuneLayer)
     hand[rune] = layer + 1
   }
-  return { move: { kind: 'fill', rune, layer }, next: { pool, hand, pieces, obstacles: s.obstacles } }
+  return { move: { kind: 'fill', rune, layer }, next: { pool, hand, pieces, obstacles: s.obstacles, ice: s.ice } }
 }
 
-function fire(level: LevelData, s: Economy, rune: number, layer: number, target: number | null): Transition {
+function fire(level: LevelData, s: Economy, rune: number, layer: number, target: number | null, ice = false): Transition {
   const layers = level.hand[rune].layers
   const outer = layers[layer]
-  const pool = [...s.pool]
-  for (const n of outer.nodes) if (n.release !== 'annihilating') pool[ECONOMY_COLORS.indexOf(n.release)]++
+  const released = tally(outer.nodes.flatMap((n) => (n.release === 'annihilating' ? [] : [n.release])))
+  let pool = s.pool
+  let blocks = s.ice
   const obstacles = s.obstacles.map((o) => ({ ...o }))
-  const blow: Blow = { rune, layer, target, targetLayer: -1, damage: 0, wasted: 0, unlinked: target === null }
-  if (target !== null) {
-    const o = obstacles[target]
-    blow.targetLayer = o.index
-    blow.damage = Math.min(o.hp, outer.sides)
+  const blow: Blow = { rune, layer, target, ...(ice ? { ice } : {}), targetLayer: -1, damage: 0, wasted: 0, unlinked: target === null }
+  let frozen = false
+  const strike = (hp: number) => {
+    blow.damage = Math.min(hp, outer.sides)
     blow.wasted = outer.sides - blow.damage
-    o.hp -= blow.damage
+    return hp - blow.damage
+  }
+  if (target !== null && ice) {
+    const b = { ...s.ice[target] }
+    blow.targetLayer = 0
+    b.hp = strike(b.hp)
+    if (b.hp === 0) {
+      pool = plus(pool, b.motes)
+      b.motes = b.motes.map(() => 0)
+    }
+    blocks = s.ice.map((x, i) => (i === target ? b : x))
+  } else if (target !== null) {
+    const o = obstacles[target]
+    const spec = level.obstacles[target].layers[o.index]
+    blow.targetLayer = o.index
+    if (spec.frost && outer.sides < o.hp) {
+      // Frostbitten: the piece freezes, holding what it released.
+      frozen = true
+      blocks = [...blocks, { sides: outer.sides, hp: outer.sides, motes: released, by: [target, o.index] }]
+    }
+    o.hp = strike(o.hp)
     if (o.hp === 0) {
+      if (spec.frost) {
+        // The frost layer falls: everything it froze thaws.
+        blocks = blocks.map((b) => {
+          if (!b.hp || b.by?.[0] !== target || b.by[1] !== o.index) return b
+          pool = plus(pool, b.motes)
+          return { ...b, hp: 0, motes: b.motes.map(() => 0) }
+        })
+      }
       o.index++
       o.hp = level.obstacles[target].layers[o.index]?.hp ?? 0
     }
   }
+  if (!frozen) pool = plus(pool, released)
   const pieces = s.pieces.filter((p) => !(p.rune === rune && p.layer === layer))
-  return { move: { kind: 'fire', rune, layer, target }, next: { pool, hand: s.hand, pieces, obstacles }, blow }
+  return { move: { kind: 'fire', rune, layer, target, ...(ice ? { ice } : {}) }, next: { pool, hand: s.hand, pieces, obstacles, ice: blocks }, blow }
 }
 
 // Every legal move from s.
@@ -209,11 +265,14 @@ export function transitions(level: LevelData, s: Economy, opts: SolverOptions = 
   })
   for (const p of s.pieces) {
     if (!p.full) continue
-    // A piece links to whichever matching obstacle is nearest, so any of
-    // them can be chosen by where it is cast; none matching means unlinked.
+    // A piece links to whichever matching obstacle (or ice) is nearest, so
+    // any of them can be chosen by where it is cast; none means unlinked.
     const energy = level.hand[p.rune].layers[p.layer + 1]
     const targets = s.obstacles.flatMap((o, oi) => (level.obstacles[oi].layers[o.index]?.sides === energy.sides ? [oi] : []))
-    for (const target of targets.length ? targets : [null]) out.push(fire(level, s, p.rune, p.layer, target))
+    const blocks = s.ice.flatMap((b, bi) => (b.hp > 0 && b.sides === energy.sides ? [bi] : []))
+    for (const target of targets) out.push(fire(level, s, p.rune, p.layer, target))
+    for (const target of blocks) out.push(fire(level, s, p.rune, p.layer, target, true))
+    if (!targets.length && !blocks.length) out.push(fire(level, s, p.rune, p.layer, null))
   }
   return out
 }
@@ -229,7 +288,7 @@ export function economyLost(level: LevelData, s: Economy, opts: SolverOptions = 
 
 export function moveLabel(m: Move): string {
   if (m.kind === 'fill') return `fill R${m.rune}.${m.layer}`
-  return m.target === null ? `R${m.rune}.${m.layer} unlinked` : `R${m.rune}.${m.layer}->O${m.target}`
+  return m.target === null ? `R${m.rune}.${m.layer} unlinked` : `R${m.rune}.${m.layer}->${m.ice ? 'I' : 'O'}${m.target}`
 }
 
 // Memoized questions about one level's states. Every move fills a layer or
@@ -455,7 +514,7 @@ export interface LevelProfile {
 
 const PLAN_CAP = 24
 
-const blowId = (b: Blow) => `${b.rune}.${b.layer}>${b.target === null ? '-' : `${b.target}.${b.targetLayer}`}`
+const blowId = (b: Blow) => `${b.rune}.${b.layer}>${b.target === null ? '-' : `${b.ice ? 'I' : ''}${b.target}.${b.targetLayer}`}`
 
 // Walks every state on a winning line: the decisions met there, the moves
 // that lose (traps) and how long each stays hidden, and the distinct plans.

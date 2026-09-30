@@ -1,6 +1,6 @@
-import { BURST_GAP, FOOTPRINT_MARGIN } from './constants'
+import { BURST_GAP, EJECT_TIME, FOOTPRINT_MARGIN, THAW_LAG } from './constants'
 import type { DetonationInfo, SimBus } from './events'
-import { circleHitsRect, circleInRect, clampToRect, dist, footprintRadius, middleAngle, middleLayer, outerAngle, outerLayer, polygonPoints } from './geometry'
+import { circleHitsRect, circleInRect, clampToRect, dist, footprintRadius, iceSpots, middleAngle, middleLayer, outerAngle, outerLayer, strikeTime } from './geometry'
 import type { Hue, Mote, Obstacle, Piece, Rune, RuneLayerSpec, SimState, Vec2 } from './types'
 
 // Where node i's released mote settles: along that node's REST direction
@@ -82,10 +82,19 @@ export function castRune(state: SimState, bus: SimBus, rune: Rune, pos: Vec2, en
   return piece
 }
 
+// A strike on a frost layer that leaves it standing is caught by the frost:
+// the piece freezes where it stood into ice of its own shape, holding the
+// motes it transformed (see damageObstacle for the thaw).
+function frostbites(obstacle: Obstacle | null, blow: number): obstacle is Obstacle {
+  return !!obstacle && !obstacle.frozen && !!obstacle.layers[obstacle.index]?.frost && blow < obstacle.hp
+}
+
 export function detonatePiece(state: SimState, bus: SimBus, piece: Piece, ensure?: EnsureLayers): void {
   const outer = piece.layer
   const pos = piece.pos
   const obstacle = state.obstacles.find((o) => o.id === piece.linkedObstacleId && !o.cleared) ?? null
+  const ice = frostbites(obstacle, outer.sides) ? newIce(state, pos, outer.sides, outer.radius, { obstacle: obstacle.id, layer: obstacle.index }) : null
+  const spots = ice ? iceSpots(pos, outer.sides, outer.radius) : []
   const info: DetonationInfo = {
     pos: { ...pos },
     outer,
@@ -96,9 +105,11 @@ export function detonatePiece(state: SimState, bus: SimBus, piece: Piece, ensure
     obstacleId: obstacle?.id ?? null,
     released: [],
     annihilated: [],
+    ...(ice ? { frozeInto: ice.id } : {}),
   }
 
-  // 1. Resolve each node's mote: annihilate, or recolor and burst outward.
+  // 1. Resolve each node's mote: annihilate, or recolor and burst outward
+  //    (or, frostbitten, stay locked in the ice where its node stood).
   const annihilate = new Set<string>()
   const discovered: { hue: Hue; mote: Mote }[] = []
   piece.held.forEach((moteId, i) => {
@@ -116,6 +127,10 @@ export function detonatePiece(state: SimState, bus: SimBus, piece: Piece, ensure
       state.seenHues.push(release)
       discovered.push({ hue: release, mote })
     }
+    if (ice) {
+      lockInIce(mote, ice, spots[i])
+      return
+    }
     mote.home = clampToRect(landingPoint(pos, outer.sides, outer.radius, i), state.field, Math.min(mote.tether + 2, state.field.w / 2, state.field.h / 2))
     mote.state = 'ejecting'
     mote.ejectFrom = { ...mote.pos }
@@ -130,43 +145,69 @@ export function detonatePiece(state: SimState, bus: SimBus, piece: Piece, ensure
   state.stats.destroyed += annihilate.size
   if (!obstacle) state.stats.unlinked++
 
-  // 2. The piece is used up.
+  // 2. The piece is used up (or frozen solid).
   state.pieces = state.pieces.filter((p) => p !== piece)
+  if (ice) state.obstacles.push(ice)
   bus.emit('piece:detonated', { piece, info })
   for (const d of discovered) bus.emit('hue:discovered', d)
 
   // 3. Damage the obstacle (after the piece has left, so relinking sees the
   //    freed field), then relink everything still on the field.
-  if (obstacle) damageObstacle(state, bus, obstacle, outer.sides, ensure)
+  if (obstacle) damageObstacle(state, bus, obstacle, outer.sides, ensure, strikeTime(pos, obstacle.pos))
   relinkAll(state, bus)
 }
 
-// Frozen motes sit just inside the vertices of the obstacle they are locked in.
-const FROZEN_INSET = 0.78
+// Ice: an obstacle of one layer, strength equal to its sides, that holds
+// motes. `by` is the frost layer that froze it, if one did.
+function newIce(state: SimState, pos: Vec2, sides: number, radius: number, by?: { obstacle: string; layer: number }): Obstacle {
+  return { id: `frozen-${state.nextId++}`, pos: { ...pos }, layers: [{ sides, radius, hp: sides }], index: 0, hp: sides, cleared: false, frozen: { motes: [], ...(by ? { by } : {}) } }
+}
 
-// A piece that outlives its fuse freezes where it stands: an obstacle of its
-// own shape, with strength equal to its sides, holding the motes it caught
-// (and any still on their way) until it is broken.
+function lockInIce(mote: Mote, ice: Obstacle, spot: Vec2): void {
+  mote.state = 'frozen'
+  mote.frozenIn = ice.id
+  mote.pos = { ...spot }
+  mote.home = { ...spot }
+  delete mote.pieceId
+  delete mote.node
+  delete mote.travelFrom
+  delete mote.t
+  delete mote.vel
+  delete mote.kicked
+  ice.frozen!.motes.push(mote.id)
+}
+
+// Ice lets its motes go, unchanged, the way a detonation bursts them: each
+// flies straight out past its vertex, once `delay` seconds have passed (the
+// blow that freed them lands).
+function releaseIce(state: SimState, ice: Obstacle, delay: number): void {
+  const { radius } = ice.layers[0]
+  for (const id of ice.frozen!.motes) {
+    const mote = state.motes.find((m) => m.id === id)
+    if (!mote) continue
+    const dx = mote.pos.x - ice.pos.x
+    const dy = mote.pos.y - ice.pos.y
+    const d = Math.hypot(dx, dy) || 1
+    const out = { x: ice.pos.x + (dx / d) * (radius + BURST_GAP), y: ice.pos.y + (dy / d) * (radius + BURST_GAP) }
+    mote.home = clampToRect(out, state.field, Math.min(mote.tether + 2, state.field.w / 2, state.field.h / 2))
+    mote.state = 'ejecting'
+    mote.ejectFrom = { ...mote.pos }
+    mote.t = -delay / EJECT_TIME // waits at its spot until t reaches 0
+    delete mote.frozenIn
+  }
+  ice.frozen!.motes = []
+}
+
+// A piece that outlives its fuse freezes where it stands: ice of its own
+// shape holding the motes it caught (and any still on their way).
 export function freezePiece(state: SimState, bus: SimBus, piece: Piece): Obstacle {
-  const id = `frozen-${state.nextId++}`
   const { sides, radius } = piece.layer
-  const spots = polygonPoints(piece.pos, sides, radius * FROZEN_INSET, -Math.PI / 2)
-  const motes: string[] = []
+  const obstacle = newIce(state, piece.pos, sides, radius)
+  const spots = iceSpots(piece.pos, sides, radius)
   piece.held.forEach((moteId, i) => {
     const mote = moteId === null ? undefined : state.motes.find((m) => m.id === moteId)
-    if (!mote) return
-    mote.state = 'frozen'
-    mote.frozenIn = id
-    mote.pos = { ...spots[i] }
-    mote.home = { ...spots[i] }
-    delete mote.pieceId
-    delete mote.node
-    delete mote.travelFrom
-    delete mote.t
-    delete mote.vel
-    motes.push(mote.id)
+    if (mote) lockInIce(mote, obstacle, spots[i])
   })
-  const obstacle: Obstacle = { id, pos: { ...piece.pos }, layers: [{ sides, radius, hp: sides }], index: 0, hp: sides, cleared: false, frozen: { motes } }
   state.obstacles.push(obstacle)
   state.pieces = state.pieces.filter((p) => p !== piece)
   bus.emit('piece:frozen', { piece, obstacle })
@@ -175,32 +216,24 @@ export function freezePiece(state: SimState, bus: SimBus, piece: Piece): Obstacl
 }
 
 // Damage never overflows into the next layer. Does not relink; callers do.
-export function damageObstacle(state: SimState, bus: SimBus, obstacle: Obstacle, amount: number, ensure?: EnsureLayers): void {
+// `landsIn`: seconds until the blow lands, which motes it frees wait for.
+export function damageObstacle(state: SimState, bus: SimBus, obstacle: Obstacle, amount: number, ensure?: EnsureLayers, landsIn = 0): void {
   const landed = Math.min(obstacle.hp, amount)
   state.stats.landed += landed
   state.stats.wasted += amount - landed
   obstacle.hp -= landed
   bus.emit('obstacle:damaged', { obstacle, damage: amount })
   if (obstacle.hp > 0) return
-  const previous = obstacle.layers[obstacle.index]
+  const broke = obstacle.index
+  const previous = obstacle.layers[broke]
   obstacle.index++
   ensure?.(state)
   const next = obstacle.layers[obstacle.index]
   if (next) obstacle.hp = next.hp
   else obstacle.cleared = true
   if (obstacle.frozen) {
-    // A broken frozen piece lets its motes go, unchanged, the way a
-    // detonation bursts them. It is not a layer broken: no score.
-    obstacle.frozen.motes.forEach((id, i) => {
-      const mote = state.motes.find((m) => m.id === id)
-      if (!mote) return
-      mote.state = 'ejecting'
-      mote.ejectFrom = { ...mote.pos }
-      mote.t = 0
-      mote.home = clampToRect(landingPoint(obstacle.pos, previous.sides, previous.radius, i), state.field, Math.min(mote.tether + 2, state.field.w / 2, state.field.h / 2))
-      delete mote.frozenIn
-    })
-    obstacle.frozen.motes = []
+    // Broken ice is not a layer broken: no score.
+    releaseIce(state, obstacle, landsIn)
     bus.emit('obstacle:collapsed', { obstacle, previous, cleared: obstacle.cleared })
     return
   }
@@ -211,4 +244,16 @@ export function damageObstacle(state: SimState, bus: SimBus, obstacle: Obstacle,
     for (const r of state.runes) r.insight = r.insight === 'none' ? 'shape' : 'full'
   }
   bus.emit('obstacle:collapsed', { obstacle, previous, cleared: obstacle.cleared })
+  // A frost layer that falls thaws every piece it froze.
+  if (previous.frost) {
+    for (const ice of state.obstacles) {
+      const by = ice.frozen?.by
+      if (ice.cleared || by?.obstacle !== obstacle.id || by.layer !== broke) continue
+      ice.index = ice.layers.length
+      ice.hp = 0
+      ice.cleared = true
+      releaseIce(state, ice, landsIn + THAW_LAG)
+      bus.emit('ice:thawed', { ice, by: obstacle })
+    }
+  }
 }

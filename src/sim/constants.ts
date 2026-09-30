@@ -42,3 +42,17 @@ export const PULL_RANGE = 0.9 // x outer radius: farther matching nodes don't pu
 
 // Footprint = outer radius + this margin (node rings draw slightly outside).
 export const FOOTPRINT_MARGIN = 4
+
+// A blow's timing (the detonation's choreography follows it): the glass
+// bursts STRIKE_LAUNCH after the tap, and the orb lands on its obstacle
+// STRIKE_FLIGHT later, longer the farther it flies (see strikeTime).
+export const STRIKE_LAUNCH = 0.25
+export const STRIKE_FLIGHT = { base: 0.12, perPx: 1 / 1300, min: 0.22, max: 0.42 }
+
+// Ice: default radius of a block placed in a level, and where its locked
+// motes sit (just inside its vertices, as a share of its radius). Motes
+// freed from ice wait for the blow that frees them to land; ice thawed by
+// its frost layer's fall shatters THAW_LAG after that.
+export const ICE_RADIUS = 30
+export const FROZEN_INSET = 0.68
+export const THAW_LAG = 0.25

@@ -14,6 +14,7 @@
   ],
   "debug": [
     "fail-no-match",
-    "fail-no-motes"
+    "fail-no-motes",
+    "sandbox-ice-frost"
   ]
 }

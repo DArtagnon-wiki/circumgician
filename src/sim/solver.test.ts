@@ -3,6 +3,7 @@ import { ECONOMY_COLORS, EconomySolver, damageShort, economyWon, initialEconomy,
 import { tensionShape } from './solverReport'
 import { loadLevel } from './loadLevel'
 import { isCertainLoss } from './progress'
+import { runScript } from './headless'
 import { layer, mote, obstacle, testLevel } from './testFixtures'
 import type { Hue, MoteColor, ReleaseColor, RuneLayerSpec } from './types'
 
@@ -188,5 +189,69 @@ describe('tension', () => {
     const fake = (ts: number[]) => ts.map((t) => ({ after: null, tension: { ...points[0].tension, tension: t } }))
     expect(tensionShape(fake([0.3, 1, 0.5, 0.9, 0.2, 0]))).toEqual({ peaks: [1, 0.9], releases: 2 })
     expect(tensionShape(fake([1, 1, 1, 0]))).toEqual({ peaks: [1], releases: 0 })
+  })
+})
+
+describe('ice and frost', () => {
+  const C = { x: 200, y: 500 }
+  const B = { x: 300, y: 640 }
+  const ring = (color: MoteColor, at: { x: number; y: number }, n: number) =>
+    Array.from({ length: n }, (_, i) => mote(color, at.x + Math.cos(0.3 + (i / n) * Math.PI * 2) * 40, at.y + Math.sin(0.3 + (i / n) * Math.PI * 2) * 40))
+  const frostBoss = { x: 200, y: 150, layers: [{ sides: 3, radius: 30, hp: 6, frost: true }, { sides: 4, radius: 30, hp: 3 }] }
+  const level = testLevel({
+    obstacles: [frostBoss],
+    hand: [
+      { layers: [mixed(4, [4, 'red', 'blue']), layer(3, 30, 'red')] }, // strikes for 4: short of 6
+      { layers: [layer(3, 40, 'gold'), layer(3, 30, 'gold')] }, // strikes for 3
+      { layers: [layer(4, 40, 'gold'), layer(4, 30, 'gold')] }, // energy of a square
+    ],
+    motes: [...ring('red', C, 4), ...ring('gold', B, 3)],
+  })
+
+  it("a level's ice is struck by its shape and frees its motes; it never counts toward the win", () => {
+    const iced = testLevel({
+      obstacles: [obstacle(200, 150, [3, 4])],
+      ice: [{ x: 100, y: 420, sides: 4, motes: ['gold', 'gold'] }],
+      motes: motes({ red: 4 }),
+      hand: [{ layers: [layer(4, 40, 'red'), layer(4, 30, 'red')] }],
+    })
+    const full = after(iced, initialEconomy(iced), 'fill R0.0')
+    expect(labels(iced, full)).toEqual(['R0.0->I0'])
+    const broke = after(iced, full, 'R0.0->I0')
+    expect(pool(broke)).toEqual({ red: 4, gold: 2 })
+    expect(broke.ice[0].hp).toBe(0)
+    expect(economyWon(iced, broke)).toBe(false)
+  })
+
+  it('a blow short of a frost layer freezes the piece with what it released; the layer falling thaws it', () => {
+    const bitten = after(level, after(level, initialEconomy(level), 'fill R0.0'), 'R0.0->O0')
+    expect(bitten.obstacles[0]).toEqual({ index: 0, hp: 2 })
+    expect(bitten.ice).toEqual([{ sides: 4, hp: 4, motes: [0, 4, 0, 0, 0, 0], by: [0, 0] }])
+    expect(pool(bitten)).toEqual({ gold: 3 })
+    const thawed = after(level, after(level, bitten, 'fill R1.0'), 'R1.0->O0')
+    expect(thawed.obstacles[0]).toEqual({ index: 1, hp: 3 })
+    expect(thawed.ice[0].hp).toBe(0)
+    expect(pool(thawed)).toEqual({ blue: 4, gold: 3 })
+  })
+
+  it('the frozen piece can be broken instead', () => {
+    const lvl = { ...level, motes: [...ring('red', C, 4), ...ring('gold', B, 4)] }
+    const bitten = after(lvl, after(lvl, initialEconomy(lvl), 'fill R0.0'), 'R0.0->O0')
+    const full = after(lvl, bitten, 'fill R2.0')
+    expect(labels(lvl, full)).toContain('R2.0->I0')
+    const freed = after(lvl, full, 'R2.0->I0')
+    expect(pool(freed)).toEqual({ blue: 4, gold: 4 })
+    expect(freed.obstacles[0]).toEqual({ index: 0, hp: 2 })
+  })
+
+  it("a sim run's moves replay in the model, ice and all", () => {
+    const run = runScript(level, [{ place: 0, at: C }, { tap: 0 }, { place: 1, at: B }, { tap: 1 }], { lossCheck: false, settle: 3 })
+    expect(run.error).toBeUndefined()
+    expect(run.moves.map(moveLabel)).toEqual(['fill R0.0', 'R0.0->O0', 'fill R1.0', 'R1.0->O0'])
+    const end = replay(level, run.moves)!
+    expect(end.ice[0].hp).toBe(0)
+    expect(pool(end)).toEqual({ blue: 4, gold: 3 })
+    const sim = run.sim.state
+    expect(sim.motes.filter((m) => m.state === 'free').map((m) => m.color).sort()).toEqual(['blue', 'blue', 'blue', 'blue', 'gold', 'gold', 'gold'])
   })
 })

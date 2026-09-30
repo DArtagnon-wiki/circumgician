@@ -24,13 +24,16 @@ export interface RunResult {
 const DT = 1 / 30
 
 // The run in the solver's terms (solver.ts): a fill when a piece becomes
-// full, a fire at each detonation.
+// full, a fire at each detonation. Obstacles and ice are numbered apart,
+// each in the order the sim holds them (ice in the order it formed).
 function recordMoves(sim: Sim): Move[] {
   const moves: Move[] = []
   sim.bus.on('piece:full', ({ piece }) => moves.push({ kind: 'fill', rune: piece.slot, layer: piece.depth }))
   sim.bus.on('piece:detonated', ({ piece, info }) => {
-    const target = info.obstacleId === null ? null : sim.state.obstacles.findIndex((o) => o.id === info.obstacleId)
-    moves.push({ kind: 'fire', rune: piece.slot, layer: piece.depth, target })
+    const hit = sim.state.obstacles.find((o) => o.id === info.obstacleId)
+    const kin = sim.state.obstacles.filter((o) => !o.frozen === !hit?.frozen)
+    const target = hit ? kin.indexOf(hit) : null
+    moves.push({ kind: 'fire', rune: piece.slot, layer: piece.depth, target, ...(hit?.frozen ? { ice: true } : {}) })
   })
   return moves
 }

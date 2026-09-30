@@ -12,7 +12,7 @@ const easeOut = (t: number) => 1 - (1 - t) * (1 - t)
 // hold a mote in place.
 const WEDGED = 0.25
 
-// A frozen piece (endless): a disc every free mote is pushed out of.
+// Ice: a disc every free mote is pushed out of.
 interface Block {
   pos: Vec2
   radius: number
@@ -57,7 +57,7 @@ function applyPushAndCoast(state: SimState, mote: Mote, pushers: Piece[], nodesO
     ay += uy * strength
     effort += Math.hypot(ux, uy) * strength
   }
-  // Frozen pieces catch nothing: every free mote is pushed fully clear.
+  // Ice catches nothing: every free mote is pushed fully clear.
   for (const b of blocks) {
     const d = dist(mote.pos, b.pos)
     const limit = b.radius + REACH + mote.tether
@@ -205,10 +205,11 @@ export function updateMotion(state: SimState, bus: SimBus, dt: number): void {
         break
       }
       case 'frozen':
-        break // locked in a frozen piece until it breaks
+        break // locked in ice until it breaks or thaws
       case 'ejecting': {
+        // Progress below 0: freed from ice, waiting for its blow to land.
         mote.t = Math.min(1, (mote.t ?? 0) + dt / EJECT_TIME)
-        mote.pos = lerp(mote.ejectFrom!, mote.home, easeOut(mote.t))
+        mote.pos = lerp(mote.ejectFrom!, mote.home, easeOut(Math.max(0, mote.t)))
         if (mote.t >= 1) {
           mote.state = 'free'
           mote.pos = { ...mote.home }

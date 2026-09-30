@@ -1,4 +1,5 @@
-import { FIELD_ZONE, OBSTACLE_ZONE } from './constants'
+import { FIELD_ZONE, ICE_RADIUS, OBSTACLE_ZONE } from './constants'
+import { circleInRect } from './geometry'
 import type { LevelData, Rect } from './types'
 
 const HUES = ['red', 'blue', 'gold', 'teal', 'violet']
@@ -91,9 +92,29 @@ export function validateLevel(data: unknown): string[] {
         sides(`${lp}.sides`, l.sides)
         if (!isNum(l.radius) || l.radius <= 0) err(`${lp}.radius`, 'must be a positive number')
         if (!isInt(l.hp) || (l.hp as number) < 1) err(`${lp}.hp`, 'must be an integer >= 1')
+        if (l.frost !== undefined && typeof l.frost !== 'boolean') err(`${lp}.frost`, 'must be true or false')
       })
     })
   }
+
+  if (data.ice !== undefined && !Array.isArray(data.ice)) err('ice', 'must be an array')
+  else if (Array.isArray(data.ice))
+    data.ice.forEach((b, i) => {
+      const p = `ice[${i}]`
+      if (!isObj(b)) return err(p, 'must be an object')
+      const okSides = sides(`${p}.sides`, b.sides)
+      if (b.radius !== undefined && (!isNum(b.radius) || b.radius <= 0)) err(`${p}.radius`, 'must be a positive number')
+      if (b.hp !== undefined && (!isInt(b.hp) || (b.hp as number) < 1)) err(`${p}.hp`, 'must be an integer >= 1')
+      const r = isNum(b.radius) ? b.radius : ICE_RADIUS
+      if (!isNum(b.x) || !isNum(b.y)) err(p, 'x and y must be numbers')
+      else if (field && !circleInRect({ x: b.x, y: b.y }, r, field)) err(p, 'must lie inside the field')
+      if (b.motes === undefined) return
+      if (!Array.isArray(b.motes)) return err(`${p}.motes`, 'must be an array')
+      if (okSides && b.motes.length > (b.sides as number)) err(`${p}.motes`, `holds at most ${b.sides} (one per vertex)`)
+      b.motes.forEach((c, k) => {
+        if (!MOTE_COLORS.includes(c as string)) err(`${p}.motes[${k}]`, `must be one of ${MOTE_COLORS.join(', ')}`)
+      })
+    })
 
   if (!Array.isArray(data.hand)) err('hand', 'must be an array')
   else {

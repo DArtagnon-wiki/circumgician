@@ -12,6 +12,8 @@ const AMBER = '#ffb02e'
 const ASH = '#8a847d'
 const GLASS = '#ece6ff'
 const GILT = '#d9b872'
+const FROST = '#9fd4ff'
+const RIME = '#eaf7ff'
 
 type P = [number, number]
 const f = (n: number) => n.toFixed(1)
@@ -85,8 +87,9 @@ function rune(cx: number, cy: number, R: number, nodes: RuneNode[], middleSides:
   return s
 }
 
-// Faceted obsidian with black holes; bosses are veined with gold.
-function obsidian(cx: number, cy: number, R: number, sides: number, holes: P[], boss = false): string {
+// Faceted obsidian with black holes; bosses are veined with gold, frost
+// layers with ice.
+function obsidian(cx: number, cy: number, R: number, sides: number, holes: P[], boss = false, frost = false): string {
   const v = ngon(cx, cy, R, sides)
   const t = ngon(cx, cy, R * 0.45, sides)
   const shades = ['#3d2f63', '#1c1432', '#2b2149', '#110b1f', '#241a3d', '#150e26']
@@ -96,15 +99,30 @@ function obsidian(cx: number, cy: number, R: number, sides: number, holes: P[], 
     s += `<polygon points="${pts([v[i], v[j], t[j], t[i]])}" fill="${shades[i % shades.length]}"/>`
   }
   s += `<polygon points="${pts(t)}" fill="#0e0a1a"/>`
-  if (boss) {
-    s += t.map((p, i) => `<polyline points="${pts([p, [(p[0] + v[i][0]) / 2 + 2, (p[1] + v[i][1]) / 2 - 1], v[i]])}" fill="none" stroke="${GILT}" stroke-width="1.2"/>`).join('')
+  if (boss || frost) {
+    const vein = boss ? GILT : FROST
+    s += t.map((p, i) => `<polyline points="${pts([p, [(p[0] + v[i][0]) / 2 + 2, (p[1] + v[i][1]) / 2 - 1], v[i]])}" fill="none" stroke="${vein}" stroke-width="1.2"/>`).join('')
   }
-  s += `<polygon points="${pts(v)}" fill="none" stroke="${boss ? GILT : '#cdbbff'}" stroke-opacity=".8" stroke-width="1.2"/>`
+  if (frost) s += `<polygon points="${pts(v)}" fill="none" stroke="${FROST}" stroke-opacity=".45" stroke-width="3"/>`
+  s += `<polygon points="${pts(v)}" fill="none" stroke="${boss ? GILT : frost ? RIME : '#cdbbff'}" stroke-opacity=".8" stroke-width="1.2"/>`
   for (const [x, y] of holes) {
     s += `<circle cx="${x}" cy="${y}" r="5.5" fill="#ffb46e" opacity=".35" filter="url(#soft)"/>
       <circle cx="${x}" cy="${y}" r="3.9" fill="none" stroke="#e6dcff" stroke-opacity=".7" stroke-width="1"/>
       <circle cx="${x}" cy="${y}" r="3" fill="#000"/>`
   }
+  return s
+}
+
+// Ice: glazed obsidian rimed in frost, with motes glowing inside.
+function ice(cx: number, cy: number, R: number, sides: number, motes: string[]): string {
+  const v = ngon(cx, cy, R, sides)
+  let s = obsidian(cx, cy, R, sides, [])
+  s += `<polygon points="${pts(v)}" fill="${FROST}" fill-opacity=".2" stroke="${FROST}" stroke-opacity=".85" stroke-width="2.2"/>`
+  s += v.map(([x, y]) => `<line x1="${f(cx + (x - cx) * 0.9)}" y1="${f(cy + (y - cy) * 0.9)}" x2="${f(cx + (x - cx) * 0.5)}" y2="${f(cy + (y - cy) * 0.5)}" stroke="${RIME}" stroke-opacity=".5" stroke-width="1"/>`).join('')
+  ngon(cx, cy, R * 0.78, sides).forEach(([x, y], i) => {
+    const c = motes[i]
+    if (c) s += `<circle cx="${f(x)}" cy="${f(y)}" r="5.5" fill="${c}" opacity=".45" filter="url(#soft)"/><circle cx="${f(x)}" cy="${f(y)}" r="2.8" fill="${c}"/>`
+  })
   return s
 }
 
@@ -177,6 +195,14 @@ const PAGES: { title: string; text: string; svg: string }[] = [
       ${obsidian(110, 76, 37, 3, [[110, 82], [101, 73], [119, 73], [110, 64]])}`,
   },
   {
+    title: 'Ice and frost',
+    text: 'Ice takes up room: nothing can be cast over it. A blow of its shape breaks it and frees any motes inside. A frost-veined layer freezes a rune whose blow leaves it standing: the rune turns to ice with its motes locked inside, until that ice breaks or the frost layer falls.',
+    svg: `${[0.2, 0.35, 0.5, 0.65, 0.8].map((k) => `<circle cx="${f(72 + 88 * k)}" cy="${f(84 - 44 * k)}" r="1.3" fill="${FROST}" opacity=".7"/>`).join('')}
+      ${obsidian(166, 40, 28, 3, [[166, 46], [158, 37], [174, 37]], false, true)}
+      ${ice(66, 86, 30, 4, [RUBY, SAPPHIRE, RUBY])}
+      ${label(166, 90, 'frost', 'middle')}${label(66, 128, 'ice', 'middle')}`,
+  },
+  {
     title: 'Order matters',
     text: 'Every puzzle has a way through. Think about what each rune makes, where its motes will land, and what it leaves room for. Undo and restart are always there.',
     svg: `<circle cx="110" cy="68" r="42" fill="none" stroke="${GLASS}" stroke-width="1" opacity=".35"/>
@@ -185,7 +211,7 @@ const PAGES: { title: string; text: string; svg: string }[] = [
   },
   {
     title: 'Endless',
-    text: 'One life, no undo. Runes and obstacles never run out. A cast layer has ten seconds to detonate, or it freezes into an obstacle holding its motes until broken. Gold-veined bosses reveal more of each rune’s future.',
+    text: 'One life, no undo. Runes and obstacles never run out. A cast layer has ten seconds to detonate, or it freezes into ice holding its motes until broken. Gold-veined bosses reveal more of each rune’s future.',
     svg: `${ghost(110, 72, 52, 5)}
       ${obsidian(110, 74, 36, 3, [[110, 80], [101, 71], [119, 71]], true)}`,
   },

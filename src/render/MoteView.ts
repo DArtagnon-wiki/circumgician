@@ -13,8 +13,10 @@ const DROP = 48
 // Ejecting keeps the sim's timing (t: 0..1 over EJECT_TIME) but is drawn
 // in three beats: unseen until the tubes spill, a droplet forming where it
 // spilled, then a flight home that ends exactly when the sim frees it.
+// A mote freed from ice waits in it (t < 0) and bursts out at once.
 const SPILL = LAUNCH / EJECT_TIME
 const FORMED = SPILL + 0.12
+const THAW_FORMED = 0.12
 
 const smooth = (a: number, b: number, v: number) => {
   const t = Math.min(1, Math.max(0, (v - a) / (b - a)))
@@ -46,10 +48,12 @@ export class MoteView {
   private body: Sprite
   private hot: Sprite
   private drop: Sprite
+  private gem: Sprite // locked in ice: a crisp jewel, so it reads against the glaze
   private smoke: SmokeSystem
   private phase = Math.random() * TAU
   private emitAcc = Math.random() * 0.1
   private prevState: MoteStateKind | null = null
+  private thawing = false // ejecting from ice rather than from a piece's tubes
 
   constructor(smoke: SmokeSystem, layers: MoteLayers) {
     this.smoke = smoke
@@ -58,26 +62,34 @@ export class MoteView {
     this.body = new Sprite(t.glow)
     this.hot = new Sprite(t.glow)
     this.drop = new Sprite(t.droplet)
-    for (const s of [this.halo, this.body, this.hot, this.drop]) s.anchor.set(0.5)
+    this.gem = new Sprite(t.disc)
+    for (const s of [this.halo, this.body, this.hot, this.drop, this.gem]) s.anchor.set(0.5)
     layers.halos.addChild(this.halo)
-    layers.bodies.addChild(this.body, this.drop)
+    layers.bodies.addChild(this.body, this.drop, this.gem)
     layers.hearts.addChild(this.hot)
   }
 
   destroy(): void {
-    for (const s of [this.halo, this.body, this.hot, this.drop]) s.destroy()
+    for (const s of [this.halo, this.body, this.hot, this.drop, this.gem]) s.destroy()
   }
 
   private show(on: boolean): void {
     this.body.visible = on
     this.hot.visible = on
     this.halo.visible = on && quality.settings.glows
-    if (!on) this.drop.visible = false
+    if (!on) this.drop.visible = this.gem.visible = false
+  }
+
+  // Not drawn at all (a frostbitten piece's motes, until its ice appears).
+  hide(): void {
+    this.show(false)
   }
 
   sync(mote: Mote, dt: number, time: number): void {
     const prev = this.prevState
     this.prevState = mote.state
+    if (mote.state !== 'ejecting') this.thawing = false
+    else if (prev === 'frozen') this.thawing = true
     if (mote.state === 'held') {
       this.show(false)
       return
@@ -93,17 +105,23 @@ export class MoteView {
     this.hot.tint = lighten(color, generic ? 0.3 : 0.5)
     this.halo.rotation = 0
     this.drop.visible = false
+    this.gem.visible = false
     const breathe = 1 + Math.sin(time * 2.2 + this.phase) * 0.06
     let heart = 1 // body scale factor
     let alpha = 1
+    let glow = 1 // halo strength
     let stretched = false
 
-    if (mote.state === 'frozen') {
-      // Locked in a frozen piece: a small, still ember glowing through the
-      // ice. No smoke.
-      heart = 0.8
+    if (mote.state === 'frozen' || (mote.state === 'ejecting' && (mote.t ?? 0) < 0)) {
+      // Locked in ice: a still gem glowing through it. No smoke.
+      heart = 1.1
+      glow = 2.2
       alpha = 0.85 + 0.15 * Math.sin(time * 1.3 + this.phase)
       this.halo.tint = lighten(color, 0.2)
+      this.gem.visible = true
+      this.gem.position.set(x, y)
+      this.gem.scale.set(8.5 / 32)
+      this.gem.tint = color
     } else if (mote.state === 'traveling' && mote.travelFrom) {
       // Condensing: the heart tightens and a spiral stream pours after it.
       const t = mote.t ?? 0
@@ -128,22 +146,24 @@ export class MoteView {
       // A liquid droplet: formed from the spill, in flight, then turning
       // back into smoke as it lands.
       const t = mote.t ?? 0
+      const spill = this.thawing ? 0 : SPILL
+      const formed = this.thawing ? THAW_FORMED : FORMED
       const from = mote.ejectFrom
       const dx = mote.home.x - from.x
       const dy = mote.home.y - from.y
-      const u = smooth(FORMED, 1, t)
+      const u = smooth(formed, 1, t)
       const fx = from.x + dx * u
       const fy = from.y + dy * u
       for (const s of [this.halo, this.body, this.hot]) s.position.set(fx, fy)
-      const liquid = t < SPILL ? 0 : 1 - smooth(0.78, 0.98, t)
-      const form = smooth(SPILL, FORMED, t)
+      const liquid = t < spill ? 0 : 1 - smooth(0.78, 0.98, t)
+      const form = this.thawing ? 1 : smooth(spill, formed, t)
       this.drop.visible = liquid > 0.01
       this.drop.position.set(fx, fy)
       this.drop.rotation = Math.atan2(dy, dx)
       this.drop.scale.set(((16 / DROP) * (1 + (1 - u) * 0.4)) * (0.35 + 0.65 * form), (11 / DROP) * (0.35 + 0.65 * form))
       this.drop.tint = color
       this.drop.alpha = liquid
-      alpha = t < SPILL ? 0 : 1 - liquid
+      alpha = t < spill ? 0 : 1 - liquid
       if (t > 0.7) {
         this.every(dt, 0.045, () =>
           this.smoke.emit(fx, fy, wisp, { size: 14, life: 0.8, alpha: 1.6 * (t - 0.65), grow: 2.2, add: true, opal: generic ? this.phase : undefined }),
@@ -189,7 +209,7 @@ export class MoteView {
     if (!stretched) this.halo.scale.set((44 / GLOW) * breathe * heart)
     this.body.scale.set((19 / GLOW) * heart)
     this.hot.scale.set((7 / GLOW) * heart * breathe)
-    this.halo.alpha = 0.3 * alpha
+    this.halo.alpha = Math.min(1, 0.3 * alpha * glow)
     this.body.alpha = alpha
     this.hot.alpha = 0.75 * alpha
   }

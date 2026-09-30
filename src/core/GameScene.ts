@@ -9,12 +9,13 @@ import { SmokeSystem } from '../render/SmokeSystem'
 import { LinkThreads, type Link } from '../render/LinkThreads'
 import { Effects } from '../render/Effects'
 import { LAUNCH, detonationTiming, playDetonation } from '../render/Detonation'
+import { FROST, freezeBurst, frostStreak, iceShatter } from '../render/Frost'
 import { textures } from '../render/textures'
 import { governor, quality, type Tier } from '../render/Quality'
 import { VIRTUAL_WIDTH, VIRTUAL_HEIGHT, computeFit } from './VirtualScreen'
 import { Sim } from '../sim/Sim'
 import { ENDLESS_TUNING, ensureEndlessLayers } from '../sim/endless'
-import { EJECT_TIME, INVENTORY_ZONE, REACH } from '../sim/constants'
+import { EJECT_TIME, INVENTORY_ZONE, REACH, THAW_LAG } from '../sim/constants'
 import { middleAngle, outerAngle, outerLayer } from '../sim/geometry'
 import type { Hue, LevelData, Mote, Obstacle, Piece, Rune, Vec2 } from '../sim/types'
 import type { DetonationInfo } from '../sim/events'
@@ -59,7 +60,7 @@ const TOUCH_LIFT = 56
 const KICK_TOUCH_RADIUS = 26 // fingers are blunt
 const KICK_MOUSE_RADIUS = 16
 const NO_MOTES = new Map<string, Mote>()
-const FROST_COLOR = 0x9fd4ff
+const FROST_BACK = 0.3 // frost racing back from a frost layer to the piece it bites
 
 // One instance per level attempt. The Sim owns all rules; this class only
 // renders its state, turns input into sim actions and adds juice.
@@ -77,6 +78,7 @@ export class GameScene {
   // every frame).
   private impacts = new Map<string, number>()
   private discoveries = 0 // new hues announced for the detonation in progress
+  private veiled = new Set<string>() // motes of a frostbitten piece, hidden until its ice forms
   private flights = new Map<string, Flight>()
   private pops = new Map<string, number>()
   private links = new LinkThreads()
@@ -184,7 +186,7 @@ export class GameScene {
     const s = this.sim.state
     let strengthLeft = 0
     // Endless stacks never end, so only a curated level has a total.
-    if (!this.endless) for (const o of s.obstacles) if (!o.cleared) strengthLeft += o.layers.slice(o.index + 1).reduce((hp, l) => hp + l.hp, o.hp)
+    if (!this.endless) for (const o of s.obstacles) if (!o.cleared && !o.frozen) strengthLeft += o.layers.slice(o.index + 1).reduce((hp, l) => hp + l.hp, o.hp)
     return { ...s.stats, ...this.session, strengthLeft, lostBecause: s.lostBecause }
   }
 
@@ -250,7 +252,8 @@ export class GameScene {
         view = new MoteView(this.smoke, this.moteLayers)
         this.moteViews.set(m.id, view)
       }
-      view.sync(m, dt, time)
+      if (this.veiled.has(m.id)) view.hide()
+      else view.sync(m, dt, time)
     }
     for (const [id, view] of this.moteViews) {
       if (alive.has(id)) continue
@@ -347,15 +350,24 @@ export class GameScene {
     const s = this.sim.state
     const obstacles = new Map(s.obstacles.map((o) => [o.id, o]))
     const list: Link[] = []
+    // Ice (once it shows) is tethered to the frost layer whose fall thaws it.
+    for (const o of s.obstacles) {
+      const boss = o.frozen?.by && obstacles.get(o.frozen.by.obstacle)
+      if (boss && !o.cleared && this.obstacleViews.has(o.id)) list.push({ from: o.pos, to: boss.pos, tether: true })
+    }
+    // A blow short of a frost layer's strength will be caught by its frost.
+    const bitten = (sides: number, o: Obstacle) => !o.frozen && !!o.layers[o.index]?.frost && sides < o.hp
     for (const piece of s.pieces) {
       if (!piece.linkedObstacleId) continue
       const o = obstacles.get(piece.linkedObstacleId)
-      if (o) list.push({ from: piece.pos, to: o.pos, full: piece.state === 'full' })
+      if (o && this.obstacleViews.has(o.id)) list.push({ from: piece.pos, to: o.pos, full: piece.state === 'full', frost: bitten(piece.layer.sides, o) })
     }
     if (this.drag) {
       const target = this.sim.previewLink(this.drag.runeId, this.drag.pos)
       const ok = this.sim.canPlace(this.drag.runeId, this.drag.pos)
-      if (target) list.push({ from: this.drag.pos, to: target.pos, preview: true, invalid: !ok })
+      const rune = this.sim.rune(this.drag.runeId)
+      const outer = rune && outerLayer(rune)
+      if (target) list.push({ from: this.drag.pos, to: target.pos, preview: true, invalid: !ok, frost: !!outer && bitten(outer.sides, target) })
     }
     this.links.draw(list, this.clock)
     const g = this.links.g
@@ -381,6 +393,7 @@ export class GameScene {
     this.moteViews.clear()
     this.flights.clear()
     this.pops.clear()
+    this.veiled.clear()
     this.effects.clear()
     this.pendingResult = null
 
@@ -444,15 +457,27 @@ export class GameScene {
     })
     bus.on('piece:detonated', ({ piece, info }) => this.onDetonated(piece.id, info))
     bus.on('hue:discovered', ({ hue, mote }) => this.onHueDiscovered(hue, { ...mote.home }))
-    // Endless: a piece whose fuse ran out turns to frosted obsidian in place.
+    // Endless: a piece whose fuse ran out turns to ice in place.
     bus.on('piece:frozen', ({ piece, obstacle }) => {
       this.removeView(this.pieceViews, piece.id)
       this.addObstacleView(obstacle)
-      const r = piece.layer.radius
-      this.effects.ring(obstacle.pos, FROST_COLOR, r * 1.35, r * 0.85, 0.5, 2.5)
-      this.effects.ring(obstacle.pos, 0xffffff, r * 0.4, r * 1.1, 0.35, 1.2)
+      freezeBurst(this.effects, obstacle.pos, piece.layer.radius)
       this.effects.addShake(4)
       this.sfx.freeze()
+    })
+    // A frost layer fell: frost races from it to each piece it froze, and
+    // the ice shatters as the motes burst out (the sim times them to it).
+    bus.on('ice:thawed', ({ ice, by }) => {
+      const impact = this.impacts.get(by.id) ?? 0
+      const at = { ...ice.pos }
+      const radius = ice.layers[0].radius
+      this.obstacleViews.get(ice.id)?.holdAsIs(impact + THAW_LAG)
+      this.effects.after(impact, () => frostStreak(this.effects, { ...by.pos }, at, THAW_LAG))
+      this.effects.after(impact + THAW_LAG, () => {
+        iceShatter(this.effects, this.smoke, at, radius)
+        this.effects.addShake(5)
+        this.sfx.iceBreak()
+      })
     })
     // Damage lands when the detonation's orb does (the view holds the
     // obstacle until then); a debug collapse has no orb and lands at once.
@@ -461,7 +486,14 @@ export class GameScene {
     })
     bus.on('obstacle:collapsed', ({ obstacle, previous, cleared }) => {
       const pos = { ...obstacle.pos }
+      const ice = !!obstacle.frozen
       this.effects.after(this.impacts.get(obstacle.id) ?? 0, () => {
+        if (ice) {
+          iceShatter(this.effects, this.smoke, pos, previous.radius)
+          this.effects.addShake(6)
+          this.sfx.iceBreak()
+          return
+        }
         this.effects.obsidianShatter(pos, previous.radius, cleared)
         this.effects.ring(pos, 0xcdb8ff, previous.radius, previous.radius + (cleared ? 90 : 50), 0.5, 2)
         this.effects.addShake(cleared ? 10 : 7)
@@ -521,10 +553,35 @@ export class GameScene {
       liquids: this.pieceViews.get(pieceId)?.liquids(pos, outer, info.outerAngle) ?? [],
       releases: outer.nodes.map((n) => n.release),
       target: target ? { ...target.pos } : null,
+      frozen: !!info.frozeInto,
     })
-    // The piece is used up: its glass shatters in the effect above.
-    this.removeView(this.pieceViews, pieceId)
+    // The piece is used up: its glass shatters in the effect above (or,
+    // frostbitten, it freezes once the blow has landed).
+    if (info.frozeInto && target) this.frostbite(pieceId, info.frozeInto, pos, outer.radius, { ...target.pos }, timing.impact)
+    else this.removeView(this.pieceViews, pieceId)
     this.sfx.detonate(timing.launch, target ? timing.impact : null)
+  }
+
+  // The blow lands and the frost layer holds: frost races back along the
+  // thread, and the piece freezes where it stands, its motes locked inside.
+  // Until then the piece stays as it was, and its motes out of sight.
+  private frostbite(pieceId: string, iceId: string, at: Vec2, radius: number, boss: Vec2, impact: number): void {
+    const ice = this.sim.state.obstacles.find((o) => o.id === iceId)
+    if (!ice) return
+    const motes = [...(ice.frozen?.motes ?? [])]
+    for (const id of motes) this.veiled.add(id)
+    this.effects.after(impact, () => {
+      this.effects.ring(boss, FROST, 14, 64, 0.45, 2.5)
+      frostStreak(this.effects, boss, at, FROST_BACK)
+    })
+    this.effects.after(impact + FROST_BACK, () => {
+      this.removeView(this.pieceViews, pieceId)
+      if (!this.obstacleViews.has(iceId)) this.addObstacleView(ice)
+      for (const id of motes) this.veiled.delete(id)
+      freezeBurst(this.effects, at, radius)
+      this.effects.addShake(4)
+      this.sfx.freeze()
+    })
   }
 
   // A hue the board has never had: the screen flashes it as its liquid
