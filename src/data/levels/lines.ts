@@ -20,9 +20,9 @@ const tapLayer = (slot: number, layer: number): ScriptStep => ({ tap: slot, laye
 // Cast the layer in hand at a spot, kick in the motes it needs, detonate it.
 const cast = (slot: number, p: { x: number; y: number }): ScriptStep[] => [place(slot, p), feed(slot), tap(slot)]
 
-// Levels 5-10: each rune cast on its color's pool (even slots on the first,
-// odd on the second); the maker of the crux batch, the crux and the clean-up
-// at a well.
+// Levels 5-10: each rune cast on its color's pool, an emoji drawn in motes
+// (even slots on the first, odd on the second); the maker of the crux
+// batch, the crux and the clean-up at a well.
 type Spot = { x: number; y: number }
 const LAYOUT: Record<string, { pools: [Spot, Spot]; well: Spot }> = {
   patience: { pools: [at(110, 440), at(290, 440)], well: at(200, 590) },
