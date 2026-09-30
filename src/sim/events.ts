@@ -24,7 +24,8 @@ export type SimEvents = {
   'mote:held': { mote: Mote; piece: Piece; node: number }
   'piece:full': { piece: Piece }
   'piece:detonated': { piece: Piece; info: DetonationInfo }
-  'piece:frozen': { piece: Piece; obstacle: Obstacle } // its fuse ran out
+  'piece:frozen': { piece: Piece; obstacle: Obstacle } // its fuse ran out (endless)
+  'piece:burned': { piece: Piece; motes: Mote[] } // its fuse ran out before it burst; the motes it held burned with it
   'hue:discovered': { hue: Hue; mote: Mote } // a detonation made the first mote of this hue
   'obstacle:damaged': { obstacle: Obstacle; damage: number }
   'obstacle:collapsed': { obstacle: Obstacle; previous: ObstacleLayerSpec; cleared: boolean }

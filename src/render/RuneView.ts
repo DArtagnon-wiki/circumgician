@@ -1,7 +1,8 @@
 import { Circle, Container, Graphics, Sprite } from 'pixi.js'
 import type { Insight, Mote, Piece, ReleaseColor, Rune, RuneLayerSpec, Vec2 } from '../sim/types'
 import { centerLayer, isFinal, middleLayer, outerLayer, polygonPoints } from '../sim/geometry'
-import { ASH_COLOR, ASH_DARK, RUNE_BODY_COLOR, colorForMote, colorForRelease, lighten, opal } from './Theme'
+import { ASH_COLOR, ASH_DARK, FROST, RUNE_BODY_COLOR, colorForMote, colorForRelease, lighten, mix, opal } from './Theme'
+import { EMBER, FLAME, SPARK } from './Fire'
 import { drawPolygon, localVertices } from './drawPolygon'
 import { sheenBand } from './obsidian'
 import { textures } from './textures'
@@ -13,6 +14,19 @@ import { quality } from './Quality'
 export const MIDDLE_SCALE = 0.6
 const CENTER_SCALE = 0.3
 export const BOWL_R = 8.5
+
+// A fuse ring's radius around a piece, and where its burning tip is (piece
+// space) with `left` of the fuse to go: the arc runs clockwise from the top
+// and burns back toward it.
+export const fuseRadius = (radius: number) => radius + BOWL_R + 7
+const fuseTipAt = (r: number, left: number): [number, number] => {
+  const a = -Math.PI / 2 + Math.max(0, left) * Math.PI * 2
+  return [Math.cos(a) * r, Math.sin(a) * r]
+}
+export const fuseTip = (center: Vec2, radius: number, left: number): Vec2 => {
+  const [x, y] = fuseTipAt(fuseRadius(radius), left)
+  return { x: center.x + x, y: center.y + y }
+}
 const TUBE_W = 7
 const LIQUID_W = 3.4
 const FILL_TIME = 0.25
@@ -20,7 +34,6 @@ const FLOWS = 2 // traveling glints per half-tube
 const CAPSULE_W = 64 // capsule texture size
 const CAPSULE_H = 16
 const GLASS_LINE = 0xece6ff
-const FROST = 0x9fd4ff
 
 interface Half {
   node: number
@@ -117,6 +130,7 @@ export class RuneView {
   private drawnKey = ''
   private hit = new Circle(0, 0, 0)
   private fuseG = new Graphics()
+  private heat = 0 // a burning fuse near its end: the glass glows hot (0..1)
   readonly id: string
 
   constructor(id: string) {
@@ -207,6 +221,9 @@ export class RuneView {
 
     this.aura.scale.set(((outer.radius + BOWL_R) * 2.9) / 128)
     this.aura.alpha = !quality.settings.glows ? 0 : full ? 0.22 + pulse * 0.2 : look.state === 'charging' ? 0.06 : 0
+    this.aura.tint = this.heat ? mix(0xeadfff, EMBER, this.heat) : 0xeadfff
+    this.glassG.tint = this.heat ? mix(0xffffff, 0xffb27a, this.heat) : 0xffffff
+    if (this.heat && quality.settings.glows) this.aura.alpha = Math.max(this.aura.alpha, this.heat * (0.25 + 0.2 * Math.abs(Math.sin(time * 11))))
   }
 
   // What the bowls hold right now, in world space, for a detonation's
@@ -220,14 +237,29 @@ export class RuneView {
     return out
   }
 
-  // Endless: the share of a piece's fuse still left, as a thin icy arc that
-  // burns down around it and flickers near the end (null: no fuse).
-  setFuse(left: number | null, radius: number, time: number): void {
+  // The share of a piece's fuse still left (null: no fuse), as an arc that
+  // burns down around it and flickers near the end. Endless's is icy (the
+  // piece will freeze); a level's burns like a fuse, with its spark at the
+  // tip (see fuseTip) and the glass heating as the end nears.
+  setFuse(left: number | null, radius: number, time: number, kind: 'frost' | 'ember' = 'frost'): void {
     const g = this.fuseG
     g.clear()
+    this.heat = 0
     if (left === null) return
-    const r = radius + BOWL_R + 7
+    const r = fuseRadius(radius)
     const urgent = left < 0.3
+    if (kind === 'ember') {
+      this.heat = left < 0.35 ? (0.35 - Math.max(0, left)) / 0.35 : 0
+      g.circle(0, 0, r).stroke({ color: 0x4a140c, width: 1.4, alpha: 0.5 })
+      if (left <= 0) return
+      const flicker = urgent ? 0.7 + 0.3 * Math.abs(Math.sin(time * 13)) : 0.8
+      g.moveTo(0, -r)
+        .arc(0, 0, r, -Math.PI / 2, -Math.PI / 2 + left * Math.PI * 2)
+        .stroke({ color: urgent ? SPARK : FLAME, width: 2.4, alpha: flicker })
+      const [x, y] = fuseTipAt(r, left)
+      g.circle(x, y, 2.6).fill({ color: SPARK, alpha: 0.95 })
+      return
+    }
     g.circle(0, 0, r).stroke({ color: FROST, width: 1, alpha: 0.12 })
     if (left <= 0) return
     const alpha = urgent ? 0.55 + 0.45 * Math.abs(Math.sin(time * 9)) : 0.5

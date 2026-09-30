@@ -87,6 +87,30 @@ const deepWinterToCrux = casts([4, WINTER.frozen], [0, LEFT], [1, RIGHT], [1, LE
 const LONG = { chip: at(84, 550), ice: at(300, 622), mid: at(200, 580) }
 const longWinterToCrux = casts([4, WINTER.frozen], [0, LEFT], [1, RIGHT], [1, LEFT], [2, RIGHT], [2, RIGHT], [2, LEFT], [3, RIGHT], [3, LONG.chip])
 
+// Levels 18-23 (fire, the warm palette): a cast piece burns unless it is
+// filled and burst in time, so each rune is cast where its color was drawn
+// and fed at once. A layer to burn is cast aside, well away from the batch
+// it could catch, and left to burn; the layer under it is then in hand.
+const castLayer = (slot: number, p: Spot, layer: number): ScriptStep[] => [place(slot, p), feed(slot, layer), tapLayer(slot, layer)]
+const FIRE = {
+  left: at(100, 440),
+  right: at(300, 440),
+  mid: at(150, 470), // left of centre: a triangle's blow goes to the left obstacle
+  well: at(200, 580), // where the batch is made
+  boss: at(290, 590), // nearer the boss than the left obstacle
+  leftWell: at(110, 590),
+  aside: at(78, 390), // somewhere to let a layer burn
+  aside2: at(200, 388),
+}
+const kindlingToCrux = casts([0, FIRE.left], [1, FIRE.right], [2, FIRE.left], [3, FIRE.right], [4, FIRE.well])
+const shortFuseToCrux = casts([0, FIRE.left], [1, FIRE.right], [2, FIRE.left], [3, FIRE.right], [0, FIRE.left], [4, FIRE.well])
+const firebreakToCrux = shortFuseToCrux
+const backdraftToCrux = casts([0, FIRE.left], [1, FIRE.right], [2, FIRE.left], [3, FIRE.right], [0, FIRE.left], [1, FIRE.right], [4, FIRE.well])
+const FRONT = { left: at(110, 612), right: at(290, 612) } // Wildfire's garnet is the fire front along the bottom
+const wildfireToCrux = casts([0, FRONT.left], [1, FIRE.mid], [2, FRONT.right], [3, FIRE.right], [2, FRONT.right], [3, FIRE.right], [0, FRONT.right], [4, FIRE.well])
+const phoenixToCrux = casts([0, FIRE.left], [1, FIRE.mid], [2, FIRE.left], [3, FIRE.right], [2, FIRE.left], [3, FIRE.right], [0, FIRE.left], [1, FIRE.right], [4, FIRE.well])
+const burnAside = (slot: number, ...spots: Spot[]): ScriptStep[] => spots.map((p) => place(slot, p))
+
 export const LINES: Record<string, Line[]> = {
   // Levels 1-3 are calm: plenty of every color, nothing that loses for good.
   'first-threads': [
@@ -224,6 +248,38 @@ export const LINES: Record<string, Line[]> = {
     { name: 'a lapis square at the boss', expect: 'lost', steps: [...longWinterToCrux, ...cast(0, WINTER.boss)] },
     { name: 'breaking the turquoise ice first', expect: 'not-won', steps: [...longWinterToCrux, ...cast(6, LONG.ice)] },
     { name: 'a lapis square finishing the rescue', expect: 'not-won', steps: [...longWinterToCrux, ...cast(1, LONG.chip)] },
+  ],
+  kindling: [
+    { name: 'intended', expect: 'won', steps: [...kindlingToCrux, ...burnAside(5, FIRE.aside), ...castLayer(5, FIRE.well, 1), ...cast(6, FIRE.well)] },
+    { name: 'the decoy garnet triangle', expect: 'not-won', steps: [...kindlingToCrux, ...cast(5, FIRE.well)] },
+  ],
+  'short-fuse': [
+    { name: 'intended', expect: 'won', steps: [...shortFuseToCrux, ...burnAside(5, FIRE.aside, FIRE.aside2), ...castLayer(5, FIRE.well, 2), ...cast(6, FIRE.well), ...cast(1, FIRE.right)] },
+    { name: 'the decoy garnet triangle', expect: 'not-won', steps: [...shortFuseToCrux, ...cast(5, FIRE.well)] },
+    { name: 'burning one, then the decoy garnet square', expect: 'not-won', steps: [...shortFuseToCrux, ...burnAside(5, FIRE.aside), ...castLayer(5, FIRE.well, 1)] },
+  ],
+  firebreak: [
+    { name: 'intended', expect: 'won', steps: [...firebreakToCrux, ...cast(5, FIRE.boss), ...cast(6, FIRE.leftWell), ...cast(8, FIRE.well), ...cast(8, FIRE.right)] },
+    { name: 'the carnelian triangle', expect: 'not-won', steps: [...firebreakToCrux, ...cast(7, FIRE.well)] },
+    { name: 'burning the rose quartz square for the other hexagon', expect: 'not-won', steps: [...firebreakToCrux, ...burnAside(6, FIRE.aside), ...castLayer(6, FIRE.boss, 1)] },
+  ],
+  backdraft: [
+    { name: 'intended', expect: 'won', steps: [...backdraftToCrux, ...burnAside(5, FIRE.aside), ...castLayer(5, FIRE.boss, 1), ...cast(6, FIRE.leftWell), ...cast(8, FIRE.well), ...cast(9, FIRE.well), ...cast(8, FIRE.right)] },
+    { name: 'the citrine square', expect: 'not-won', steps: [...backdraftToCrux, ...cast(7, FIRE.boss)] },
+    { name: 'burning the rose quartz square', expect: 'not-won', steps: [...backdraftToCrux, ...burnAside(6, FIRE.aside), ...castLayer(6, FIRE.boss, 1)] },
+    { name: 'the decoy citrine triangle', expect: 'not-won', steps: [...backdraftToCrux, ...cast(5, FIRE.boss)] },
+  ],
+  wildfire: [
+    { name: 'intended', expect: 'won', steps: [...wildfireToCrux, ...burnAside(5, FIRE.aside, FIRE.aside2), ...castLayer(5, FIRE.boss, 2), ...cast(6, FIRE.leftWell), ...cast(8, FIRE.well), ...cast(9, FIRE.well), ...cast(8, FIRE.right)] },
+    { name: 'the spinel square', expect: 'not-won', steps: [...wildfireToCrux, ...cast(7, FIRE.boss)] },
+    { name: 'burning the garnet square', expect: 'not-won', steps: [...wildfireToCrux, ...burnAside(6, FIRE.aside), ...castLayer(6, FIRE.boss, 1)] },
+    { name: 'burning one, then the decoy spinel square', expect: 'not-won', steps: [...wildfireToCrux, ...burnAside(5, FIRE.aside), ...castLayer(5, FIRE.boss, 1)] },
+  ],
+  phoenix: [
+    { name: 'intended', expect: 'won', steps: [...phoenixToCrux, ...burnAside(5, FIRE.aside, FIRE.aside2), ...castLayer(5, FIRE.boss, 2), ...cast(6, FIRE.leftWell), ...cast(8, FIRE.well), ...cast(9, FIRE.well), ...cast(8, FIRE.right), ...cast(9, FIRE.left)] },
+    { name: 'the rose quartz square', expect: 'not-won', steps: [...phoenixToCrux, ...cast(7, FIRE.boss)] },
+    { name: 'burning the spinel square', expect: 'not-won', steps: [...phoenixToCrux, ...burnAside(6, FIRE.aside), ...castLayer(6, FIRE.boss, 1)] },
+    { name: 'burning one, then the decoy rose quartz square', expect: 'not-won', steps: [...phoenixToCrux, ...burnAside(5, FIRE.aside), ...castLayer(5, FIRE.boss, 1)] },
   ],
 }
 

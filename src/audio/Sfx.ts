@@ -237,6 +237,22 @@ export class Sfx {
     this.tone(160, 0.25, 0.12, 0, 'sine', 90)
   }
 
+  // A fuse running low: a short hiss of sparks.
+  fuseLow(): void {
+    this.noise(0.3, { type: 'highpass', freq: 3800, to: 6000, q: 0.7, peak: 0.06 })
+    for (let k = 0; k < 4; k++) this.noise(0.012, { type: 'bandpass', freq: 2500 + Math.random() * 2500, q: 2, peak: 0.08 }, 0.03 + k * 0.06 + Math.random() * 0.03)
+  }
+
+  // A piece burning away: a whoosh of flame, the crackle of fire, a dull
+  // thump and the glass giving way in the heat.
+  burn(): void {
+    this.noise(0.4, { type: 'bandpass', freq: 260, to: 1600, q: 0.8, peak: 0.2, swell: true })
+    this.noise(0.9, { type: 'lowpass', freq: 900, to: 200, peak: 0.1, attack: 0.05, reverb: 0.2 }, 0.3)
+    for (let k = 0; k < 10; k++) this.noise(0.01 + Math.random() * 0.02, { type: 'bandpass', freq: 1500 + Math.random() * 3000, q: 1.5, peak: 0.08 + Math.random() * 0.1 }, 0.25 + Math.random() * 0.7)
+    this.tone(95, 0.35, 0.12, 0.3, 'sine', 48)
+    this.ping(1500 + Math.random() * 200, 0.25, 0.03, 0.34, 0.3)
+  }
+
   // Deep obsidian crack: a sharp snap over a falling rumble, and stone
   // chips; clearing an obstacle adds a rising glass flourish.
   // Ice giving way: a bright crack, then shards tinkling down and a breath

@@ -5,7 +5,7 @@ export type Hue = 'red' | 'blue' | 'gold' | 'teal' | 'violet'
 
 // The color schemes a level can be drawn in. A palette changes how the five
 // hues look and what they are called, never what they do (Theme.ts).
-export const PALETTE_NAMES = ['jewel', 'cool'] as const
+export const PALETTE_NAMES = ['jewel', 'cool', 'warm'] as const
 export type PaletteName = (typeof PALETTE_NAMES)[number]
 
 // A real mote's color. Never 'annihilating' — that value only ever describes

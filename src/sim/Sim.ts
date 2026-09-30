@@ -2,7 +2,7 @@ import { createSimBus, type SimBus } from './events'
 import { loadLevel } from './loadLevel'
 import { flickMote, kickMote, updateCatching, updateMotion } from './motion'
 import { certainLoss, isWon } from './progress'
-import { canPlace, castRune, damageObstacle, detonatePiece, findLink, freezePiece, relinkAll, type EnsureLayers } from './rules'
+import { burnPiece, canPlace, castRune, damageObstacle, detonatePiece, findLink, freezePiece, relinkAll, type EnsureLayers } from './rules'
 import { middleLayer } from './geometry'
 import type { LevelData, Obstacle, Piece, Rune, SimState, Vec2 } from './types'
 
@@ -14,7 +14,8 @@ export interface SimOptions {
   ensureLayers?: EnsureLayers
   // Off for mechanics tests and editor sandboxes on unwinnable boards.
   lossCheck?: boolean
-  // Endless: seconds a cast piece has to detonate before it freezes.
+  // Endless: seconds a cast piece has to detonate before it freezes. (A
+  // level's own `fuse` burns pieces instead; see burnPiece.)
   fuse?: number
 }
 
@@ -56,6 +57,14 @@ export class Sim {
     updateMotion(s, this.bus, dt)
     if (s.status !== 'playing') return
     for (const piece of [...s.pieces]) if (piece.freezeAt !== undefined && s.time >= piece.freezeAt) freezePiece(s, this.bus, piece)
+    let burned = false
+    for (const piece of [...s.pieces]) {
+      if (piece.burnAt === undefined || s.time < piece.burnAt) continue
+      burnPiece(s, this.bus, piece)
+      burned = true
+    }
+    if (burned) this.checkLoss()
+    if (s.status !== 'playing') return
     updateCatching(s, this.bus)
     this.sinceLossCheck += dt
     if (this.sinceLossCheck >= LOSS_CHECK_INTERVAL) {
@@ -79,7 +88,7 @@ export class Sim {
     const rune = this.rune(runeId)
     if (!rune || !this.canPlace(runeId, pos)) return null
     this.snapshot()
-    return castRune(this.state, this.bus, rune, pos, this.opts.ensureLayers, this.opts.fuse)
+    return castRune(this.state, this.bus, rune, pos, this.opts.ensureLayers, { freeze: this.opts.fuse, burn: this.level.fuse })
   }
 
   // `force` (debug only) detonates a charging piece as if it were full.

@@ -50,6 +50,7 @@ function recapBlock(recap: Recap, keys: StatKey[], won: boolean): HTMLElement[] 
   }
   const notes = [
     recap.unlinked ? `${plural(recap.unlinked, 'detonation')} struck nothing` : '',
+    recap.burned ? `${plural(recap.burned, 'rune')} burned` : '',
     recap.destroyed ? `${plural(recap.destroyed, 'mote')} destroyed` : '',
   ].filter(Boolean)
   if (!notes.length) return [grid]

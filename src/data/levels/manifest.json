@@ -16,11 +16,18 @@
     "the-rescue",
     "two-winters",
     "deep-winter",
-    "the-long-winter"
+    "the-long-winter",
+    "kindling",
+    "short-fuse",
+    "firebreak",
+    "backdraft",
+    "wildfire",
+    "phoenix"
   ],
   "debug": [
     "fail-no-match",
     "fail-no-motes",
-    "sandbox-ice-frost"
+    "sandbox-ice-frost",
+    "sandbox-fire"
   ]
 }

@@ -14,6 +14,11 @@ const GLASS = '#ece6ff'
 const GILT = '#d9b872'
 const FROST = '#9fd4ff'
 const RIME = '#eaf7ff'
+const GARNET = '#d90037'
+const CITRINE = '#ecd64e'
+const FLAME = '#ffa53a'
+const EMBER = '#ff5a1f'
+const SPARK = '#ffe7a0'
 
 type P = [number, number]
 const f = (n: number) => n.toFixed(1)
@@ -126,6 +131,29 @@ function ice(cx: number, cy: number, R: number, sides: number, motes: string[]):
   return s
 }
 
+// A burning fuse around a cast rune: the charred ring, the length still to
+// burn (clockwise from the top), and the spark at its tip.
+function fuse(cx: number, cy: number, r: number, left: number): string {
+  const a = ((-90 + left * 360) * Math.PI) / 180
+  const [tx, ty] = [cx + Math.cos(a) * r, cy + Math.sin(a) * r]
+  const large = left > 0.5 ? 1 : 0
+  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#4a140c" stroke-width="1.4" opacity=".8"/>
+    <path d="M${cx} ${cy - r} A${r} ${r} 0 ${large} 1 ${f(tx)} ${f(ty)}" fill="none" stroke="${FLAME}" stroke-width="2.4" stroke-linecap="round"/>
+    <circle cx="${f(tx)}" cy="${f(ty)}" r="6" fill="${FLAME}" opacity=".6" filter="url(#soft)"/><circle cx="${f(tx)}" cy="${f(ty)}" r="2.6" fill="${SPARK}"/>
+    ${[[-6, -9], [5, -13], [-2, -18]].map(([dx, dy]) => `<circle cx="${f(tx + dx)}" cy="${f(ty + dy)}" r="1" fill="${SPARK}" opacity=".8"/>`).join('')}`
+}
+
+// What a burned rune leaves: charred, cracked glass, embers and rising ash.
+function burned(cx: number, cy: number, R: number, sides: number): string {
+  const v = ngon(cx, cy, R, sides)
+  let s = `<circle cx="${cx}" cy="${cy}" r="${R + 6}" fill="${EMBER}" opacity=".22" filter="url(#softer)"/>`
+  s += `<polygon points="${pts(v)}" fill="#2b1c16" fill-opacity=".55" stroke="#5a3a2c" stroke-width="2.4" stroke-dasharray="14 5 6 7"/>`
+  s += `<polyline points="${pts([[cx - R * 0.5, cy - R * 0.2], [cx - R * 0.1, cy + R * 0.05], [cx + R * 0.15, cy - R * 0.25], [cx + R * 0.45, cy + R * 0.1]])}" fill="none" stroke="${FLAME}" stroke-opacity=".7" stroke-width="1"/>`
+  for (const [dx, dy, r] of [[-8, -R - 6, 7], [6, -R - 16, 9], [-2, -R - 30, 11]]) s += `<circle cx="${cx + dx}" cy="${cy + dy}" r="${r}" fill="${ASH}" opacity=".3" filter="url(#soft)"/>`
+  for (const [dx, dy] of [[-R * 0.6, R * 0.5], [R * 0.4, R * 0.7], [R * 0.2, -R * 0.9], [-R * 0.3, -R * 1.2]]) s += `<circle cx="${f(cx + dx)}" cy="${f(cy + dy)}" r="1.4" fill="${EMBER}"/>`
+  return s
+}
+
 // The next shape's outline, dotted with its strength (as ObstacleView).
 function ghost(cx: number, cy: number, R: number, sides: number, hp = 0): string {
   const v = ngon(cx, cy, R, sides)
@@ -204,6 +232,19 @@ const PAGES: { title: string; text: string; svg: string }[] = [
       ${obsidian(166, 40, 28, 3, [[166, 46], [158, 37], [174, 37]], false, true)}
       ${ice(66, 86, 30, 4, [RUBY, SAPPHIRE, RUBY])}
       ${label(166, 90, 'frost', 'middle')}${label(66, 128, 'ice', 'middle')}`,
+  },
+  {
+    title: 'Fire and fuses',
+    text: 'In the fire levels every rune you cast has a fuse. Fill it and burst it before the fuse burns down, or it burns: the motes it holds turn to ash, and its shape is gone without a blow. The rune moves on to its next layer, so letting a layer you don’t need burn is one way past it.',
+    svg: `${fuse(70, 62, 44, 0.62)}
+      ${rune(70, 62, 29, [
+      { c: GARNET, r: CITRINE, held: GARNET },
+      { c: GARNET, r: CITRINE, held: GARNET },
+      { c: GARNET, r: CITRINE },
+      { c: GARNET, r: CITRINE },
+    ], 3)}
+      ${burned(168, 70, 25, 4)}
+      ${label(70, 124, 'fuse', 'middle')}${label(168, 124, 'burned', 'middle')}`,
   },
   {
     title: 'Order matters',

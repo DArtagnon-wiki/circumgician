@@ -72,7 +72,7 @@ export function loadLevel(level: LevelData, seed = 1): SimState {
     status: 'playing',
     score: 0,
     broken: 0,
-    stats: { detonations: 0, landed: 0, wasted: 0, unlinked: 0, destroyed: 0 },
+    stats: { detonations: 0, landed: 0, wasted: 0, unlinked: 0, destroyed: 0, burned: 0 },
     seenHues: [...new Set(all.map((m) => m.color).filter((c): c is Hue => c !== 'generic'))],
   }
 }

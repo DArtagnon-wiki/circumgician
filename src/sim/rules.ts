@@ -56,8 +56,16 @@ export type EnsureLayers = (state: SimState) => void
 // The layer in hand goes onto the field as a piece, and the rune brings its
 // next layer into hand at once; when that next entry is the stack's last
 // (a target shape only), the rune is spent instead.
-export function castRune(state: SimState, bus: SimBus, rune: Rune, pos: Vec2, ensure?: EnsureLayers, fuse?: number): Piece {
+// Fuses, in seconds from the cast: `freeze` (endless) turns the piece to
+// ice, `burn` (a level's fuse, or the layer's own) burns it away.
+export interface Fuses {
+  freeze?: number
+  burn?: number
+}
+
+export function castRune(state: SimState, bus: SimBus, rune: Rune, pos: Vec2, ensure?: EnsureLayers, fuses: Fuses = {}): Piece {
   const layer = outerLayer(rune)!
+  const burn = layer.fuse ?? fuses.burn
   const energy = middleLayer(rune)!
   const piece: Piece = {
     id: `piece-${state.nextId++}`,
@@ -71,7 +79,8 @@ export function castRune(state: SimState, bus: SimBus, rune: Rune, pos: Vec2, en
     state: 'charging',
     held: Array.from({ length: layer.sides }, () => null),
     linkedObstacleId: findLink(state, energy, pos)?.id ?? null,
-    ...(fuse !== undefined ? { freezeAt: state.time + fuse } : {}),
+    ...(fuses.freeze !== undefined ? { freezeAt: state.time + fuses.freeze } : {}),
+    ...(burn !== undefined ? { burnAt: state.time + burn } : {}),
   }
   state.pieces.push(piece)
   rune.index++
@@ -213,6 +222,19 @@ export function freezePiece(state: SimState, bus: SimBus, piece: Piece): Obstacl
   bus.emit('piece:frozen', { piece, obstacle })
   relinkAll(state, bus)
   return obstacle
+}
+
+// A piece whose fuse ran out before it was burst burns away: the layer is
+// spent without striking, and the motes it holds (or was drawing in) burn
+// with it. The rune already holds its next layer.
+export function burnPiece(state: SimState, bus: SimBus, piece: Piece): void {
+  const ids = new Set(piece.held.filter((id): id is string => id !== null))
+  const motes = state.motes.filter((m) => ids.has(m.id))
+  state.motes = state.motes.filter((m) => !ids.has(m.id))
+  state.pieces = state.pieces.filter((p) => p !== piece)
+  state.stats.burned++
+  state.stats.destroyed += motes.length
+  bus.emit('piece:burned', { piece, motes })
 }
 
 // Damage never overflows into the next layer. Does not relink; callers do.

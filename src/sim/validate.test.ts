@@ -78,11 +78,26 @@ describe('validateLevel', () => {
     expect(validateLevel(l)).toContain('hand[0].layers[0].nodes[0].release: endless levels never annihilate')
   })
 
+  it('checks fuses: positive seconds, and never on an endless level', () => {
+    const l = good()
+    l.fuse = 10
+    l.hand[0].layers[0].fuse = 14
+    expect(validateLevel(l)).toEqual([])
+    l.fuse = 0
+    l.hand[0].layers[0].fuse = 'soon'
+    const errs = validateLevel(l)
+    expect(errs).toContain('fuse: must be a positive number of seconds')
+    expect(errs).toContain('hand[0].layers[0].fuse: must be a positive number of seconds')
+    l.fuse = 10
+    l.endless = { seed: 1 }
+    expect(validateLevel(l)).toContain('fuse: endless levels have their own fuse')
+  })
+
   it('accepts a known palette and nothing else', () => {
     const l = good()
     l.palette = 'cool'
     expect(validateLevel(l)).toEqual([])
     l.palette = 'neon'
-    expect(validateLevel(l)).toEqual(['palette: must be one of jewel, cool'])
+    expect(validateLevel(l)).toEqual(['palette: must be one of jewel, cool, warm'])
   })
 })

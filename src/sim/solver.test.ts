@@ -74,6 +74,17 @@ describe('economy moves', () => {
     // Room for one piece only: no digging.
     expect(transitions(level, s, { maxPlaced: 1 })).toEqual([])
   })
+
+  it('with a fuse, digging burns the layers above: gone for good, and taking no room', () => {
+    const level = testLevel({ fuse: 10, motes: motes({ red: 4, blue: 3 }), hand: [{ layers: [layer(4, 40, 'red'), layer(3, 66, 'blue'), layer(3, 30, 'red')] }] })
+    const s = initialEconomy(level)
+    expect(labels(level, s)).toEqual(['fill R0.0', 'fill R0.1'])
+    const dug = after(level, s, 'fill R0.1')
+    expect(dug.hand).toEqual([2])
+    expect(dug.pieces).toEqual([{ rune: 0, layer: 1, full: true }])
+    expect(labels(level, dug)).toEqual(['R0.1->O0']) // the square burned: it can never fill now
+    expect(transitions(level, s, { maxPlaced: 1 }).map((t) => moveLabel(t.move))).toEqual(['fill R0.0', 'fill R0.1'])
+  })
 })
 
 describe('loss test', () => {

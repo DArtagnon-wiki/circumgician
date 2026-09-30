@@ -3,13 +3,14 @@ import { createLayers, type Layers } from '../render/Layers'
 import { ACCENT_COLOR, INVALID_TINT, RUNE_BODY_COLOR, activePalette, colorForMote, hueColor, hueName, lighten, usePalette } from '../render/Theme'
 import { ZoneBackground } from '../render/ZoneBackground'
 import { ObstacleView } from '../render/ObstacleView'
-import { MIDDLE_SCALE, RuneView, handLook, pieceLook } from '../render/RuneView'
+import { MIDDLE_SCALE, RuneView, fuseTip, handLook, pieceLook } from '../render/RuneView'
 import { MoteView, createMoteLayers, type MoteLayers } from '../render/MoteView'
 import { SmokeSystem } from '../render/SmokeSystem'
 import { LinkThreads, type Link } from '../render/LinkThreads'
 import { Effects } from '../render/Effects'
 import { LAUNCH, detonationTiming, playDetonation } from '../render/Detonation'
 import { FROST, freezeBurst, frostStreak, iceShatter } from '../render/Frost'
+import { burnUp, fuseSpark } from '../render/Fire'
 import { textures } from '../render/textures'
 import { governor, quality, type Tier } from '../render/Quality'
 import { VIRTUAL_WIDTH, VIRTUAL_HEIGHT, computeFit } from './VirtualScreen'
@@ -102,6 +103,8 @@ export class GameScene {
   private veiled = new Set<string>() // motes of a frostbitten piece, hidden until its ice forms
   private flights = new Map<string, Flight>()
   private pops = new Map<string, number>()
+  private sparks = new Map<string, number>() // per burning piece: time until its fuse throws the next spark
+  private lowFuses = new Set<string>() // burning pieces whose fuse has already sizzled low
   private links = new LinkThreads()
   private effects!: Effects
   private smoke!: SmokeSystem
@@ -366,8 +369,25 @@ export class GameScene {
       view.container.position.set(piece.pos.x, piece.pos.y)
       view.body.scale.set(scale)
       view.setHitRadius(piece.layer.radius * scale + 10)
-      view.setFuse(piece.freezeAt === undefined ? null : Math.max(0, (piece.freezeAt - s.time) / ENDLESS_TUNING.fuse), piece.layer.radius, s.time)
+      if (piece.burnAt !== undefined) this.burnFuse(view, piece, dt)
+      else view.setFuse(piece.freezeAt === undefined ? null : Math.max(0, (piece.freezeAt - s.time) / ENDLESS_TUNING.fuse), piece.layer.radius, s.time)
       view.sync(pieceLook(piece), outerAngle(piece, s.time), middleAngle(piece, s.time), s.time, dt, motes)
+    }
+  }
+
+  // A level's fuse burning down around a piece: sparks fly from its tip,
+  // and it sizzles once as it runs low.
+  private burnFuse(view: RuneView, piece: Piece, dt: number): void {
+    const s = this.sim.state
+    const left = Math.max(0, (piece.burnAt! - s.time) / (piece.burnAt! - piece.placedAt))
+    view.setFuse(left, piece.layer.radius, s.time, 'ember')
+    let wait = (this.sparks.get(piece.id) ?? 0) - dt
+    const every = left < 0.3 ? 0.03 : 0.07
+    for (; wait <= 0; wait += every) fuseSpark(this.effects, fuseTip(piece.pos, piece.layer.radius, left))
+    this.sparks.set(piece.id, wait)
+    if (left < 0.3 && !this.lowFuses.has(piece.id)) {
+      this.lowFuses.add(piece.id)
+      this.sfx.fuseLow()
     }
   }
 
@@ -418,6 +438,8 @@ export class GameScene {
     this.obstacleViews.clear()
     this.moteViews.clear()
     this.flights.clear()
+    this.sparks.clear()
+    this.lowFuses.clear()
     this.pops.clear()
     this.veiled.clear()
     this.effects.clear()
@@ -483,6 +505,16 @@ export class GameScene {
     })
     bus.on('piece:detonated', ({ piece, info }) => this.onDetonated(piece.id, info))
     bus.on('hue:discovered', ({ hue, mote }) => this.onHueDiscovered(hue, { ...mote.home }))
+    // A piece whose fuse burned down before it burst: it and the motes it
+    // held go up in flames and ash.
+    bus.on('piece:burned', ({ piece, motes }) => {
+      this.removeView(this.pieceViews, piece.id)
+      this.sparks.delete(piece.id)
+      this.lowFuses.delete(piece.id)
+      burnUp(this.effects, this.smoke, { ...piece.pos }, piece.layer.radius, motes.map((m) => ({ ...m.pos })))
+      this.effects.addShake(4)
+      this.sfx.burn()
+    })
     // Endless: a piece whose fuse ran out turns to ice in place.
     bus.on('piece:frozen', ({ piece, obstacle }) => {
       this.removeView(this.pieceViews, piece.id)
@@ -560,6 +592,8 @@ export class GameScene {
   private onDetonated(pieceId: string, info: DetonationInfo): void {
     const { pos, outer } = info
     this.discoveries = 0
+    this.sparks.delete(pieceId)
+    this.lowFuses.delete(pieceId)
     // Fires before the sim damages the obstacle, so it still shows the
     // state to hold on screen until the orb lands.
     const target = info.obstacleId ? this.sim.state.obstacles.find((o) => o.id === info.obstacleId) : undefined

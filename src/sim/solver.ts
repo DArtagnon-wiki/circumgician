@@ -33,6 +33,11 @@ import type { LevelData, MoteColor } from './types'
 // digging: `maxPlaced` caps the pieces on the field at once. The default,
 // DEFAULT_ROOM, is about what a field holds; without any cap a rune's stack
 // is effectively an unordered bag of layers, and deep stacks explode.
+// In a level with a fuse, pieces burn unless they are filled and burst in
+// time, so digging burns the layers above (their strikes are lost, and they
+// take no room); a stack is then a queue whose layers can be skipped. (A
+// full piece left to burn is a mistake, like a stray catch; it is not a
+// move.)
 // Curated levels are small, so the search is exhaustive and memoized, and
 // the profile below (plans, decisions, traps) is exact for this model.
 // Whether the geometry allows a plan (room on the field, which motes a ring
@@ -63,6 +68,7 @@ export interface Economy {
   pieces: EconomyPiece[] // cast and not yet detonated, sorted by rune then layer
   obstacles: { index: number; hp: number }[] // index past the last layer = cleared
   ice: EconomyIce[]
+  burned?: number // layers burned by digging (levels with a fuse)
 }
 
 // A fire's target indexes the obstacles, or the ice when `ice` is set.
@@ -129,7 +135,7 @@ function status(s: Economy, rune: number, layer: number): 'open' | 'full' | 'fir
 // cap, which layers are already on the field matters too.
 export function economyKey(level: LevelData, s: Economy, opts: SolverOptions = {}): string {
   const ice = s.ice.map((b) => (b.hp ? `${b.sides}:${b.hp}:${b.motes.join('.')}${b.by ? `<${b.by.join('.')}` : ''}` : 'x')).join(',')
-  const obs = `${s.obstacles.map((o) => `${o.index}:${o.hp}`).join(',')}|${ice}`
+  const obs = `${s.obstacles.map((o) => `${o.index}:${o.hp}`).join(',')}|${ice}${s.burned ? `|b${s.burned}` : ''}`
   if (room(opts) === Infinity) {
     const mark = { open: 'o', full: 'F', fired: 'x' }
     const layers = level.hand.map((_, r) => Array.from({ length: castable(level, r) }, (_, k) => mark[status(s, r, k)]).join('')).join(',')
@@ -188,19 +194,23 @@ function fill(level: LevelData, s: Economy, rune: number, layer: number, opts: S
   const onField = s.pieces.findIndex((p) => p.rune === rune && p.layer === layer)
   let pieces: EconomyPiece[]
   const hand = [...s.hand]
+  let burned = s.burned ?? 0
   if (onField >= 0) {
     if (s.pieces[onField].full) return null
     pieces = s.pieces.map((p, i) => (i === onField ? { ...p, full: true } : p))
   } else {
     if (layer < s.hand[rune] || layer >= castable(level, rune)) return null
-    // Dig: the layers above it go down as empty pieces.
+    // Dig: the layers above it go down as empty pieces (or, in a level
+    // with a fuse, burn away).
     const cast = layer - s.hand[rune] + 1
-    if (s.pieces.length + cast > room(opts)) return null
-    const dug = Array.from({ length: cast - 1 }, (_, i) => ({ rune, layer: s.hand[rune] + i, full: false }))
+    const burns = level.fuse !== undefined
+    if (s.pieces.length + (burns ? 1 : cast) > room(opts)) return null
+    const dug = burns ? [] : Array.from({ length: cast - 1 }, (_, i) => ({ rune, layer: s.hand[rune] + i, full: false }))
     pieces = [...s.pieces, ...dug, { rune, layer, full: true }].sort(byRuneLayer)
     hand[rune] = layer + 1
+    if (burns) burned += cast - 1
   }
-  return { move: { kind: 'fill', rune, layer }, next: { pool, hand, pieces, obstacles: s.obstacles, ice: s.ice } }
+  return { move: { kind: 'fill', rune, layer }, next: { pool, hand, pieces, obstacles: s.obstacles, ice: s.ice, ...(burned ? { burned } : {}) } }
 }
 
 function fire(level: LevelData, s: Economy, rune: number, layer: number, target: number | null, ice = false): Transition {
@@ -251,7 +261,7 @@ function fire(level: LevelData, s: Economy, rune: number, layer: number, target:
   }
   if (!frozen) pool = plus(pool, released)
   const pieces = s.pieces.filter((p) => !(p.rune === rune && p.layer === layer))
-  return { move: { kind: 'fire', rune, layer, target, ...(ice ? { ice } : {}) }, next: { pool, hand: s.hand, pieces, obstacles, ice: blocks }, blow }
+  return { move: { kind: 'fire', rune, layer, target, ...(ice ? { ice } : {}) }, next: { pool, hand: s.hand, pieces, obstacles, ice: blocks, ...(s.burned ? { burned: s.burned } : {}) }, blow }
 }
 
 // Every legal move from s.
@@ -360,7 +370,11 @@ export class EconomySolver {
 
   // How tense a winnable state is (see Tension).
   tension(s: Economy): Tension {
-    const ms = this.moves(s)
+    const all = this.moves(s)
+    // With a fuse, digging burns the layers above: a slow, deliberate
+    // sacrifice rather than a choice among the moves at hand, so peril
+    // counts the others. With nothing else to do, the burn is all there is.
+    const ms = this.level.fuse === undefined ? all : all.filter((t) => !(t.move.kind === 'fill' && t.move.layer > s.hand[t.move.rune]))
     const losing = ms.filter((t) => !this.canWin(t.next)).length
     let margin = Infinity
     let tight: MoteColor | null = null
@@ -373,7 +387,7 @@ export class EconomySolver {
         tight = ECONOMY_COLORS[c]
       }
     })
-    const peril = ms.length ? losing / ms.length : 0
+    const peril = ms.length ? losing / ms.length : all.length ? 1 : 0
     const scarcity = 1 / (1 + margin)
     return { tension: 1 - (1 - peril) * (1 - scarcity), peril, losing, moves: ms.length, scarcity, margin, tight, luck: this.blindLuck(s) }
   }
@@ -429,7 +443,9 @@ export function tensionAlong(level: LevelData, moves: Move[], opts: SolverOption
 
 // Tension across every winning line at once, to check that a moment is
 // tense whatever path led to it. States are banded by depth, the moves made
-// so far (a fill or a detonation is one move each).
+// so far (a fill or a detonation is one move each). With a fuse, a full
+// piece can only wait a moment, so only the settled states between blows
+// (nothing full on the field) are banded.
 export interface TensionBand {
   depth: number
   states: number // winning-line states at this depth
@@ -445,8 +461,10 @@ export interface TensionBands {
   mostMoves: number // the longest win
 }
 
+// Moves made so far: two per detonation, one per full piece waiting (a dig
+// that burned layers is one move, however many it burned).
 export function economyDepth(s: Economy): number {
-  const fired = s.hand.reduce((a, b) => a + b, 0) - s.pieces.length
+  const fired = s.hand.reduce((a, b) => a + b, 0) - s.pieces.length - (s.burned ?? 0)
   return 2 * fired + s.pieces.filter((p) => p.full).length
 }
 
@@ -462,15 +480,17 @@ export function tensionBands(level: LevelData, opts: SolverOptions = {}): Tensio
     const k = solver.key(s)
     const known = fewest.get(k)
     if (known !== undefined) return [known, most.get(k)!]
-    const t = solver.tension(s)
-    const d = economyDepth(s)
-    const b = bands.get(d) ?? { depth: d, states: 0, min: 1, mean: 0, max: 0, minPeril: 1 }
-    b.mean = (b.mean * b.states + t.tension) / (b.states + 1)
-    b.states++
-    b.min = Math.min(b.min, t.tension)
-    b.max = Math.max(b.max, t.tension)
-    b.minPeril = Math.min(b.minPeril, t.peril)
-    bands.set(d, b)
+    if (level.fuse === undefined || !s.pieces.some((p) => p.full)) {
+      const t = solver.tension(s)
+      const d = economyDepth(s)
+      const b = bands.get(d) ?? { depth: d, states: 0, min: 1, mean: 0, max: 0, minPeril: 1 }
+      b.mean = (b.mean * b.states + t.tension) / (b.states + 1)
+      b.states++
+      b.min = Math.min(b.min, t.tension)
+      b.max = Math.max(b.max, t.tension)
+      b.minPeril = Math.min(b.minPeril, t.peril)
+      bands.set(d, b)
+    }
     let lo = Infinity
     let hi = 0
     for (const m of solver.moves(s)) {

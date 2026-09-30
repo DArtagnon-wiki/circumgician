@@ -1,0 +1,545 @@
+{
+  "version": 1,
+  "id": "sandbox-fire",
+  "name": "Sandbox: Fire",
+  "palette": "warm",
+  "fuse": 10,
+  "field": {
+    "x": 20,
+    "y": 330,
+    "w": 360,
+    "h": 390
+  },
+  "blockers": [],
+  "motes": [
+    {
+      "color": "red",
+      "x": 145.1,
+      "y": 449.1
+    },
+    {
+      "color": "red",
+      "x": 139.2,
+      "y": 464
+    },
+    {
+      "color": "red",
+      "x": 128.7,
+      "y": 476
+    },
+    {
+      "color": "red",
+      "x": 114.6,
+      "y": 483.6
+    },
+    {
+      "color": "red",
+      "x": 98.8,
+      "y": 486
+    },
+    {
+      "color": "red",
+      "x": 83.2,
+      "y": 482.8
+    },
+    {
+      "color": "red",
+      "x": 69.5,
+      "y": 474.5
+    },
+    {
+      "color": "red",
+      "x": 59.6,
+      "y": 462
+    },
+    {
+      "color": "red",
+      "x": 54.5,
+      "y": 446.8
+    },
+    {
+      "color": "red",
+      "x": 54.9,
+      "y": 430.9
+    },
+    {
+      "color": "red",
+      "x": 60.8,
+      "y": 416
+    },
+    {
+      "color": "red",
+      "x": 71.3,
+      "y": 404
+    },
+    {
+      "color": "red",
+      "x": 85.4,
+      "y": 396.4
+    },
+    {
+      "color": "red",
+      "x": 101.2,
+      "y": 394
+    },
+    {
+      "color": "red",
+      "x": 116.8,
+      "y": 397.2
+    },
+    {
+      "color": "red",
+      "x": 130.5,
+      "y": 405.5
+    },
+    {
+      "color": "red",
+      "x": 140.4,
+      "y": 418
+    },
+    {
+      "color": "red",
+      "x": 145.5,
+      "y": 433.2
+    },
+    {
+      "color": "gold",
+      "x": 336.8,
+      "y": 455.6
+    },
+    {
+      "color": "gold",
+      "x": 304.9,
+      "y": 479.7
+    },
+    {
+      "color": "gold",
+      "x": 268.1,
+      "y": 464.1
+    },
+    {
+      "color": "gold",
+      "x": 263.2,
+      "y": 424.4
+    },
+    {
+      "color": "gold",
+      "x": 295.1,
+      "y": 400.3
+    },
+    {
+      "color": "gold",
+      "x": 331.9,
+      "y": 415.9
+    },
+    {
+      "color": "teal",
+      "x": 138.2,
+      "y": 641.8
+    },
+    {
+      "color": "teal",
+      "x": 114.6,
+      "y": 667.2
+    },
+    {
+      "color": "teal",
+      "x": 80,
+      "y": 664.6
+    },
+    {
+      "color": "teal",
+      "x": 60.4,
+      "y": 635.9
+    },
+    {
+      "color": "teal",
+      "x": 70.7,
+      "y": 602.8
+    },
+    {
+      "color": "teal",
+      "x": 103,
+      "y": 590.1
+    },
+    {
+      "color": "teal",
+      "x": 133.1,
+      "y": 607.5
+    },
+    {
+      "color": "violet",
+      "x": 329.9,
+      "y": 643
+    },
+    {
+      "color": "violet",
+      "x": 270.1,
+      "y": 637
+    }
+  ],
+  "obstacles": [
+    {
+      "x": 120,
+      "y": 160,
+      "layers": [
+        {
+          "sides": 3,
+          "radius": 30,
+          "hp": 3
+        },
+        {
+          "sides": 4,
+          "radius": 30,
+          "hp": 3
+        }
+      ]
+    },
+    {
+      "x": 280,
+      "y": 160,
+      "layers": [
+        {
+          "sides": 5,
+          "radius": 30,
+          "hp": 3
+        },
+        {
+          "sides": 3,
+          "radius": 30,
+          "hp": 3
+        }
+      ]
+    }
+  ],
+  "hand": [
+    {
+      "layers": [
+        {
+          "sides": 4,
+          "radius": 40,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "gold"
+            },
+            {
+              "catch": "red",
+              "release": "gold"
+            },
+            {
+              "catch": "red",
+              "release": "gold"
+            },
+            {
+              "catch": "red",
+              "release": "gold"
+            }
+          ]
+        },
+        {
+          "sides": 3,
+          "radius": 40,
+          "nodes": [
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            }
+          ]
+        },
+        {
+          "sides": 4,
+          "radius": 30,
+          "nodes": [
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "layers": [
+        {
+          "sides": 3,
+          "radius": 40,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            }
+          ]
+        },
+        {
+          "sides": 5,
+          "radius": 44,
+          "nodes": [
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            }
+          ]
+        },
+        {
+          "sides": 3,
+          "radius": 30,
+          "nodes": [
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            },
+            {
+              "catch": "teal",
+              "release": "teal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "layers": [
+        {
+          "sides": 6,
+          "radius": 62,
+          "nodes": [
+            {
+              "catch": "gold",
+              "release": "violet"
+            },
+            {
+              "catch": "gold",
+              "release": "violet"
+            },
+            {
+              "catch": "gold",
+              "release": "violet"
+            },
+            {
+              "catch": "gold",
+              "release": "violet"
+            },
+            {
+              "catch": "gold",
+              "release": "violet"
+            },
+            {
+              "catch": "gold",
+              "release": "violet"
+            }
+          ],
+          "fuse": 16
+        },
+        {
+          "sides": 4,
+          "radius": 30,
+          "nodes": [
+            {
+              "catch": "violet",
+              "release": "violet"
+            },
+            {
+              "catch": "violet",
+              "release": "violet"
+            },
+            {
+              "catch": "violet",
+              "release": "violet"
+            },
+            {
+              "catch": "violet",
+              "release": "violet"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "layers": [
+        {
+          "sides": 4,
+          "radius": 40,
+          "nodes": [
+            {
+              "catch": "violet",
+              "release": "violet"
+            },
+            {
+              "catch": "violet",
+              "release": "violet"
+            },
+            {
+              "catch": "violet",
+              "release": "violet"
+            },
+            {
+              "catch": "violet",
+              "release": "violet"
+            }
+          ]
+        },
+        {
+          "sides": 3,
+          "radius": 40,
+          "nodes": [
+            {
+              "catch": "violet",
+              "release": "violet"
+            },
+            {
+              "catch": "violet",
+              "release": "violet"
+            },
+            {
+              "catch": "violet",
+              "release": "violet"
+            }
+          ]
+        },
+        {
+          "sides": 3,
+          "radius": 30,
+          "nodes": [
+            {
+              "catch": "violet",
+              "release": "violet"
+            },
+            {
+              "catch": "violet",
+              "release": "violet"
+            },
+            {
+              "catch": "violet",
+              "release": "violet"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "layers": [
+        {
+          "sides": 5,
+          "radius": 44,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            }
+          ]
+        },
+        {
+          "sides": 3,
+          "radius": 40,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            }
+          ]
+        },
+        {
+          "sides": 5,
+          "radius": 30,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "goal": {
+    "type": "clearAll"
+  }
+}

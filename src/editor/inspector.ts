@@ -103,6 +103,23 @@ export function renderInspector(host: HTMLElement, st: EditorState): void {
       num(L.field.h, (v) => edit((l) => (l.field.h = v))),
     ),
     el('div', { class: 'row' }, 'palette ', paletteSelect(L.palette ?? 'jewel', (v) => edit((l) => (v === 'jewel' ? delete l.palette : (l.palette = v))))),
+    el(
+      'div',
+      { class: 'row', title: 'Seconds a cast piece has to be filled and burst before it burns (blank: no fuse)' },
+      'fuse ',
+      el('input', {
+        value: L.fuse === undefined ? '' : String(L.fuse),
+        placeholder: 'none',
+        style: 'width:60px',
+        on: {
+          change: (e) => {
+            const v = parseFloat((e.target as HTMLInputElement).value)
+            edit((l) => (v > 0 ? (l.fuse = v) : delete l.fuse))
+          },
+        },
+      }),
+      ' s',
+    ),
     el('div', { class: 'hint' }, `motes: ${L.motes.length} (${MOTE_COLORS.map((c) => `${c} ${L.motes.filter((m) => m.color === c).length}`).filter((s) => !s.endsWith(' 0')).join(', ')})`),
   )
 

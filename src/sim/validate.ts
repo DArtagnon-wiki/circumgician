@@ -131,6 +131,7 @@ export function validateLevel(data: unknown): string[] {
         if (!isObj(l)) return err(lp, 'must be an object')
         const okSides = sides(`${lp}.sides`, l.sides)
         if (!isNum(l.radius) || l.radius <= 0) err(`${lp}.radius`, 'must be a positive number')
+        if (l.fuse !== undefined && (!isNum(l.fuse) || l.fuse <= 0)) err(`${lp}.fuse`, 'must be a positive number of seconds')
         if (!Array.isArray(l.nodes)) return err(`${lp}.nodes`, 'must be an array')
         if (okSides && l.nodes.length !== l.sides) err(`${lp}.nodes`, `must have exactly ${l.sides} entries (one per side)`)
         l.nodes.forEach((n, k) => {
@@ -147,6 +148,10 @@ export function validateLevel(data: unknown): string[] {
   if (!isObj(data.goal) || data.goal.type !== 'clearAll') err('goal', 'must be {"type": "clearAll"}')
   if (data.endless !== undefined && (!isObj(data.endless) || !isInt(data.endless.seed))) err('endless', 'must be {"seed": integer}')
   if (data.palette !== undefined && !(PALETTE_NAMES as readonly unknown[]).includes(data.palette)) err('palette', `must be one of ${PALETTE_NAMES.join(', ')}`)
+  if (data.fuse !== undefined) {
+    if (!isNum(data.fuse) || data.fuse <= 0) err('fuse', 'must be a positive number of seconds')
+    if (data.endless !== undefined) err('fuse', 'endless levels have their own fuse')
+  }
 
   return errs
 }

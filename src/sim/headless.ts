@@ -46,6 +46,9 @@ function pieceFrom(sim: Sim, slot: number, layer?: number) {
   return sim.state.pieces.find((p) => p.slot === slot && (layer === undefined || p.depth === layer))
 }
 
+// False once the piece has left the field (burst, frozen or burned).
+const onField = (sim: Sim, piece: Piece) => sim.state.pieces.includes(piece)
+
 // A kicked mote coasts speed / MOTE_FRICTION, and a tap d away kicks at
 // KICK_GAIN * d, so tap that far behind it (kicks are clamped, so a far
 // target is only approached).
@@ -90,7 +93,7 @@ export function runScript(level: LevelData, steps: ScriptStep[], opts: SimOption
       const piece = pieceFrom(sim, step.feed, step.layer)
       if (!piece) return fail(`no piece on the field from slot ${step.feed}${step.layer === undefined ? '' : ` layer ${step.layer}`} to feed`)
       const start = sim.state.time
-      while (piece.state === 'charging' && sim.state.status === 'playing' && sim.state.time - start < fillTimeout) {
+      while (piece.state === 'charging' && onField(sim, piece) && sim.state.status === 'playing' && sim.state.time - start < fillTimeout) {
         if (!sim.state.motes.some((m) => m.vel || m.state === 'traveling')) feedOne(sim, piece)
         sim.step(DT)
       }
@@ -101,8 +104,9 @@ export function runScript(level: LevelData, steps: ScriptStep[], opts: SimOption
       const piece = pieceFrom(sim, step.tap, step.layer)
       if (!piece) return fail(`no piece on the field from slot ${step.tap}${step.layer === undefined ? '' : ` layer ${step.layer}`}`)
       const start = sim.state.time
-      while (piece.state === 'charging' && sim.state.status === 'playing' && sim.state.time - start < fillTimeout) sim.step(DT)
+      while (piece.state === 'charging' && onField(sim, piece) && sim.state.status === 'playing' && sim.state.time - start < fillTimeout) sim.step(DT)
       if (sim.state.status !== 'playing') break
+      if (!onField(sim, piece)) return fail(`slot ${step.tap}'s piece burned before it burst`)
       if (piece.state !== 'full') return fail(`slot ${step.tap}'s piece did not fill`)
       sim.detonate(piece.id)
     }
@@ -131,7 +135,8 @@ export function runCompetent(level: LevelData, seed: number, maxSeconds = 600, o
     for (const p of s().pieces) if (p.state === 'full' && !fullSince.has(p.id)) fullSince.set(p.id, s().time)
     const full = s().pieces.filter((p) => p.state === 'full')
     const linked = full.find((p) => p.linkedObstacleId)
-    const stale = full.find((p) => s().time - (fullSince.get(p.id) ?? 0) > 4 || (p.freezeAt !== undefined && p.freezeAt - s().time < 2))
+    const due = (p: Piece) => Math.min(p.freezeAt ?? Infinity, p.burnAt ?? Infinity) - s().time < 2
+    const stale = full.find((p) => s().time - (fullSince.get(p.id) ?? 0) > 4 || due(p))
     const toTap = linked ?? stale
     if (toTap) {
       fullSince.delete(toTap.id)

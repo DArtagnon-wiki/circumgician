@@ -13,7 +13,8 @@ import { profileLevel, tensionAlong, tensionBands } from '../../sim/solver'
 // and after it only clean-up (.35 at most on any line). The crux starts at
 // the last blow and moves back toward two thirds; everything else has
 // motes to spare. The ice and frost levels start a second arc (`arc`): back
-// to the sixth level's length, building to the eleventh's.
+// to the sixth level's length, building to the eleventh's; so do the fire
+// levels.
 const PROGRESSION: Record<string, { blows: number; crux?: number; arc?: true }> = {
   'first-threads': { blows: 2 },
   'changing-colors': { blows: 3 },
@@ -32,6 +33,12 @@ const PROGRESSION: Record<string, { blows: number; crux?: number; arc?: true }> 
   'two-winters': { blows: 12, crux: 8 },
   'deep-winter': { blows: 13, crux: 9 },
   'the-long-winter': { blows: 15, crux: 10 },
+  kindling: { blows: 7, crux: 6, arc: true },
+  'short-fuse': { blows: 9, crux: 7 },
+  firebreak: { blows: 10, crux: 7 },
+  backdraft: { blows: 12, crux: 8 },
+  wildfire: { blows: 13, crux: 9 },
+  phoenix: { blows: 15, crux: 10 },
 }
 
 describe('pack tension progression', () => {

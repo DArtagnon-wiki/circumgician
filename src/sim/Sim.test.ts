@@ -267,7 +267,7 @@ describe('full, hold and detonation lifecycle', () => {
     stepFor(sim, 15)
     expect(sim.detonate(id)).toBe(true)
     expect(sim.state.obstacles[0].hp).toBe(6)
-    expect(sim.state.stats).toEqual({ detonations: 1, landed: 4, wasted: 0, unlinked: 0, destroyed: 0 })
+    expect(sim.state.stats).toEqual({ detonations: 1, landed: 4, wasted: 0, unlinked: 0, destroyed: 0, burned: 0 })
     expect(sim.piece(id)).toBeUndefined()
     expect(sim.state.runes[0].index).toBe(1) // unchanged: it moved on when cast
     const released = sim.state.motes.filter((m) => m.state === 'ejecting')
@@ -444,6 +444,101 @@ describe('fuse (endless)', () => {
       expect(dist(m.pos, C)).toBeCloseTo(40 + BURST_GAP, 0)
     }
     expect(sim.canPlace(sim.state.runes.find((r) => r.slot === 0)!.id, C)).toBe(true) // the ground is clear again
+  })
+})
+
+describe('fuse (burning)', () => {
+  // A square that only half fills (then a triangle layer), and a pentagon.
+  const B = { x: 300, y: 640 }
+  const level = testLevel({
+    fuse: 8,
+    hand: [{ layers: [layer(4, 40, 'red'), layer(3, 40, 'red'), layer(6, 20, 'red')] }, { layers: [layer(5, 40, 'blue'), layer(4, 30, 'blue')] }],
+    motes: [...ring('red', C.x, C.y, 40, 4).slice(0, 2), ...ring('blue', B.x, B.y, 40, 5)],
+  })
+
+  it('a piece not filled and burst in time burns, and the motes it holds burn with it', () => {
+    const sim = mk(level)
+    const burned: string[] = []
+    sim.bus.on('piece:burned', ({ piece, motes }) => burned.push(`${piece.id}:${motes.length}`))
+    const id = placeSlot(sim, 0)
+    expect(sim.piece(id)!.burnAt).toBeCloseTo(8)
+    stepFor(sim, 7.5)
+    expect(sim.piece(id)).toBeDefined()
+    expect(sim.state.motes.filter((m) => m.color === 'red' && m.state === 'held')).toHaveLength(2)
+    stepFor(sim, 1)
+    expect(burned).toEqual([`${id}:2`])
+    expect(sim.piece(id)).toBeUndefined()
+    expect(sim.state.motes.filter((m) => m.color === 'red')).toHaveLength(0)
+    expect(sim.state.stats).toMatchObject({ burned: 1, destroyed: 2, detonations: 0 })
+    // The layer is spent without striking (and leaves no ice); the rune
+    // already holds its next layer.
+    expect(sim.state.obstacles).toHaveLength(1)
+    expect(sim.state.obstacles[0].hp).toBe(100)
+    expect(sim.state.runes.find((r) => r.slot === 0)!.index).toBe(1)
+  })
+
+  it('a piece burst in time never burns', () => {
+    const sim = mk({ ...level, motes: [...ring('red', C.x, C.y, 40, 4), ...ring('blue', B.x, B.y, 40, 5)] })
+    const id = placeSlot(sim, 0)
+    stepFor(sim, 4)
+    expect(sim.piece(id)!.state).toBe('full')
+    expect(sim.detonate(id)).toBe(true)
+    stepFor(sim, 10)
+    expect(sim.state.stats).toMatchObject({ burned: 0, destroyed: 0, detonations: 1 })
+  })
+
+  it('filling does not put it out: a full piece left untapped burns too', () => {
+    const sim = mk({ ...level, motes: ring('red', C.x, C.y, 40, 4) })
+    const id = placeSlot(sim, 0)
+    stepFor(sim, 4)
+    expect(sim.piece(id)!.state).toBe('full')
+    stepFor(sim, 5)
+    expect(sim.piece(id)).toBeUndefined()
+    expect(sim.state.stats).toMatchObject({ burned: 1, destroyed: 4 })
+  })
+
+  it("a layer's own fuse overrides the level's", () => {
+    const slow = structuredClone(level)
+    slow.hand[0].layers[0].fuse = 20
+    const sim = mk(slow)
+    const id = placeSlot(sim, 0)
+    stepFor(sim, 15)
+    expect(sim.piece(id)).toBeDefined()
+    stepFor(sim, 6)
+    expect(sim.piece(id)).toBeUndefined()
+  })
+
+  it('without a fuse nothing burns', () => {
+    const { fuse: _, ...calm } = level
+    const sim = mk(calm)
+    const id = placeSlot(sim, 0)
+    expect(sim.piece(id)!.burnAt).toBeUndefined()
+    stepFor(sim, 30)
+    expect(sim.piece(id)!.state).toBe('charging')
+  })
+
+  it('a burn that leaves too little damage for a shape ends the level at once', () => {
+    // Two red on the ring, two more it could still be fed: alive until it burns.
+    const motes = [...ring('red', C.x, C.y, 40, 2), mote('red', 60, 660), mote('red', 340, 660)]
+    const sim = new Sim(testLevel({ fuse: 5, obstacles: [obstacle(200, 150, [3, 4])], hand: [{ layers: [layer(4, 40, 'red'), layer(3, 30, 'red')] }], motes }))
+    placeSlot(sim, 0)
+    stepFor(sim, 4.5)
+    expect(sim.state.status).toBe('playing')
+    stepFor(sim, 1)
+    expect(sim.state.status).toBe('lost')
+    expect(sim.state.lostBecause).toBe('damage')
+  })
+
+  it('undo takes back the cast, and the motes the burn took', () => {
+    const sim = mk(level)
+    const id = placeSlot(sim, 0)
+    stepFor(sim, 9)
+    expect(sim.piece(id)).toBeUndefined()
+    expect(sim.undo()).toBe(true)
+    expect(sim.state.pieces).toHaveLength(0)
+    expect(sim.state.runes.find((r) => r.slot === 0)!.index).toBe(0)
+    expect(sim.state.motes.filter((m) => m.color === 'red')).toHaveLength(2)
+    expect(sim.state.stats.burned).toBe(0)
   })
 })
 

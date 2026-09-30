@@ -25,6 +25,7 @@ export interface RuneLayerSpec {
   sides: number // 3+
   radius: number // body radius, authored independently of sides
   nodes: NodeSpec[] // length === sides, index-aligned with vertices
+  fuse?: number // seconds it burns in once cast, instead of the level's fuse
 }
 
 export interface ObstacleLayerSpec {
@@ -87,6 +88,9 @@ export interface LevelData {
   goal: GoalSpec
   // How the level looks (default 'jewel'); the sim never reads it.
   palette?: PaletteName
+  // Seconds a cast piece has to be filled and burst before it burns, taking
+  // the motes it holds with it (a layer's own fuse overrides this).
+  fuse?: number
   // Endless only: rune/obstacle stacks extend forever via generators.
   endless?: { seed: number }
 }
@@ -154,6 +158,7 @@ export interface Piece {
   held: (string | null)[] // mote id per node (traveling or held)
   linkedObstacleId: string | null
   freezeAt?: number // sim time its fuse runs out (endless)
+  burnAt?: number // sim time it burns unless burst first (levels with a fuse)
 }
 
 export interface Obstacle {
@@ -183,7 +188,8 @@ export interface BoardStats {
   landed: number // blows that took strength (HP removed)
   wasted: number // blows past a layer's last HP: damage never carries over
   unlinked: number // detonations whose energy matched nothing, so struck nothing
-  destroyed: number // motes annihilated
+  destroyed: number // motes annihilated or burned
+  burned: number // pieces that burned before they were burst
 }
 
 export interface SimState {

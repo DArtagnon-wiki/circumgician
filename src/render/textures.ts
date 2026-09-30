@@ -384,6 +384,21 @@ const NEBULAE: Record<SkyName, NebulaColors> = {
     bright: [30, 50, 40],
     dust: [2, 6, 14],
   },
+  // Smouldering: dark maroon, with fire-orange filaments high that cool to
+  // crimson, and a low glow like embers under ash.
+  ember: {
+    base: [[40, 13, 12], [28, 9, 11], [9, 3, 4]],
+    blobs: [
+      [0.78, 0.12, 0.8, 150, 52, 26, 0.32],
+      [0.18, 0.06, 0.55, 168, 64, 30, 0.22],
+      [0.1, 0.55, 0.85, 112, 28, 38, 0.24],
+      [0.9, 0.66, 0.6, 140, 46, 52, 0.16],
+      [0.5, 0.98, 0.65, 110, 34, 14, 0.18],
+    ],
+    filaments: [[230, 118, 44], [160, 40, 58]],
+    bright: [50, 40, 20],
+    dust: [10, 4, 3],
+  },
 }
 
 // A nebula: a smooth base, broad colored glows, domain-warped cloud
