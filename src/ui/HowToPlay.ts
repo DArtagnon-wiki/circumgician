@@ -19,6 +19,10 @@ const CITRINE = '#ecd64e'
 const FLAME = '#ffa53a'
 const EMBER = '#ff5a1f'
 const SPARK = '#ffe7a0'
+const NULL = '#d9dee8'
+const VOID = '#140c20'
+const VOID_RIM = '#a596d6'
+const STASIS = '#c9d4ff'
 
 type P = [number, number]
 const f = (n: number) => n.toFixed(1)
@@ -178,6 +182,56 @@ function ghost(cx: number, cy: number, R: number, sides: number, hp = 0): string
   return s
 }
 
+// A null: a hollow silver bead. A void: a dark hole ringed in violet.
+const nullMote = (x: number, y: number) =>
+  `<circle cx="${x}" cy="${y}" r="8" fill="${NULL}" opacity=".14" filter="url(#softer)"/>
+   <circle cx="${x}" cy="${y}" r="4.4" fill="${NULL}" fill-opacity=".25" stroke="#f4f6fb" stroke-width="1.3"/>`
+const voidMote = (x: number, y: number) =>
+  `<circle cx="${x}" cy="${y}" r="9" fill="${VOID_RIM}" opacity=".22" filter="url(#soft)"/>
+   <circle cx="${x}" cy="${y}" r="5" fill="${VOID}" stroke="${VOID_RIM}" stroke-width="1.4"/>`
+
+// A bowl holding a null (clear, unlit) or a void (ink).
+const blankBowl = ([x, y]: P, c: string, kind: 'null' | 'void') =>
+  `<circle cx="${f(x)}" cy="${f(y)}" r="5.8" fill="${c}" fill-opacity=".3" stroke="${c}" stroke-width="2.6"/>` +
+  `<circle cx="${f(x)}" cy="${f(y)}" r="4.6" fill="${kind === 'void' ? VOID : NULL}" fill-opacity="${kind === 'void' ? 1 : 0.6}"/>`
+
+// Clamps over a rune's bowls where a fuse would burn: it is locked on.
+const clamps = (cx: number, cy: number, r: number, sides: number, color: string) =>
+  ngon(cx, cy, r, sides)
+    .map(([x, y]) => {
+      const a = Math.atan2(y - cy, x - cx)
+      const [a0, a1] = [a - 0.3, a + 0.3]
+      const p = (t: number, rr: number): P => [cx + Math.cos(t) * rr, cy + Math.sin(t) * rr]
+      const [s0, e0, e1, s1] = [p(a0, r - 4), p(a0, r), p(a1, r), p(a1, r - 4)]
+      return `<path d="M${f(s0[0])} ${f(s0[1])}L${f(e0[0])} ${f(e0[1])}A${r} ${r} 0 0 1 ${f(e1[0])} ${f(e1[1])}L${f(s1[0])} ${f(s1[1])}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" opacity=".85"/>`
+    })
+    .join('')
+
+// An arc of a shield round (cx, cy) from angle a0 to a1 (degrees), its
+// strength in pips, the first `pulled` of them hollow.
+function shieldArc(cx: number, cy: number, r: number, a0: number, a1: number, color: string, strength: number, pulled: number): string {
+  const p = (deg: number): P => [cx + Math.cos((deg * Math.PI) / 180) * r, cy + Math.sin((deg * Math.PI) / 180) * r]
+  const [s, e] = [p(a0), p(a1)]
+  const large = a1 - a0 > 180 ? 1 : 0
+  const d = `M${f(s[0])} ${f(s[1])}A${r} ${r} 0 ${large} 1 ${f(e[0])} ${f(e[1])}`
+  let out = `<path d="${d}" fill="none" stroke="${color}" stroke-width="8" opacity=".22" filter="url(#soft)"/><path d="${d}" fill="none" stroke="${color}" stroke-width="2.2"/>`
+  for (let k = 0; k < strength; k++) {
+    const [x, y] = p(a0 + ((a1 - a0) * (k + 0.5)) / strength)
+    out += `<circle cx="${f(x)}" cy="${f(y)}" r="3.3" fill="#0c0616"/>`
+    out += k < pulled ? `<circle cx="${f(x)}" cy="${f(y)}" r="2.1" fill="none" stroke="${color}" stroke-width="1"/>` : `<circle cx="${f(x)}" cy="${f(y)}" r="2.4" fill="#fff" opacity=".85"/>`
+  }
+  return out
+}
+
+// A thread from a rune to what it is locked onto: a taut double wire (or,
+// hauling on a shield, one in the shield's color).
+const wire = (x1: number, y1: number, x2: number, y2: number, color: string, double = true) => {
+  const len = Math.hypot(x2 - x1, y2 - y1)
+  const [nx, ny] = [(-(y2 - y1) / len) * 1.6, ((x2 - x1) / len) * 1.6]
+  const line = (o: number) => `<line x1="${f(x1 + nx * o)}" y1="${f(y1 + ny * o)}" x2="${f(x2 + nx * o)}" y2="${f(y2 + ny * o)}" stroke="${color}" stroke-opacity=".6" stroke-width="1"/>`
+  return double ? line(1) + line(-1) : line(0)
+}
+
 const label = (x: number, y: number, text: string, anchor = 'start') =>
   `<text x="${x}" y="${y}" fill="#efe8ff" fill-opacity=".85" font-size="10.5" font-style="italic" font-family="Cormorant Garamond, Georgia, serif" text-anchor="${anchor}">${text}</text>`
 const leader = (x1: number, y1: number, x2: number, y2: number) =>
@@ -252,6 +306,46 @@ const PAGES: { title: string; text: string; svg: string }[] = [
     ], 3)}
       ${burned(168, 70, 25, 4)}
       ${label(70, 124, 'fuse', 'middle')}${label(168, 124, 'burned', 'middle')}`,
+  },
+  {
+    title: 'Nulls and voids',
+    text: 'A null, a hollow silver bead, fills any bowl but adds nothing to the blow; it comes out in its tube’s color. A void, a dark hole, fills any bowl and adds nothing, and it comes out a void. Only a cracked grey tube gets rid of one. Bowls take their own color first. Some runes arrive with cups already full.',
+    svg: `${rune(70, 68, 33, [
+      { c: RUBY, r: AMBER, held: RUBY },
+      { c: RUBY, r: AMBER, held: RUBY },
+      { c: RUBY, r: null },
+      { c: RUBY, r: AMBER },
+    ], 3)}
+      ${blankBowl(ngon(70, 68, 33, 4)[2], RUBY, 'void')}${blankBowl(ngon(70, 68, 33, 4)[3], RUBY, 'null')}
+      ${nullMote(150, 40)}${voidMote(178, 86)}
+      ${label(162, 44, 'null')}${label(190, 90, 'void')}`,
+  },
+  {
+    title: 'Two shapes',
+    text: 'An obstacle of two shapes woven together takes a pair of blows at once: one of each shape. A full rune linked to it waits, still, with no fuse, for the other. With both there, tap either: they strike together, their power combined.',
+    svg: `${wire(58, 98, 108, 48, STASIS)}${wire(162, 98, 112, 48, STASIS)}
+      <polygon points="${pts(ngon(110, 40, 26, 3))}" fill="#1c1432" stroke="#cdbbff" stroke-width="1.6"/>
+      <polygon points="${pts(ngon(110, 40, 21, 4, -75))}" fill="#241a3d" fill-opacity=".85" stroke="#cdbbff" stroke-width="1.6"/>
+      <polygon points="${pts(ngon(110, 40, 26, 3))}" fill="none" stroke="#fff" stroke-opacity=".9" stroke-width="1.4"/>
+      ${clamps(58, 98, 32, 4, STASIS)}${rune(58, 98, 22, allRuby(RUBY), 3, true)}
+      ${clamps(162, 98, 30, 3, STASIS)}${rune(162, 98, 20, [
+      { c: SAPPHIRE, r: SAPPHIRE, held: SAPPHIRE },
+      { c: SAPPHIRE, r: SAPPHIRE, held: SAPPHIRE },
+      { c: SAPPHIRE, r: SAPPHIRE, held: SAPPHIRE },
+    ], 4, true)}`,
+  },
+  {
+    title: 'Shields',
+    text: 'A colored arc is a shield: while one is up, nothing strikes that obstacle. A rune with bowls of its color latches on, with no fuse, and pulls it down with the motes of that color it holds, full or not. Its pips go hollow as it gives. When the obstacle’s shape breaks, the pullers go free.',
+    svg: `${wire(62, 92, 150, 44, RUBY, false)}
+      ${obsidian(150, 44, 24, 5, [[150, 48], [143, 41], [157, 41]])}
+      ${shieldArc(150, 44, 36, -80, 80, RUBY, 2, 1)}${shieldArc(150, 44, 36, 100, 260, SAPPHIRE, 2, 0)}
+      ${clamps(62, 92, 34, 4, RUBY)}${rune(62, 92, 24, [
+      { c: RUBY, r: RUBY, held: RUBY },
+      { c: RUBY, r: RUBY },
+      { c: AMBER, r: AMBER },
+      { c: AMBER, r: AMBER },
+    ], 3)}`,
   },
   {
     title: 'Order matters',

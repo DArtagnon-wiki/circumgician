@@ -11,12 +11,23 @@ describe('endless generators', () => {
     expect(runeLayerAt(7, 5)).not.toEqual(runeLayerAt(8, 5))
   })
 
-  it('never annihilate and ramp up slowly', () => {
-    for (let d = 0; d < 40; d++) {
-      const l = runeLayerAt(3, d)
-      expect(l.nodes.every((n) => n.release !== 'annihilating')).toBe(true)
-      expect(l.nodes).toHaveLength(l.sides)
-    }
+  it('bring voids and ash cups only deeper in, one of each at most per layer, and ramp up slowly', () => {
+    const kinds = { voids: 0, ash: 0 }
+    for (let seed = 1; seed <= 20; seed++)
+      for (let d = 0; d < 40; d++) {
+        const l = runeLayerAt(seed, d)
+        expect(l.nodes).toHaveLength(l.sides)
+        const voids = l.nodes.filter((n) => n.prefilled === 'void').length
+        const ash = l.nodes.filter((n) => n.release === 'annihilating').length
+        expect(voids).toBeLessThanOrEqual(d >= ENDLESS_TUNING.voidFrom ? 1 : 0)
+        expect(ash).toBeLessThanOrEqual(d >= ENDLESS_TUNING.ashFrom ? 1 : 0)
+        expect(l.nodes.some((n) => n.prefilled === 'void' && n.release === 'annihilating')).toBe(false)
+        expect(l.nodes.some((n) => n.prefilled && n.prefilled !== 'void')).toBe(false)
+        kinds.voids += voids
+        kinds.ash += ash
+      }
+    expect(kinds.voids).toBeGreaterThan(0)
+    expect(kinds.ash).toBeGreaterThan(0)
     expect(obstacleLayerAt(3, 30).hp).toBeGreaterThan(obstacleLayerAt(3, 0).hp)
     expect(obstacleLayerAt(3, 3).boss).toBe(true)
   })

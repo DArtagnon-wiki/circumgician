@@ -611,6 +611,19 @@ describe('null and void motes, prefilled bowls', () => {
     expect(blank.piece(p3)!.held.map((m) => blank.state.motes.find((x) => x.id === m)!.color).sort()).toEqual(['null', 'red', 'red'])
   })
 
+  it('ash bowls are kept for voids: a void goes to one first, and a ruby leaves it for the void', () => {
+    // Three ruby bowls and one ash bowl, over four rubies and a void.
+    const nodes = [0, 1, 2, 3].map((i) => ({ catch: 'red' as const, release: i === 3 ? ('annihilating' as const) : ('red' as const) }))
+    const sim = mk(testLevel({ hand: [{ layers: [{ sides: 4, radius: 40, nodes }, layer(3, 30, 'red')] }], motes: inside(['red', 'void', 'red', 'red', 'red']) }))
+    const id = placeSlot(sim, 0)
+    stepFor(sim, 1)
+    const held = sim.piece(id)!.held.map((m) => sim.state.motes.find((x) => x.id === m)!.color)
+    expect(held).toEqual(['red', 'red', 'red', 'void'])
+    sim.detonate(id)
+    stepFor(sim, 2)
+    expect(sim.state.motes.map((m) => m.color)).toEqual(['red', 'red', 'red', 'red']) // the void is gone, no ruby lost
+  })
+
   it('prefilled bowls hold their motes from the cast; one prefilled all round is full at once', () => {
     const nodes = (kinds: (Prefill | undefined)[]) => kinds.map((prefilled) => ({ catch: 'red' as const, release: 'blue' as const, ...(prefilled ? { prefilled } : {}) }))
     const full = mk(testLevel({ obstacles: [obstacle(200, 150, [3, 9])], hand: [{ layers: [{ sides: 4, radius: 40, nodes: nodes(['real', 'real', 'null', 'void']) }, layer(3, 30, 'red')] }] }))

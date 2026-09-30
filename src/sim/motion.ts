@@ -209,34 +209,50 @@ export function updateMotion(state: SimState, bus: SimBus, dt: number): void {
 // within reach (or, inside a rune or kicked into its ring, the nearest one
 // at all). Bowls prefer their own color, then opal, null and void: motes are
 // resolved in that order (pool order within each), and a null or void never
-// takes a bowl that a real or opal mote in the same ring could fill. A
-// claimed node is no longer hungry, so contention is deterministic per tick.
+// takes a bowl that a real or opal mote in the same ring could fill. Ash
+// bowls, which destroy what they hold, are the exception, kept for voids:
+// a void goes to an ash bowl before any other, and a mote that counts
+// won't take an ash bowl while a void is in that rune's ring. A claimed
+// node is no longer hungry, so contention is deterministic per tick.
 export function updateCatching(state: SimState, bus: SimBus): void {
-  type Hungry = { piece: Piece; node: number; pos: Vec2; catch: string }
+  type Hungry = { piece: Piece; node: number; pos: Vec2; catch: string; ash: boolean }
   const hungry: Hungry[] = []
   for (const piece of state.pieces) {
     if (piece.state !== 'charging') continue
     const positions = nodePositions(piece, state.time)
     piece.held.forEach((id, i) => {
-      if (id === null) hungry.push({ piece, node: i, pos: positions[i], catch: piece.layer.nodes[i].catch })
+      const node = piece.layer.nodes[i]
+      if (id === null) hungry.push({ piece, node: i, pos: positions[i], catch: node.catch, ash: node.release === 'annihilating' })
     })
   }
   if (!hungry.length) return
 
   const free = state.motes.filter((m) => m.state === 'free').sort((a, b) => catchRank(a.color) - catchRank(b.color))
+  const inRing = (m: Mote, h: Hungry) => dist(m.pos, h.piece.pos) <= h.piece.layer.radius + REACH
   // A bowl held back for a mote that counts, already in its rune's ring.
-  const keptFor = (h: Hungry) =>
-    free.some((m) => m.state === 'free' && addsPower(m.color) && (m.color === 'generic' || m.color === h.catch) && dist(m.pos, h.piece.pos) <= h.piece.layer.radius + REACH)
+  const keptFor = (h: Hungry) => free.some((m) => m.state === 'free' && addsPower(m.color) && (m.color === 'generic' || m.color === h.catch) && inRing(m, h))
+  // An ash bowl held back for a void in its rune's ring.
+  const keptForVoid = (h: Hungry) => h.ash && free.some((m) => m.state === 'free' && m.color === 'void' && inRing(m, h))
   for (const mote of free) {
     if (mote.state !== 'free') continue
+    const voided = mote.color === 'void'
     const blank = !addsPower(mote.color)
-    const fits = (h: Hungry) => h.piece.held[h.node] === null && (takesAnyBowl(mote.color) || mote.color === h.catch) && !(blank && keptFor(h))
+    const fits = (h: Hungry) => {
+      if (h.piece.held[h.node] !== null || !(takesAnyBowl(mote.color) || mote.color === h.catch)) return false
+      if (voided && h.ash) return true
+      return !(blank && keptFor(h)) && !(!voided && keptForVoid(h))
+    }
+    // Nearest first; a void takes an ash bowl before any other.
+    const better = (h: Hungry, d: number, best: Hungry | null, bestD: number) => {
+      if (voided && best && h.ash !== best.ash) return h.ash
+      return d < bestD || (d === bestD && !best)
+    }
     let best: Hungry | null = null
-    let bestD = REACH
+    let bestD = Infinity
     for (const h of hungry) {
-      if (!fits(h)) continue
       const d = dist(mote.pos, h.pos)
-      if (d <= bestD) {
+      if (d > REACH || !fits(h)) continue
+      if (better(h, d, best, bestD)) {
         bestD = d
         best = h
       }
@@ -250,7 +266,7 @@ export function updateCatching(state: SimState, bus: SimBus): void {
         if (!fits(h)) continue
         if (dist(mote.pos, h.piece.pos) > h.piece.layer.radius + (mote.kicked ? REACH : -REACH)) continue
         const d = dist(mote.pos, h.pos)
-        if (d < bestD) {
+        if (better(h, d, best, bestD)) {
           bestD = d
           best = h
         }

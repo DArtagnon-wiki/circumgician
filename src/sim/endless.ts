@@ -13,6 +13,14 @@ export const ENDLESS_TUNING = {
   keepColor: 0.5,
   tether: 18,
   fuse: 10, // seconds a cast piece has to detonate before it freezes
+  // Deeper in, a layer may bring a void in one cup: it weakens the blow and
+  // comes back out a void, to clog bowls. Later, a layer may carry an ash
+  // cup, which destroys what it holds, voids first: the only way to be rid
+  // of them.
+  voidFrom: 5,
+  voidChance: 0.2,
+  ashFrom: 7,
+  ashChance: 0.25,
 }
 
 function huesAt(depth: number): Hue[] {
@@ -48,6 +56,13 @@ export function runeLayerAt(seed: number, depth: number, seen: readonly Hue[] = 
     const release: ReleaseColor = g < ENDLESS_TUNING.genericRelease ? 'generic' : g < ENDLESS_TUNING.keepColor ? c : pick(r, hues)
     return { catch: c, release }
   })
+  const voided = depth >= ENDLESS_TUNING.voidFrom && r() < ENDLESS_TUNING.voidChance ? Math.floor(r() * sides) : -1
+  if (voided >= 0) nodes[voided].prefilled = 'void'
+  if (depth >= ENDLESS_TUNING.ashFrom && r() < ENDLESS_TUNING.ashChance) {
+    // Never the void's own cup: an ash cup is for voids already loose.
+    const k = (voided + 1 + Math.floor(r() * (sides - 1))) % sides
+    nodes[k].release = 'annihilating'
+  }
   return { sides, radius, nodes }
 }
 
