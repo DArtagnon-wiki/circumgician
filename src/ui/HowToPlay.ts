@@ -32,7 +32,6 @@ const ngon = (cx: number, cy: number, r: number, sides: number, rot = -90): P[] 
 const DEFS = `<defs>
   <filter id="soft" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="2.2"/></filter>
   <filter id="softer" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="4"/></filter>
-  <radialGradient id="glass" r="50%"><stop offset="0" stop-color="#fff" stop-opacity=".04"/><stop offset=".72" stop-color="#fff" stop-opacity=".12"/><stop offset="1" stop-color="#fff" stop-opacity=".45"/></radialGradient>
 </defs>`
 
 // A luminous heart shedding a curl of smoke.
@@ -41,12 +40,20 @@ const mote = (x: number, y: number, c: string) =>
    <ellipse cx="${x + 3}" cy="${y - 7}" rx="4" ry="6" fill="${c}" opacity=".35" filter="url(#soft)"/>
    <circle cx="${x}" cy="${y}" r="3.8" fill="${c}"/><circle cx="${x}" cy="${y}" r="1.5" fill="#fff" opacity=".7"/>`
 
-// Glass bowl tinted with its catch color; liquid if something is held.
+// A bowl of stained glass in its catch color: a vivid wall round a dim
+// hollow. Holding a mote, it fills with bright liquid that glows and glints.
 const bowl = ([x, y]: P, c: string, liquid?: string) =>
-  (liquid ? `<circle cx="${f(x)}" cy="${f(y)}" r="9" fill="${liquid}" opacity=".45" filter="url(#soft)"/>` : '') +
-  `<circle cx="${f(x)}" cy="${f(y)}" r="6" fill="url(#glass)" stroke="${c}" stroke-width="1.6"/>` +
-  (liquid ? `<circle cx="${f(x)}" cy="${f(y)}" r="4.3" fill="${liquid}"/>` : '') +
-  `<ellipse cx="${f(x - 2)}" cy="${f(y - 2.4)}" rx="1.8" ry="1.1" fill="#fff" opacity=".85"/>`
+  (liquid ? `<circle cx="${f(x)}" cy="${f(y)}" r="10" fill="${liquid}" opacity=".5" filter="url(#soft)"/>` : '') +
+  `<circle cx="${f(x)}" cy="${f(y)}" r="5.8" fill="${c}" fill-opacity=".3" stroke="${c}" stroke-width="2.6"/>` +
+  (liquid ? `<circle cx="${f(x)}" cy="${f(y)}" r="5" fill="${liquid}"/><circle cx="${f(x)}" cy="${f(y)}" r="5" fill="#fff" opacity=".28"/>` : '') +
+  `<ellipse cx="${f(x - 2)}" cy="${f(y - 2.4)}" rx="1.8" ry="1.1" fill="#fff" opacity=".85"/>` +
+  (liquid ? glint(x - 3.2, y - 3.6) : '')
+
+// A four-point flare of light.
+const glint = (x: number, y: number, r = 6.5) => {
+  const w = r * 0.14
+  return `<path d="M${f(x)} ${f(y - r)}L${f(x + w)} ${f(y - w)}L${f(x + r)} ${f(y)}L${f(x + w)} ${f(y + w)}L${f(x)} ${f(y + r)}L${f(x - w)} ${f(y + w)}L${f(x - r)} ${f(y)}L${f(x - w)} ${f(y - w)}Z" fill="#fff" opacity=".9"/>`
+}
 
 // Half a glass tube from a bowl to the edge midpoint, full of `c`, or
 // cracked and ash-grey when that node destroys its mote.

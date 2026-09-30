@@ -14,6 +14,7 @@ export interface Textures {
   shards: Texture[] // glass shards
   beads: Texture[] // glowing glyph beads
   star: Texture // four-point sparkle
+  glint: Texture // a filled bowl's shine: long four-point flare, shorter diagonals
   starDot: Texture // plain point of light
   nebula: Texture // the violet sky's full-screen backdrop (untinted, opaque)
   capsule: Texture // soft rounded bar, stretched along tubes
@@ -159,19 +160,21 @@ function smoke(seed: number): HTMLCanvasElement {
   })
 }
 
-// A clear glass hemisphere from above: nearly transparent in the middle,
-// denser toward the rim (Fresnel), a crisp rim line, and a caustic where
-// light from the top-left focuses on the far side.
+// A cup of stained glass from above, tinted with the hue it catches. The
+// color is dense and even, so it reads when small or dim; deeper toward the
+// middle (it is a hollow), with a crisp rim and a caustic where light from
+// the top-left focuses on the far side.
 function bowl(): HTMLCanvasElement {
   return paint(64, (x, y) => {
     const r = Math.hypot(x, y)
     if (r > 1) return [1, 1, 1, 0]
-    const body = 0.12 + 0.5 * Math.pow(r / 0.9, 3)
-    const rim = Math.exp(-Math.pow((r - 0.9) / 0.045, 2)) * 0.85
-    const inner = Math.exp(-Math.pow((r - 0.74) / 0.05, 2)) * 0.12
-    const caustic = Math.exp(-(Math.pow(x - 0.3, 2) + Math.pow(y - 0.36, 2)) / 0.07) * 0.4
+    const wall = smoothstep(0.38, 0.72, r) // the thick colored wall around the hollow
+    const body = 0.36 + 0.56 * wall
+    const rim = Math.exp(-Math.pow((r - 0.88) / 0.05, 2)) * 0.5
+    const caustic = Math.exp(-(Math.pow(x - 0.3, 2) + Math.pow(y - 0.36, 2)) / 0.07) * 0.3
     const edge = 1 - smoothstep(0.94, 1, r)
-    return [1, 1, 1, Math.min(1, body + rim + inner + caustic) * edge]
+    const lum = 0.42 + 0.58 * wall + caustic * 0.5
+    return [lum, lum, lum, Math.min(1, body + rim + caustic) * edge]
   })
 }
 
@@ -264,6 +267,21 @@ function star(): HTMLCanvasElement {
     const halo = Math.exp(-r * r * 9) * 0.35
     const spikes = (Math.exp(-Math.abs(x) * 26) * Math.exp(-Math.abs(y) * 3.2) + Math.exp(-Math.abs(y) * 26) * Math.exp(-Math.abs(x) * 3.2)) * 0.8
     return [1, 1, 1, Math.min(1, core + halo + spikes)]
+  })
+}
+
+// Crisper and longer than star(): drawn larger, over a filled bowl's rim.
+function glint(): HTMLCanvasElement {
+  return paint(96, (x, y) => {
+    const r2 = x * x + y * y
+    const core = Math.exp(-r2 * 110)
+    const halo = Math.exp(-r2 * 16) * 0.28
+    const taper = (t: number) => Math.pow(Math.max(0, 1 - t), 2.2)
+    const main = Math.exp(-Math.abs(x) * 55) * taper(Math.abs(y)) + Math.exp(-Math.abs(y) * 55) * taper(Math.abs(x))
+    const u = (x + y) * Math.SQRT1_2
+    const v = (x - y) * Math.SQRT1_2
+    const diag = (Math.exp(-Math.abs(u) * 70) * taper(Math.abs(v) * 1.9) + Math.exp(-Math.abs(v) * 70) * taper(Math.abs(u) * 1.9)) * 0.5
+    return [1, 1, 1, Math.min(1, core + halo + main + diag)]
   })
 }
 
@@ -527,6 +545,7 @@ function build(): Textures {
     shards: [3, 5, 8, 13, 21].map((s) => tex(shard(s))),
     beads: [0, 1, 2, 3].map((k) => tex(bead(k))),
     star: tex(star()),
+    glint: tex(glint()),
     starDot: tex(starDot()),
     nebula: tex(nebula(400, 860, NEBULAE.violet)),
     capsule: tex(capsule()),

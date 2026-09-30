@@ -14,6 +14,11 @@ import { quality } from './Quality'
 export const MIDDLE_SCALE = 0.6
 const CENTER_SCALE = 0.3
 export const BOWL_R = 8.5
+// Small icons (a crowded hand, a big rune shrunk to fit) keep their bowls
+// and tube liquid readable: bowls never draw smaller than this on screen,
+// and the liquid thickens toward the tube's width.
+export const BOWL_MIN = 7
+const LIQUID_MIN = 2.6
 
 // A fuse ring's radius around a piece, and where its burning tip is (piece
 // space) with `left` of the fuse to go: the arc runs clockwise from the top
@@ -98,6 +103,7 @@ interface Bowl {
   glow: Sprite
   liquid: Sprite
   shine: Sprite
+  sparkle: Sprite // a four-point glint on a filled bowl
   fill: number
   held: boolean
   color: number
@@ -107,8 +113,9 @@ interface Bowl {
 // A rune is glassware. The outer layer's edges are glass tubes: each half
 // carries its node's release color as liquid flowing from the node toward
 // the edge's midpoint, where the two colors swirl together. Annihilating
-// halves are dull ash, still, and cracked. Nodes are glass bowls tinted
-// with what they catch; a caught mote fills its bowl with glowing liquid.
+// halves are dull ash, still, and cracked. Nodes are bowls of stained glass
+// in the hue they catch; a caught mote fills its bowl with bright liquid
+// that glows and glints (more so once the whole piece is full).
 // The middle layer is a frosted plate, the center faintly etched glass; a
 // stack's final entry (never cast) and a piece's energy are lines of light.
 export class RuneView {
@@ -124,6 +131,7 @@ export class RuneView {
   private liquidC = new Container()
   private bowlGlowC = new Container() // additive, apart from the bowls: one batch
   private bowlC = new Container()
+  private sparkleC = new Container() // additive, over the bowls
   private halves: Half[] = []
   private swirls: Swirl[] = []
   private bowls: Bowl[] = []
@@ -142,7 +150,8 @@ export class RuneView {
     this.middleC.addChild(this.middleG)
     this.centerC.addChild(this.centerG)
     this.bowlGlowC.blendMode = 'add'
-    this.outerC.addChild(this.glassG, this.liquidC, this.bowlGlowC, this.bowlC)
+    this.sparkleC.blendMode = 'add'
+    this.outerC.addChild(this.glassG, this.liquidC, this.bowlGlowC, this.bowlC, this.sparkleC)
     this.body.addChild(this.aura, this.fuseG, this.middleC, this.centerC, this.outerC)
     this.container.addChild(this.body)
     this.container.hitArea = this.hit
@@ -167,7 +176,13 @@ export class RuneView {
     const speed = (full ? 40 : 18) * (look.state === 'idle' ? 0.35 : 1)
     const releaseColor = (r: ReleaseColor, node: number) => (r === 'generic' ? opal(time, node * 0.7) : colorForRelease(r))
 
+    // Drawn small, bowls and liquid grow back toward a readable size.
+    const drawn = this.body.scale.x
+    const bowlScale = Math.max(1, BOWL_MIN / (BOWL_R * drawn))
+    const weight = Math.min(TUBE_W / LIQUID_W, Math.max(1, LIQUID_MIN / (LIQUID_W * drawn)))
     for (const h of this.halves) {
+      h.base.scale.y = (LIQUID_W * weight) / (CAPSULE_H * 0.55)
+      for (const f of h.flows) f.scale.y = (LIQUID_W * 0.6 * weight) / (CAPSULE_H * 0.55)
       if (h.release === 'annihilating') continue // ash: still, set at build
       const color = releaseColor(h.release, h.node)
       h.base.tint = color
@@ -193,9 +208,12 @@ export class RuneView {
 
     // Bowls keep their highlights toward the (fixed) light as the rune turns.
     const counter = -(outerRot + base)
+    const cos = Math.cos(counter)
+    const sin = Math.sin(counter)
     outer.nodes.forEach((_, i) => {
       const b = this.bowls[i]
       b.c.rotation = counter
+      b.c.scale.set(bowlScale)
       const id = look.held[i]
       const m = id ? motes.get(id) : undefined
       if (m) {
@@ -212,11 +230,26 @@ export class RuneView {
       if (incoming) level = Math.max(level, 0.3 + 0.08 * Math.sin(time * 32 + i * 2))
       const color = b.generic ? opal(time, i) : b.color
       b.liquid.visible = level > 0.01
-      b.liquid.tint = color
-      b.liquid.alpha = held ? 0.95 : 0.5
-      b.liquid.scale.set((level * BOWL_R * 1.75) / 64)
+      b.liquid.tint = held ? lighten(color, 0.28) : color
+      b.liquid.alpha = held ? 1 : 0.5
+      b.liquid.scale.set((level * BOWL_R * 1.8) / 64)
       b.glow.tint = color
-      b.glow.alpha = held && quality.settings.glows ? level * (full ? 0.55 + pulse * 0.35 : 0.3) : 0
+      b.glow.scale.set((BOWL_R * 5.5 * bowlScale) / b.glow.texture.width)
+      b.glow.alpha = held && quality.settings.glows ? level * (full ? 0.7 + pulse * 0.3 : 0.5) : 0
+      // The glint: now and then on a filled bowl, often and bright on a full
+      // piece. It sits up-left, toward the light, whatever the rune's turn.
+      b.sparkle.visible = held
+      if (held) {
+        const beat = Math.max(0, Math.sin(time * (full ? 3.1 : 1.7) + i * 2.3))
+        const twinkle = full ? 0.55 + 0.45 * beat * beat : 0.2 + 0.8 * Math.pow(beat, 6)
+        const ox = -BOWL_R * 0.5 * bowlScale
+        const oy = -BOWL_R * 0.55 * bowlScale
+        b.sparkle.position.set(b.c.x + ox * cos - oy * sin, b.c.y + ox * sin + oy * cos)
+        b.sparkle.rotation = counter + 0.2 * Math.sin(time * 0.7 + i)
+        b.sparkle.scale.set((BOWL_R * (full ? 5 : 3.8) * bowlScale * (0.6 + 0.4 * twinkle)) / b.sparkle.texture.width)
+        b.sparkle.alpha = level * twinkle
+        b.sparkle.tint = lighten(color, 0.8)
+      }
     })
 
     this.aura.scale.set(((outer.radius + BOWL_R) * 2.9) / 128)
@@ -363,6 +396,7 @@ export class RuneView {
     const t = textures()
     this.bowlC.removeChildren().forEach((c) => c.destroy({ children: true }))
     this.bowlGlowC.removeChildren().forEach((c) => c.destroy())
+    this.sparkleC.removeChildren().forEach((c) => c.destroy())
     this.bowls = localVertices(outer.sides, outer.radius).map((p, i) => {
       const c = new Container()
       c.position.set(p.x, p.y)
@@ -379,14 +413,20 @@ export class RuneView {
       glow.scale.set((BOWL_R * 5) / t.glow.width)
       glow.alpha = 0
       this.bowlGlowC.addChild(glow)
-      const liquid = sprite(t.meniscus, 0)
-      liquid.visible = false
+      // Looking down into the cup: its glass, then the liquid's surface
+      // (inside the rim), then the specular on top.
       const glass = sprite(t.bowl, BOWL_R * 2)
       glass.tint = colorForMote(outer.nodes[i].catch)
+      const liquid = sprite(t.meniscus, 0)
+      liquid.visible = false
       const shine = sprite(t.highlight, BOWL_R * 2)
       shine.alpha = 0.85
       this.bowlC.addChild(c)
-      return { c, glass, glow, liquid, shine, fill: 0, held: false, color: 0xffffff, generic: false }
+      const sparkle = new Sprite(t.glint)
+      sparkle.anchor.set(0.5)
+      sparkle.visible = false
+      this.sparkleC.addChild(sparkle)
+      return { c, glass, glow, liquid, shine, sparkle, fill: 0, held: false, color: 0xffffff, generic: false }
     })
   }
 

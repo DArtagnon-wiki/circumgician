@@ -3,7 +3,7 @@ import { createLayers, type Layers } from '../render/Layers'
 import { ACCENT_COLOR, INVALID_TINT, RUNE_BODY_COLOR, activePalette, colorForMote, hueColor, hueName, lighten, usePalette } from '../render/Theme'
 import { ZoneBackground } from '../render/ZoneBackground'
 import { ObstacleView } from '../render/ObstacleView'
-import { MIDDLE_SCALE, RuneView, fuseTip, handLook, pieceLook } from '../render/RuneView'
+import { BOWL_MIN, BOWL_R, MIDDLE_SCALE, RuneView, fuseTip, handLook, pieceLook } from '../render/RuneView'
 import { MoteView, createMoteLayers, type MoteLayers } from '../render/MoteView'
 import { SmokeSystem } from '../render/SmokeSystem'
 import { LinkThreads, type Link } from '../render/LinkThreads'
@@ -14,9 +14,10 @@ import { burnUp, fuseSpark } from '../render/Fire'
 import { textures } from '../render/textures'
 import { governor, quality, type Tier } from '../render/Quality'
 import { VIRTUAL_WIDTH, VIRTUAL_HEIGHT, computeFit } from './VirtualScreen'
+import { handLayout, iconRadius, type HandLayout } from './handLayout'
 import { Sim } from '../sim/Sim'
 import { ENDLESS_TUNING, ensureEndlessLayers } from '../sim/endless'
-import { EJECT_TIME, FLICK_GAIN, INVENTORY_ZONE, MOTE_FRICTION, REACH, THAW_LAG } from '../sim/constants'
+import { EJECT_TIME, FLICK_GAIN, MOTE_FRICTION, REACH, THAW_LAG } from '../sim/constants'
 import { middleAngle, outerAngle, outerLayer } from '../sim/geometry'
 import type { Hue, LevelData, Mote, Obstacle, Piece, Rune, Vec2 } from '../sim/types'
 import type { DetonationInfo } from '../sim/events'
@@ -102,6 +103,8 @@ export class GameScene {
   private discoveries = 0 // new hues announced for the detonation in progress
   private veiled = new Set<string>() // motes of a frostbitten piece, hidden until its ice forms
   private flights = new Map<string, Flight>()
+  private layout: HandLayout | null = null
+  private largestRune = 1 // the biggest layer any rune will show in hand (icons size against it)
   private pops = new Map<string, number>()
   private sparks = new Map<string, number>() // per burning piece: time until its fuse throws the next spark
   private lowFuses = new Set<string>() // burning pieces whose fuse has already sizzled low
@@ -145,6 +148,8 @@ export class GameScene {
       ensureLayers: opts.endless ? ensureEndlessLayers : undefined,
       fuse: opts.endless ? ENDLESS_TUNING.fuse : undefined,
     })
+    // A stack's final entry is never cast, so it never shows as an outer layer.
+    this.largestRune = Math.max(1, ...level.hand.flatMap((r) => r.layers.slice(0, -1).map((l) => l.radius)))
     this.zoneBg = new ZoneBackground(level.field, level.blockers, palette.sky)
     this.layers.background.addChild(this.zoneBg.container)
     this.applyQuality()
@@ -298,14 +303,18 @@ export class GameScene {
   }
 
   private slotPosition(slot: number): Vec2 {
-    const n = Math.max(1, this.sim.state.runes.length)
-    return { x: ((slot + 0.5) / n) * VIRTUAL_WIDTH, y: INVENTORY_ZONE.y + INVENTORY_ZONE.h / 2 - 4 }
+    return this.hand().slots[slot] ?? this.hand().slots[0]
   }
 
   private iconScale(radius: number): number {
-    const n = Math.max(1, this.sim.state.runes.length)
-    const room = Math.min(44, VIRTUAL_WIDTH / n / 2 - 10)
-    return Math.min(1, room / radius)
+    return iconRadius(radius, this.largestRune, this.hand().room, BOWL_R, BOWL_MIN) / radius
+  }
+
+  // The shelf's layout for this hand (its size is fixed for a level).
+  private hand(): HandLayout {
+    const n = this.sim.state.runes.length
+    if (this.layout?.slots.length !== Math.max(1, n)) this.layout = handLayout(n)
+    return this.layout
   }
 
   // Runes in hand sit in their slots; the one being dragged follows the
@@ -352,10 +361,9 @@ export class GameScene {
       }
       view.container.position.set(pos.x, pos.y)
       view.body.scale.set(scale)
-      // Tap area matches what is drawn; inventory icons never overlap.
-      let hitR = look.outer.radius * scale + 10
-      if (this.drag?.runeId !== rune.id) hitR = Math.min(hitR, VIRTUAL_WIDTH / Math.max(1, s.runes.length) / 2 - 4)
-      view.setHitRadius(hitR)
+      // In hand, the whole slot takes a tap (slots never overlap); dragged,
+      // the rune itself.
+      view.setHitRadius(this.drag?.runeId === rune.id ? look.outer.radius * scale + 10 : this.hand().hit)
       view.sync(look, REST_ANGLE, REST_ANGLE, s.time, dt, NO_MOTES)
     }
   }
