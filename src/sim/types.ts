@@ -177,9 +177,10 @@ export interface Obstacle {
 
 export type SimStatus = 'playing' | 'won' | 'lost'
 
-// Why the game called a loss: too little damage left for the HP standing,
-// or nothing left to do (no rune can fill from the motes that remain).
-export type LossReason = 'damage' | 'stuck'
+// Why the game called a loss. Only one reason now: nothing left to do (no
+// piece to burst, none that can fill, no rune worth casting). A board that
+// can no longer be won plays on while moves remain.
+export type LossReason = 'stuck'
 
 // What the line played so far has done, for the result screen. Part of the
 // board, so an undo takes back the stats of what it undoes.

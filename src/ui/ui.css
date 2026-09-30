@@ -663,3 +663,46 @@
   flex-wrap: wrap;
   justify-content: center;
 }
+
+/* View board: the card steps aside and the board shows at full strength,
+   under a clear overlay that still keeps it from being played. The bar
+   takes the place of the game's buttons (they can't be pressed from here)
+   so the hand at the bottom stays in view. */
+.result-view {
+  margin-top: -8px;
+  text-decoration: underline;
+  text-decoration-color: var(--gilt-line);
+  text-underline-offset: 4px;
+}
+.result-overlay {
+  transition: background 0.35s ease;
+}
+.result-overlay.viewing {
+  background: transparent;
+  cursor: pointer;
+}
+.result-overlay.viewing .result-card {
+  display: none;
+}
+body:has(.result-overlay.viewing) :is(.game-hud, .endless-score) {
+  visibility: hidden;
+}
+.result-peek {
+  position: absolute;
+  left: 50%;
+  top: calc(env(safe-area-inset-top, 0px) + 10px);
+  transform: translateX(-50%);
+  display: none;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 6px 6px 18px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-style: italic;
+  white-space: nowrap;
+  color: var(--ink-soft);
+}
+.result-overlay.viewing .result-peek {
+  display: flex;
+  animation: fade-in 0.35s ease-out both;
+}

@@ -87,7 +87,7 @@ export class AppShell {
           this.clearOverlay()
           this.overlay = showRunOver(
             { score, depth: broken, bestScore: best.score, bestDepth: best.depth, improved, recap: scene.recap() },
-            { onAgain: () => this.startEndless(), onMenu: () => this.showMenu() },
+            { onAgain: () => this.startEndless(), onMenu: () => this.showMenu(), onViewBoard: (v) => scene.setViewing(v) },
           )
         },
         onMenu: () => this.showMenu(),
@@ -149,6 +149,7 @@ export class AppShell {
               }
             : undefined,
         onLevelSelect: () => this.showLevelSelect(),
+        onViewBoard: (v) => this.scene?.setViewing(v),
       },
       this.scene?.recap(),
     )
@@ -170,6 +171,7 @@ export class AppShell {
   private clearOverlay(): void {
     this.overlay?.remove()
     this.overlay = null
+    this.scene?.setViewing(false)
   }
 
   // Only once the textures exist (mount paints them just after the menu

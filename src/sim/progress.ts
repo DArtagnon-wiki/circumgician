@@ -1,6 +1,6 @@
 import { canPlace } from './rules'
 import { footprintRadius, outerLayer } from './geometry'
-import type { LossReason, RuneLayerSpec, SimState } from './types'
+import type { LossReason, SimState } from './types'
 
 const SCAN_STEP = 6
 
@@ -8,29 +8,6 @@ const SCAN_STEP = 6
 export function isWon(state: SimState): boolean {
   const real = state.obstacles.filter((o) => !o.frozen)
   return real.length > 0 && real.every((o) => o.cleared)
-}
-
-// Necessary condition for winning: damage to an obstacle layer of shape s
-// only ever comes from detonating a piece whose energy has s sides, so per
-// shape the pieces on the field and the layers still to cast must be able
-// to deal at least the remaining HP of that shape. Unbounded (endless)
-// stacks always pass.
-function damageCanSuffice(state: SimState): boolean {
-  if (state.runes.some((r) => r.endlessSeed !== undefined) || state.obstacles.some((o) => o.endlessSeed !== undefined)) return true
-  const need = new Map<number, number>()
-  for (const o of state.obstacles) {
-    if (o.cleared || o.frozen) continue
-    o.layers.forEach((l, i) => {
-      if (i < o.index) return
-      need.set(l.sides, (need.get(l.sides) ?? 0) + (i === o.index ? o.hp : l.hp))
-    })
-  }
-  const can = new Map<number, number>()
-  const add = (layer: RuneLayerSpec, energy: RuneLayerSpec) => can.set(energy.sides, (can.get(energy.sides) ?? 0) + layer.sides)
-  for (const p of state.pieces) add(p.layer, p.energy)
-  for (const r of state.runes) for (let i = r.index; i + 1 < r.layers.length; i++) add(r.layers[i], r.layers[i + 1])
-  for (const [s, hp] of need) if ((can.get(s) ?? 0) < hp) return false
-  return true
 }
 
 // Could the free motes' colors (generics as wildcards) ever cover this
@@ -78,12 +55,14 @@ function chargingPieceCanFill(state: SimState): boolean {
   return false
 }
 
-// Conservative: a reason only when no sequence of actions can ever win.
-// Anything uncertain (pending motion, a tappable rune, a legal placement) is
-// treated as "still playable"; undo and restart cover the rest.
+// The game ends in a loss only when the player can no longer do anything
+// that moves it along: nothing full to burst, nothing charging that could
+// still fill, and no rune worth casting. A board that can no longer be won
+// plays on while moves remain, so a wrong turn is the player's to find
+// (the way a maze doesn't announce a dead end). Anything uncertain (pending
+// motion, a legal placement) counts as still playable.
 export function certainLoss(state: SimState): LossReason | null {
   if (state.status !== 'playing' || isWon(state)) return null
-  if (!damageCanSuffice(state)) return 'damage'
   if (state.motes.some((m) => m.state === 'traveling' || m.state === 'ejecting' || m.vel)) return null
   if (state.pieces.some((p) => p.state === 'full')) return null
   if (anyUsefulCast(state)) return null

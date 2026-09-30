@@ -517,7 +517,7 @@ describe('fuse (burning)', () => {
     expect(sim.piece(id)!.state).toBe('charging')
   })
 
-  it('a burn that leaves too little damage for a shape ends the level at once', () => {
+  it('a burn that leaves nothing to play ends the level at once', () => {
     // Two red on the ring, two more it could still be fed: alive until it burns.
     const motes = [...ring('red', C.x, C.y, 40, 2), mote('red', 60, 660), mote('red', 340, 660)]
     const sim = new Sim(testLevel({ fuse: 5, obstacles: [obstacle(200, 150, [3, 4])], hand: [{ layers: [layer(4, 40, 'red'), layer(3, 30, 'red')] }], motes }))
@@ -526,7 +526,25 @@ describe('fuse (burning)', () => {
     expect(sim.state.status).toBe('playing')
     stepFor(sim, 1)
     expect(sim.state.status).toBe('lost')
-    expect(sim.state.lostBecause).toBe('damage')
+    expect(sim.state.lostBecause).toBe('stuck')
+  })
+
+  it('a burn that puts the win out of reach plays on while moves remain', () => {
+    // The red square was the only blow for the triangle; the blue triangle
+    // strikes nothing, but it can still be cast, filled and burst.
+    const motes = [...ring('red', C.x, C.y, 40, 2), mote('red', 60, 660), mote('red', 340, 660), ...ring('blue', 290, 600, 30, 3)]
+    const hand = [{ layers: [layer(4, 40, 'red'), layer(3, 30, 'red')] }, { layers: [layer(3, 30, 'blue'), layer(4, 40, 'blue')] }]
+    const sim = new Sim(testLevel({ fuse: 5, obstacles: [obstacle(200, 150, [3, 4])], hand, motes }))
+    placeSlot(sim, 0)
+    stepFor(sim, 6)
+    expect(sim.state.stats.burned).toBe(1)
+    expect(sim.state.status).toBe('playing')
+    const id = placeSlot(sim, 1, { x: 290, y: 600 })
+    stepFor(sim, 3)
+    expect(sim.detonate(id)).toBe(true)
+    stepFor(sim, 5)
+    expect(sim.state.status).toBe('lost')
+    expect(sim.state.lostBecause).toBe('stuck')
   })
 
   it('undo takes back the cast, and the motes the burn took', () => {
@@ -764,11 +782,14 @@ describe('undo', () => {
 })
 
 describe('loss check', () => {
-  it('both debug fail levels lose on their obvious play', () => {
-    for (const level of DEBUG_PACK.filter((l) => l.id.startsWith('fail-'))) {
-      const res = runScript(level, [{ place: 0, at: { x: 200, y: 500 } }], { settle: 10 })
-      expect(res.status, level.id).toBe('lost')
-    }
+  it('both debug fail levels lose on their obvious play, once nothing is left to do', () => {
+    const debug = (id: string) => DEBUG_PACK.find((l) => l.id === id)!
+    const at = { x: 200, y: 500 }
+    // No motes the rune can catch: lost as soon as it is down.
+    expect(runScript(debug('fail-no-motes'), [{ place: 0, at }], { settle: 10 }).status).toBe('lost')
+    // Nothing its blow can strike: it still fills and bursts, and only then is nothing left.
+    expect(runScript(debug('fail-no-match'), [{ place: 0, at }], { settle: 10 }).status).toBe('playing')
+    expect(runScript(debug('fail-no-match'), [{ place: 0, at }, { tap: 0 }], { settle: 10 }).status).toBe('lost')
   })
 
   it('never fires while a winning line exists', () => {
@@ -783,7 +804,7 @@ describe('loss check', () => {
     expect(res.status).toBe('won')
   })
 
-  it('declares a loss when too little damage remains for a shape', () => {
+  it('too little damage left for a shape is no loss while moves remain: the game plays on until nothing can move', () => {
     const level = testLevel({
       obstacles: [obstacle(200, 150, [3, 9])],
       hand: [{ layers: [layer(4, 40, 'red'), layer(3, 30, 'red')] }],
@@ -791,7 +812,12 @@ describe('loss check', () => {
     })
     const sim = new Sim(level)
     sim.checkLoss()
-    expect(sim.state.status).toBe('lost')
+    expect(sim.state.status).toBe('playing')
+    const res = runScript(level, [{ place: 0, at: C }, { tap: 0 }], { settle: 5 })
+    expect(res.error).toBeUndefined()
+    expect(res.sim.state.obstacles[0].hp).toBe(5)
+    expect(res.status).toBe('lost')
+    expect(res.sim.state.lostBecause).toBe('stuck')
   })
 
   it('a rune placed away from its motes is not a loss: motes can be kicked to it', () => {

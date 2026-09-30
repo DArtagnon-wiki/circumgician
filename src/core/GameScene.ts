@@ -115,6 +115,7 @@ export class GameScene {
   private gesture: Gesture | null = null
   private pendingResult: { kind: 'won' | 'lost'; wait: number } | null = null
   private mood = 1 // 1 = normal, drops toward 0.35 during the loss animation
+  private viewing = false // the result card is set aside to study the board
   private showRings = false
   private sfx = new Sfx()
   private hud: GameHud | null = null
@@ -201,6 +202,12 @@ export class GameScene {
     }
   }
 
+  // The result card set aside (or back): a lost board shows at full
+  // strength while it is studied.
+  setViewing(viewing: boolean): void {
+    this.viewing = viewing
+  }
+
   restart(): void {
     this.sfx.unlock()
     this.sim.restart((Math.random() * 2 ** 32) >>> 0)
@@ -252,7 +259,7 @@ export class GameScene {
         else this.callbacks.onLost()
       }
     }
-    const targetMood = s.status === 'lost' ? 0.35 : 1
+    const targetMood = s.status === 'lost' && !this.viewing ? 0.35 : 1
     this.mood += (targetMood - this.mood) * Math.min(1, dt * 3)
     this.layers.runes.alpha = this.mood
     this.layers.obstacles.alpha = 0.4 + 0.6 * this.mood

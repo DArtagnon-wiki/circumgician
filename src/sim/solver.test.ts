@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ECONOMY_COLORS, EconomySolver, damageShort, economyWon, initialEconomy, moveLabel, profileLevel, replay, tensionAlong, transitions, type Economy } from './solver'
+import { ECONOMY_COLORS, EconomySolver, damageShort, economyLost, economyWon, initialEconomy, moveLabel, profileLevel, replay, tensionAlong, transitions, type Economy } from './solver'
 import { tensionShape } from './solverReport'
 import { loadLevel } from './loadLevel'
 import { isCertainLoss } from './progress'
@@ -88,10 +88,14 @@ describe('economy moves', () => {
 })
 
 describe('loss test', () => {
-  it("matches the game's damage check on the same board", () => {
+  it('too little damage left means no win, though the game plays on while moves remain', () => {
     const level = testLevel({ motes: motes({ red: 4 }), obstacles: [obstacle(200, 150, [3, 5])], hand: [{ layers: [layer(4, 40, 'red'), layer(3, 36, 'red')] }] })
-    expect(damageShort(level, initialEconomy(level))).toBe(true)
-    expect(isCertainLoss(loadLevel(level))).toBe(true)
+    const s = initialEconomy(level)
+    expect(damageShort(level, s)).toBe(true)
+    expect(economyLost(level, s)).toBe(false) // the square can still fill and burst
+    expect(isCertainLoss(loadLevel(level))).toBe(false)
+    const struck = after(level, after(level, s, 'fill R0.0'), 'R0.0->O0')
+    expect(economyLost(level, struck)).toBe(true) // nothing left to do: the game ends here
     const enough = { ...level, obstacles: [obstacle(200, 150, [3, 4])] }
     expect(damageShort(enough, initialEconomy(enough))).toBe(false)
   })

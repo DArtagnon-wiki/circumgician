@@ -148,10 +148,9 @@ export function economyWon(level: LevelData, s: Economy): boolean {
   return s.obstacles.every((o, i) => o.index >= level.obstacles[i].layers.length)
 }
 
-// The game's damage test for a certain loss (damageCanSuffice in
-// progress.ts): per obstacle shape, can the layers not yet detonated still
-// deal the HP left? The game shows the loss screen the moment this fails,
-// so it is also when a player learns that damage was wasted.
+// Per obstacle shape, can the layers not yet detonated still deal the HP
+// left? When not, no win remains (the solver prunes there), though the
+// game plays on until nothing can move.
 export function damageShort(level: LevelData, s: Economy): boolean {
   const need = new Map<number, number>()
   s.obstacles.forEach((o, oi) => {
@@ -287,11 +286,10 @@ export function transitions(level: LevelData, s: Economy, opts: SolverOptions = 
   return out
 }
 
-// The game's certain-loss test (progress.ts), as far as the model can see
-// it: damage short, or nothing full and nothing left that could fill.
+// The game's loss test (progress.ts), as far as the model can see it:
+// nothing full, and nothing left that could fill.
 export function economyLost(level: LevelData, s: Economy, opts: SolverOptions = {}): boolean {
   if (economyWon(level, s)) return false
-  if (damageShort(level, s)) return true
   if (s.pieces.some((p) => p.full)) return false
   return !transitions(level, s, opts).length
 }
@@ -343,11 +341,11 @@ export class EconomySolver {
   }
 
   // For a state that can no longer win: the most moves a player can still
-  // make before the game declares the loss (0 = at once). Wasted damage
-  // shows the moment the damage test fails; a color dead end only once
-  // nothing is left to do.
+  // make before the loss is plain to see (0 = at once): too little damage
+  // left for what stands, or nothing left to do. (The game itself plays on
+  // until nothing can move; this is when an attentive player could tell.)
   revealDepth(s: Economy): number {
-    if (economyLost(this.level, s, this.opts) || economyWon(this.level, s)) return 0
+    if (economyLost(this.level, s, this.opts) || economyWon(this.level, s) || damageShort(this.level, s)) return 0
     return this.memo(this.revealMemo, s, () => this.moves(s).reduce((d, t) => Math.max(d, 1 + this.revealDepth(t.next)), 0))
   }
 

@@ -68,8 +68,7 @@ function subtitle(text: string): HTMLElement {
 }
 
 const LOSS_LINES: Record<LossReason, string> = {
-  damage: 'Too few blows remain to break what is left.',
-  stuck: 'No rune can fill from the motes that are left.',
+  stuck: 'No moves left: nothing can fill, and nothing is ready to burst.',
 }
 
 export interface HUDActions {
@@ -77,6 +76,35 @@ export interface HUDActions {
   onNext?: () => void // omitted on the final level
   onUndo?: () => void // offered on a loss
   onLevelSelect: () => void
+  onViewBoard?: (viewing: boolean) => void // the board brightens while viewed
+}
+
+// Put the card aside to study the board as it ended; a tap anywhere (or the
+// bar's button) brings it back. The overlay stays up, so the board can be
+// looked at but not played.
+function addBoardView(overlay: HTMLElement, card: HTMLElement, caption: string, onView?: (viewing: boolean) => void): void {
+  const view = document.createElement('button')
+  view.className = 'btn ghost small result-view'
+  view.textContent = 'View board'
+  const bar = document.createElement('div')
+  bar.className = 'result-peek panel'
+  const text = document.createElement('span')
+  text.textContent = caption
+  const back = document.createElement('button')
+  back.className = 'btn small'
+  back.textContent = 'Back'
+  bar.append(text, back)
+  const set = (viewing: boolean) => {
+    overlay.classList.toggle('viewing', viewing)
+    onView?.(viewing)
+    ;(viewing ? back : view).focus({ preventScroll: true })
+  }
+  view.addEventListener('click', () => set(true))
+  overlay.addEventListener('click', (e) => {
+    if (overlay.classList.contains('viewing') && e.target !== view) set(false)
+  })
+  card.append(view)
+  overlay.append(bar)
 }
 
 export function showHUD(result: HUDResult, actions: HUDActions, recap?: Recap): HTMLElement {
@@ -117,6 +145,7 @@ export function showHUD(result: HUDResult, actions: HUDActions, recap?: Recap): 
     card.append(...recapBlock(recap, keys, result === 'won'))
   }
   card.append(buttonRow)
+  addBoardView(overlay, card, result === 'won' ? 'The board as you left it' : 'The board as it ended', actions.onViewBoard)
   document.body.appendChild(overlay)
   return overlay
 }
@@ -140,7 +169,7 @@ export interface RunOverInfo {
 }
 
 // Endless: the single life is spent.
-export function showRunOver(info: RunOverInfo, actions: { onAgain: () => void; onMenu: () => void }): HTMLElement {
+export function showRunOver(info: RunOverInfo, actions: { onAgain: () => void; onMenu: () => void; onViewBoard?: (viewing: boolean) => void }): HTMLElement {
   const overlay = document.createElement('div')
   overlay.className = 'result-overlay lost'
   const card = resultCard(overlay)
@@ -164,6 +193,7 @@ export function showRunOver(info: RunOverInfo, actions: { onAgain: () => void; o
   card.append(title, divider(), stats)
   if (info.recap) card.append(...recapBlock(info.recap, ['time', 'detonations', 'wasted'], false))
   card.append(row)
+  addBoardView(overlay, card, 'The board as it ended', actions.onViewBoard)
   document.body.appendChild(overlay)
   return overlay
 }
