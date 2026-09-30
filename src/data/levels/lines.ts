@@ -289,8 +289,8 @@ export const LINES: Record<string, Line[]> = {
   ],
 }
 
-// Levels 24-27: nulls, a pair, borrowed cups, a shield. Rubies on the left,
-// sapphires on the right, the later stages made at a well below.
+// Levels 24-28: nulls, a pair, borrowed cups, a shield, a void. Rubies on
+// the left, sapphires on the right, the later stages made at a well below.
 const ARC = { ruby: at(100, 440), sapphire: at(300, 440), well: at(200, 600), left: at(100, 605), right: at(300, 605), hollowWell: at(200, 590) }
 const hollowToCrux = [...cast(0, ARC.ruby), ...cast(1, ARC.sapphire), ...cast(2, ARC.ruby), ...cast(3, ARC.sapphire), ...cast(4, ARC.hollowWell)]
 const twoHandsToCrux = [...cast(0, ARC.ruby), ...cast(1, ARC.sapphire), ...cast(2, ARC.ruby), ...cast(3, ARC.sapphire), ...cast(4, ARC.well), ...cast(3, ARC.well)]
@@ -298,6 +298,7 @@ const borrowedToCrux = [...cast(0, ARC.ruby), ...cast(1, ARC.sapphire), ...cast(
 const aegisToCrux = [...cast(0, ARC.ruby), ...cast(1, ARC.sapphire), ...cast(2, ARC.ruby), ...cast(3, ARC.sapphire), ...cast(2, ARC.well), ...cast(4, ARC.well), ...cast(4, ARC.well)]
 // The jade triangle cast at the shielded boss latches on and pulls.
 const aegisPull = [place(5, ARC.well), feed(5)]
+const ashenToCrux = [...cast(0, ARC.ruby), ...cast(1, ARC.sapphire), ...cast(2, ARC.ruby), ...cast(3, ARC.sapphire), ...cast(2, ARC.well), ...cast(4, ARC.well), ...cast(4, ARC.right), ...cast(4, ARC.well)]
 Object.assign(LINES, {
   'hollow-bowls': [
     { name: 'intended', expect: 'won', steps: [...hollowToCrux, ...cast(5, ARC.hollowWell), ...cast(0, ARC.hollowWell)] },
@@ -316,6 +317,10 @@ Object.assign(LINES, {
     { name: 'intended', expect: 'won', steps: [...aegisToCrux, ...aegisPull, ...cast(3, ARC.left), ...castLayer(5, ARC.right, 1), tapLayer(5, 0)] },
     { name: 'a jade decoy', expect: 'not-won', steps: [...aegisToCrux, ...cast(0, ARC.well)] },
     { name: 'the second striker first', expect: 'not-won', steps: [...aegisToCrux, ...aegisPull, ...castLayer(5, ARC.right, 1), ...cast(3, ARC.left)] },
+  ],
+  'the-ashen-key': [
+    { name: 'intended', expect: 'won', steps: [...ashenToCrux, ...cast(5, ARC.well), ...cast(3, ARC.well), ...cast(5, ARC.well)] },
+    { name: 'an amber square burns the void', expect: 'not-won', steps: [...ashenToCrux, ...cast(0, ARC.well), ...cast(5, ARC.well)] },
   ],
 } satisfies Record<string, Line[]>)
 
