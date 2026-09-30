@@ -50,6 +50,7 @@ export class MoteView {
   private drop: Sprite
   private gem: Sprite // locked in ice: a crisp jewel, so it reads against the glaze
   private rim: Sprite // a blank's edge: a null is a hollow bead, a void a dark hole
+  private infall: Sprite // a void's light, drawn in: a ring forever shrinking into it
   private addWisp = true // a void's smoke is ink, not light
   private smoke: SmokeSystem
   private phase = Math.random() * TAU
@@ -66,21 +67,22 @@ export class MoteView {
     this.drop = new Sprite(t.droplet)
     this.gem = new Sprite(t.disc)
     this.rim = new Sprite(t.ring)
-    for (const s of [this.halo, this.body, this.hot, this.drop, this.gem, this.rim]) s.anchor.set(0.5)
-    layers.halos.addChild(this.halo)
+    this.infall = new Sprite(t.ring)
+    for (const s of [this.halo, this.body, this.hot, this.drop, this.gem, this.rim, this.infall]) s.anchor.set(0.5)
+    layers.halos.addChild(this.halo, this.infall)
     layers.bodies.addChild(this.body, this.drop, this.gem, this.rim)
     layers.hearts.addChild(this.hot)
   }
 
   destroy(): void {
-    for (const s of [this.halo, this.body, this.hot, this.drop, this.gem, this.rim]) s.destroy()
+    for (const s of [this.halo, this.body, this.hot, this.drop, this.gem, this.rim, this.infall]) s.destroy()
   }
 
   private show(on: boolean): void {
     this.body.visible = on
     this.hot.visible = on
     this.halo.visible = on && quality.settings.glows
-    if (!on) this.drop.visible = this.gem.visible = this.rim.visible = false
+    if (!on) this.drop.visible = this.gem.visible = this.rim.visible = this.infall.visible = false
   }
 
   // Not drawn at all (a frostbitten piece's motes, until its ice appears).
@@ -220,8 +222,10 @@ export class MoteView {
     this.hot.alpha = 0.75 * alpha
     // Blanks: a null is a hollow silver bead (faint body, bright rim, next
     // to no heat); a void a dark hole ringed in pale violet, the faint
-    // corona around it swallowed at the center.
+    // corona around it swallowed at the center, and light forever drawn in
+    // (a ring shrinking into the hole), so it reads against the dark.
     this.rim.visible = blank && !this.gem.visible
+    this.infall.visible = voided && !this.gem.visible
     if (blank) {
       this.rim.position.copyFrom(this.body.position)
       this.rim.scale.set((15 / 64 / 0.8) * heart * (voided ? 1 : breathe))
@@ -231,8 +235,13 @@ export class MoteView {
         this.body.tint = VOID_COLOR
         this.body.scale.set((30 / GLOW) * heart)
         this.halo.tint = VOID_RIM
-        this.halo.alpha = Math.min(1, 0.22 * alpha * glow)
+        this.halo.alpha = Math.min(1, 0.3 * alpha * glow)
         this.hot.alpha = 0
+        const k = (time * 0.55 + this.phase / TAU) % 1 // one infall every ~1.8 s
+        this.infall.position.copyFrom(this.body.position)
+        this.infall.scale.set((15 / 64 / 0.8) * heart * (1 + 1.5 * (1 - k * k)))
+        this.infall.tint = VOID_RIM
+        this.infall.alpha = 0.6 * alpha * Math.sin(Math.PI * k)
       } else {
         this.body.alpha = 0.3 * alpha
         this.hot.alpha = 0.15 * alpha
