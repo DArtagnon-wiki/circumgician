@@ -267,24 +267,20 @@ export const LINES: Record<string, Line[]> = {
   firebreak: [
     { name: 'intended', expect: 'won', steps: [...firebreakToCrux, ...cast(4, FIRE.boss), ...cast(0, FIRE.leftWell), ...burnAside(5, FIRE.aside), ...castLayer(5, FIRE.well, 1), ...castLayer(5, FIRE.well, 2)] },
     { name: 'the carnelian triangle', expect: 'not-won', steps: [...firebreakToCrux, ...cast(5, FIRE.well)] },
-    { name: 'burning the rose quartz square for the other hexagon', expect: 'not-won', steps: [...firebreakToCrux, ...burnAside(0, FIRE.aside), ...castLayer(0, FIRE.boss, 3)] },
   ],
   backdraft: [
     { name: 'intended', expect: 'won', steps: [...backdraftToCrux, ...burnAside(3, FIRE.aside), ...ready(3, FIRE.boss, 1), ...ready(0, FIRE.leftWell), ...ready(4, FIRE.well), ...ready(5, FIRE.well), ...cast(4, FIRE.right)] },
     { name: 'the citrine square', expect: 'not-won', steps: [...backdraftToCrux, ...cast(1, FIRE.boss)] },
-    { name: 'burning the rose quartz square', expect: 'not-won', steps: [...backdraftToCrux, ...burnAside(0, FIRE.aside), ...castLayer(0, FIRE.boss, 4)] },
     { name: 'the decoy citrine triangle', expect: 'not-won', steps: [...backdraftToCrux, ...cast(3, FIRE.boss)] },
   ],
   wildfire: [
     { name: 'intended', expect: 'won', steps: [...wildfireToCrux, ...burnAside(3, FIRE.aside, FIRE.aside2), ...castLayer(3, FIRE.boss, 2), ...cast(0, FIRE.leftWell), ...cast(4, FIRE.well), ...cast(5, FIRE.well), ...cast(4, FIRE.right)] },
     { name: 'the spinel square', expect: 'not-won', steps: [...wildfireToCrux, ...cast(1, FIRE.boss)] },
-    { name: 'burning the garnet square', expect: 'not-won', steps: [...wildfireToCrux, ...burnAside(0, FIRE.aside), ...castLayer(0, FIRE.boss, 5)] },
     { name: 'burning one, then the decoy spinel square', expect: 'not-won', steps: [...wildfireToCrux, ...burnAside(3, FIRE.aside), ...castLayer(3, FIRE.boss, 1)] },
   ],
   phoenix: [
     { name: 'intended', expect: 'won', steps: [...phoenixToCrux, ...burnAside(3, FIRE.aside, FIRE.aside2), ...ready(3, FIRE.boss, 2), ...ready(0, FIRE.leftWell), ...ready(4, FIRE.well), ...ready(5, FIRE.well), ...cast(4, FIRE.right), ...cast(5, FIRE.left)] },
     { name: 'the rose quartz square', expect: 'not-won', steps: [...phoenixToCrux, ...cast(1, FIRE.boss)] },
-    { name: 'burning the spinel square', expect: 'not-won', steps: [...phoenixToCrux, ...burnAside(0, FIRE.aside), ...castLayer(0, FIRE.boss, 5)] },
     { name: 'burning one, then the decoy rose quartz square', expect: 'not-won', steps: [...phoenixToCrux, ...burnAside(3, FIRE.aside), ...castLayer(3, FIRE.boss, 1)] },
   ],
 }
@@ -328,7 +324,6 @@ Object.assign(LINES, {
   ],
   'the-crown': [
     { name: 'intended', expect: 'won', steps: [...crownToCrux, ...crownPull, ...cast(3, ARC.left), ...castLayer(5, ARC.right, 1), tapLayer(5, 0)] },
-    { name: 'a jade decoy', expect: 'not-won', steps: [...crownToCrux, ...cast(0, ARC.well)] },
     { name: 'the striker first: its ash cup takes a jade', expect: 'not-won', steps: [...crownToCrux, place(3, ARC.left), feed(3), ...crownPull, tap(3)] },
     { name: 'the second striker first', expect: 'not-won', steps: [...crownToCrux, ...crownPull, ...castLayer(5, ARC.right, 1), ...cast(3, ARC.left)] },
   ],

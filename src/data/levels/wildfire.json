@@ -336,36 +336,6 @@
           "radius": 62,
           "nodes": [
             {
-              "catch": "blue",
-              "release": "red"
-            },
-            {
-              "catch": "blue",
-              "release": "red"
-            },
-            {
-              "catch": "blue",
-              "release": "red"
-            },
-            {
-              "catch": "blue",
-              "release": "red"
-            },
-            {
-              "catch": "blue",
-              "release": "red"
-            },
-            {
-              "catch": "blue",
-              "release": "red"
-            }
-          ]
-        },
-        {
-          "sides": 6,
-          "radius": 30,
-          "nodes": [
-            {
               "catch": "red",
               "release": "red"
             },

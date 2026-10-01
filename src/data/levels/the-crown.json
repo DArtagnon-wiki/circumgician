@@ -184,44 +184,6 @@
           "radius": 40,
           "nodes": [
             {
-              "catch": "teal",
-              "release": "gold"
-            },
-            {
-              "catch": "teal",
-              "release": "gold"
-            },
-            {
-              "catch": "teal",
-              "release": "annihilating"
-            }
-          ]
-        },
-        {
-          "sides": 8,
-          "radius": 30,
-          "nodes": [
-            {
-              "catch": "red",
-              "release": "red"
-            },
-            {
-              "catch": "red",
-              "release": "red"
-            },
-            {
-              "catch": "red",
-              "release": "red"
-            },
-            {
-              "catch": "red",
-              "release": "red"
-            },
-            {
-              "catch": "red",
-              "release": "red"
-            },
-            {
               "catch": "red",
               "release": "red"
             },
@@ -270,44 +232,6 @@
           "sides": 3,
           "radius": 40,
           "nodes": [
-            {
-              "catch": "teal",
-              "release": "gold"
-            },
-            {
-              "catch": "teal",
-              "release": "gold"
-            },
-            {
-              "catch": "teal",
-              "release": "annihilating"
-            }
-          ]
-        },
-        {
-          "sides": 8,
-          "radius": 30,
-          "nodes": [
-            {
-              "catch": "red",
-              "release": "red"
-            },
-            {
-              "catch": "red",
-              "release": "red"
-            },
-            {
-              "catch": "red",
-              "release": "red"
-            },
-            {
-              "catch": "red",
-              "release": "red"
-            },
-            {
-              "catch": "red",
-              "release": "red"
-            },
             {
               "catch": "red",
               "release": "red"
