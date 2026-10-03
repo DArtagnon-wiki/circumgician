@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PACK } from './pack'
+import { DEBUG_PACK, PACK } from './pack'
 import { LINES } from './lines'
 import { runCareless, runScript } from '../../sim/headless'
 import { economyWon, moveLabel, replay } from '../../sim/solver'
@@ -8,12 +8,15 @@ import { economyWon, moveLabel, replay } from '../../sim/solver'
 // several drift seeds.
 const SEEDS = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
 
+// The pack, then any debug-pack level that ships lines of its own (pilots).
+const CURATED = [...PACK, ...DEBUG_PACK.filter((level) => LINES[level.id])]
+
 describe('curated pack solutions', () => {
   it('every pack level has scripted lines', () => {
     for (const level of PACK) expect(LINES[level.id], level.id).toBeDefined()
   })
 
-  for (const level of PACK) {
+  for (const level of CURATED) {
     for (const line of LINES[level.id] ?? []) {
       it(`${level.id}: ${line.name} -> ${line.expect}`, () => {
         for (const seed of SEEDS) {
@@ -35,7 +38,7 @@ describe('curated pack solutions', () => {
 
   // The solver (src/sim/solver.ts) abstracts geometry away; it must still
   // agree with the real sim about every intended line.
-  for (const level of PACK) {
+  for (const level of CURATED) {
     const intended = LINES[level.id]?.find((line) => line.expect === 'won')
     if (!intended) continue
     it(`${level.id}: the intended line also wins in the solver's model`, () => {
@@ -48,7 +51,7 @@ describe('curated pack solutions', () => {
   }
 
   // Careless play should almost always fail (level 1 is the gentle exception).
-  for (const level of PACK.slice(1)) {
+  for (const level of CURATED.slice(1)) {
     it(`${level.id}: careless play rarely wins`, () => {
       let wins = 0
       for (let seed = 1; seed <= 20; seed++) if (runCareless(level, seed, 180).status === 'won') wins++

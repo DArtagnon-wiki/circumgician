@@ -347,5 +347,22 @@ Object.assign(LINES, {
   ],
 } satisfies Record<string, Line[]>)
 
+// Hollow Bowls, branching (a debug-pack pilot): two cruxes, the amber funnel
+// that takes every amber and the hollow amethyst rune that takes every null,
+// with the level opening out between them. Each blow is cast on the side of
+// the obstacle it hits.
+const BR = { left: at(110, 520), right: at(290, 520) }
+const branchingOpening = [...cast(0, BR.right), ...cast(0, BR.left), ...cast(1, BR.left), ...cast(0, BR.right)]
+const branchingMiddle = [...cast(2, BR.left), ...cast(1, BR.left), ...cast(1, BR.right)]
+const branchingFinale = [...cast(3, BR.left), ...cast(3, BR.right), ...cast(0, BR.right)]
+Object.assign(LINES, {
+  'hollow-bowls-v2': [
+    { name: 'intended', expect: 'won', steps: [...branchingOpening, ...branchingMiddle, ...branchingFinale] },
+    { name: 'the sapphire square turns blues into rubies, first', expect: 'lost', steps: [...cast(4, BR.right), ...branchingOpening, ...branchingMiddle, ...branchingFinale] },
+    { name: 'the amber triangle takes three ambers at the first crux', expect: 'lost', steps: [...branchingOpening, ...cast(5, BR.left), ...branchingMiddle, ...branchingFinale] },
+    { name: 'the pentagon takes the nulls', expect: 'not-won', steps: [...branchingOpening, ...branchingMiddle, ...cast(0, BR.right), ...branchingFinale] },
+  ],
+} satisfies Record<string, Line[]>)
+
 // The line a level is designed to be played along.
 export const intendedLine = (id: string): Line | undefined => LINES[id]?.find((line) => line.name === 'intended')
