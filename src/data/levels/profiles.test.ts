@@ -16,8 +16,10 @@ import { profileLevel, tensionAlong, tensionBands } from '../../sim/solver'
 // to the sixth level's length, building to the eleventh's; so do the fire
 // levels, and the levels of nulls, pairs and borrowed cups. Where a level
 // has other moves besides fills and detonations (a pair's two pieces
-// latching on, say), `moves` is its shortest win in moves.
-const PROGRESSION: Record<string, { blows: number; crux?: number; arc?: true; moves?: number }> = {
+// latching on, say), `moves` is its shortest win in moves. A level with a
+// live decoy (a rune fillable from the start whose use quietly costs the
+// level) builds up to its crux higher than .5: `buildUp` is how high.
+const PROGRESSION: Record<string, { blows: number; crux?: number; arc?: true; moves?: number; buildUp?: number }> = {
   'first-threads': { blows: 2 },
   'changing-colors': { blows: 3 },
   'the-weighing': { blows: 4 },
@@ -42,11 +44,11 @@ const PROGRESSION: Record<string, { blows: number; crux?: number; arc?: true; mo
   wildfire: { blows: 13, crux: 9 },
   phoenix: { blows: 15, crux: 10 },
   'hollow-bowls': { blows: 7, crux: 6, arc: true },
-  'two-hands': { blows: 8, crux: 7, moves: 17 },
+  'two-hands': { blows: 8, crux: 7, moves: 17, buildUp: 0.8 },
   'borrowed-light': { blows: 9, crux: 7 },
-  'the-aegis': { blows: 10, crux: 8 },
-  'the-ashen-key': { blows: 11, crux: 9 },
-  'the-crown': { blows: 12, crux: 10, moves: 25 },
+  'the-aegis': { blows: 10, crux: 8, buildUp: 0.8 },
+  'the-ashen-key': { blows: 11, crux: 9, buildUp: 0.8 },
+  'the-crown': { blows: 12, crux: 10, moves: 25, buildUp: 0.8 },
 }
 
 describe('pack tension progression', () => {
@@ -91,7 +93,7 @@ describe('pack tension progression', () => {
       for (const b of points) {
         if (b.after?.kind === 'fire') blows += b.after.with ? 2 : 1
         if (blows > step.crux - 2) break
-        expect(b.tension.tension, 'building up to the crux').toBeLessThanOrEqual(0.5)
+        expect(b.tension.tension, 'building up to the crux').toBeLessThanOrEqual(step.buildUp ?? 0.5)
       }
     }, 60_000)
   }

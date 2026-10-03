@@ -306,8 +306,8 @@ Object.assign(LINES, {
   ],
   'two-hands': [
     { name: 'intended', expect: 'won', steps: [...twoHandsToCrux, place(5, ARC.left), feed(5), place(2, ARC.right), feed(2), tap(5)] },
-    { name: 'a jade decoy for the pentagon', expect: 'not-won', steps: [...twoHandsToCrux, ...cast(0, ARC.left)] },
-    { name: 'a jade decoy for the square', expect: 'not-won', steps: [...twoHandsToCrux, ...cast(1, ARC.right)] },
+    { name: 'the triangle that turns red and sapphire into amber, first', expect: 'not-won', steps: [...cast(0, ARC.ruby), ...cast(1, ARC.sapphire), ...cast(0, ARC.ruby), ...twoHandsToCrux.slice(6), place(5, ARC.left), feed(5), place(2, ARC.right), feed(2), tap(5)] },
+    { name: 'a jade decoy for the square', expect: 'not-won', steps: [...twoHandsToCrux, ...cast(3, ARC.right)] },
   ],
   'borrowed-light': [
     { name: 'intended', expect: 'won', steps: [...borrowedToCrux, ...cast(5, ARC.left), ...cast(3, ARC.sapphire), ...cast(5, ARC.ruby)] },
@@ -315,15 +315,18 @@ Object.assign(LINES, {
   ],
   'the-aegis': [
     { name: 'intended', expect: 'won', steps: [...aegisToCrux, ...aegisPull, ...cast(3, ARC.left), ...castLayer(5, ARC.right, 1), tapLayer(5, 0)] },
-    { name: 'a jade decoy', expect: 'not-won', steps: [...aegisToCrux, ...cast(0, ARC.well)] },
+    { name: 'the sapphire triangle takes the pentagon its blues', expect: 'not-won', steps: [...cast(0, ARC.ruby), ...cast(0, ARC.sapphire), ...cast(1, ARC.sapphire)] },
+    { name: 'a jade decoy', expect: 'not-won', steps: [...aegisToCrux, ...cast(4, ARC.well)] },
     { name: 'the second striker first', expect: 'not-won', steps: [...aegisToCrux, ...aegisPull, ...castLayer(5, ARC.right, 1), ...cast(3, ARC.left)] },
   ],
   'the-ashen-key': [
     { name: 'intended', expect: 'won', steps: [...ashenToCrux, ...cast(5, ARC.well), ...cast(3, ARC.well), ...cast(5, ARC.well)] },
-    { name: 'an amber square burns the void', expect: 'not-won', steps: [...ashenToCrux, ...cast(0, ARC.well), ...cast(5, ARC.well)] },
+    { name: 'the amber square that gives back ruby, first', expect: 'not-won', steps: [...cast(0, ARC.ruby), ...cast(1, ARC.sapphire), ...cast(0, ARC.ruby), ...ashenToCrux.slice(6), ...cast(5, ARC.well), ...cast(3, ARC.well), ...cast(5, ARC.well)] },
+    { name: 'an amber square burns the void', expect: 'not-won', steps: [...ashenToCrux, ...cast(1, ARC.well), ...cast(5, ARC.well)] },
   ],
   'the-crown': [
     { name: 'intended', expect: 'won', steps: [...crownToCrux, ...crownPull, ...cast(3, ARC.left), ...castLayer(5, ARC.right, 1), tapLayer(5, 0)] },
+    { name: 'the ruby triangle takes the pentagon its reds', expect: 'not-won', steps: [...cast(0, ARC.ruby), ...cast(0, ARC.ruby), ...crownToCrux.slice(3)] },
     { name: 'the striker first: its ash cup takes a jade', expect: 'not-won', steps: [...crownToCrux, place(3, ARC.left), feed(3), ...crownPull, tap(3)] },
     { name: 'the second striker first', expect: 'not-won', steps: [...crownToCrux, ...crownPull, ...castLayer(5, ARC.right, 1), ...cast(3, ARC.left)] },
   ],

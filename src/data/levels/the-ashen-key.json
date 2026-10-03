@@ -178,19 +178,19 @@
           "nodes": [
             {
               "catch": "gold",
-              "release": "gold"
+              "release": "red"
             },
             {
               "catch": "gold",
-              "release": "gold"
+              "release": "red"
             },
             {
               "catch": "gold",
-              "release": "gold"
+              "release": "red"
             },
             {
-              "catch": "teal",
-              "release": "annihilating"
+              "catch": "gold",
+              "release": "blue"
             }
           ]
         },
@@ -265,42 +265,26 @@
           "nodes": [
             {
               "catch": "gold",
-              "release": "gold"
+              "release": "blue"
             },
             {
               "catch": "gold",
-              "release": "gold"
+              "release": "blue"
             },
             {
               "catch": "gold",
-              "release": "gold"
+              "release": "blue"
             },
             {
-              "catch": "teal",
+              "catch": "gold",
               "release": "annihilating"
             }
           ]
         },
         {
-          "sides": 7,
+          "sides": 3,
           "radius": 30,
           "nodes": [
-            {
-              "catch": "red",
-              "release": "red"
-            },
-            {
-              "catch": "red",
-              "release": "red"
-            },
-            {
-              "catch": "red",
-              "release": "red"
-            },
-            {
-              "catch": "red",
-              "release": "red"
-            },
             {
               "catch": "red",
               "release": "red"

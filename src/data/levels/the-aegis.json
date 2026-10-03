@@ -173,35 +173,23 @@
           "radius": 40,
           "nodes": [
             {
-              "catch": "teal",
+              "catch": "blue",
               "release": "gold"
             },
             {
-              "catch": "teal",
+              "catch": "blue",
               "release": "gold"
             },
             {
-              "catch": "violet",
+              "catch": "blue",
               "release": "gold"
             }
           ]
         },
         {
-          "sides": 6,
+          "sides": 3,
           "radius": 30,
           "nodes": [
-            {
-              "catch": "red",
-              "release": "red"
-            },
-            {
-              "catch": "red",
-              "release": "red"
-            },
-            {
-              "catch": "red",
-              "release": "red"
-            },
             {
               "catch": "red",
               "release": "red"
@@ -493,6 +481,36 @@
           "sides": 3,
           "radius": 40,
           "nodes": [
+            {
+              "catch": "teal",
+              "release": "gold"
+            },
+            {
+              "catch": "teal",
+              "release": "gold"
+            },
+            {
+              "catch": "violet",
+              "release": "gold"
+            }
+          ]
+        },
+        {
+          "sides": 6,
+          "radius": 30,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
             {
               "catch": "red",
               "release": "red"
