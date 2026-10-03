@@ -132,7 +132,7 @@ describe('validateLevel', () => {
     l.palette = 'cool'
     expect(validateLevel(l)).toEqual([])
     l.palette = 'neon'
-    expect(validateLevel(l)).toEqual(['palette: must be one of jewel, cool, warm'])
+    expect(validateLevel(l)).toEqual(['palette: must be one of jewel, cool, warm, mist'])
   })
 
   it('keeps a hand to six runes', () => {

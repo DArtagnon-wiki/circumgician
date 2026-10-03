@@ -10,7 +10,7 @@ export const ACCENT_COLOR = 0xffffff
 export const BACKGROUND_TOP = 0x1b0d36
 export const BACKGROUND_BOTTOM = 0x07040e
 
-export type SkyName = 'violet' | 'winter' | 'ember'
+export type SkyName = 'violet' | 'winter' | 'ember' | 'mist'
 
 // How a level's five hues look, what the player calls them, and the sky
 // they are seen against. The keys stay the sim's hue names, so levels, the
@@ -43,6 +43,13 @@ export const PALETTES: Record<PaletteName, Palette> = {
     hues: { red: 0xd90037, blue: 0xc304c6, gold: 0xecd64e, teal: 0xe5780d, violet: 0xfc9bbc },
     names: { red: 'Garnet', blue: 'Spinel', gold: 'Citrine', teal: 'Carnelian', violet: 'Rose Quartz' },
     sky: 'ember',
+  },
+  // The levels of blanks, pairs and shields: bright stones against a pale
+  // pewter fog, where a null glints and a void is a plain dark hole.
+  mist: {
+    hues: { red: 0xfa4a3e, blue: 0x2264f8, gold: 0xf7bd47, teal: 0x2eedc6, violet: 0xeb81ff },
+    names: { red: 'Coral', blue: 'Azurite', gold: 'Topaz', teal: 'Aquamarine', violet: 'Tanzanite' },
+    sky: 'mist',
   },
 }
 
@@ -125,6 +132,7 @@ export const SKY_TINTS: Record<SkyName, { etch: number; fieldEdge: number; field
   violet: { etch: 0xc8b8ff, fieldEdge: 0x9b7bff, fieldVeil: 0x0c0620, shelf: [0x1a0e32, 0x06030c] },
   winter: { etch: 0xb4d6ff, fieldEdge: 0x6aaeff, fieldVeil: 0x03101f, shelf: [0x0a1a30, 0x02060c] },
   ember: { etch: 0xffd0a6, fieldEdge: 0xff8a4a, fieldVeil: 0x170605, shelf: [0x2a1109, 0x0a0403] },
+  mist: { etch: 0xe2e8f6, fieldEdge: 0xaab6d6, fieldVeil: 0x080a12, shelf: [0x1c2132, 0x06070c] },
 }
 
 export const INVALID_TINT = 0xff5d6c

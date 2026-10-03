@@ -417,6 +417,22 @@ const NEBULAE: Record<SkyName, NebulaColors> = {
     bright: [50, 40, 20],
     dust: [10, 4, 3],
   },
+  // Pewter fog: a pale slate that thickens to silver filaments high up and
+  // sinks to dusk blue below, so the dark of a void has something to stand
+  // against.
+  mist: {
+    base: [[42, 46, 64], [30, 34, 50], [10, 12, 20]],
+    blobs: [
+      [0.78, 0.12, 0.8, 150, 160, 196, 0.3],
+      [0.18, 0.06, 0.55, 126, 136, 176, 0.22],
+      [0.1, 0.55, 0.85, 70, 82, 126, 0.24],
+      [0.9, 0.66, 0.6, 96, 108, 150, 0.14],
+      [0.5, 0.98, 0.65, 60, 68, 104, 0.14],
+    ],
+    filaments: [[196, 206, 230], [110, 128, 178]],
+    bright: [50, 52, 62],
+    dust: [8, 9, 15],
+  },
 }
 
 // A nebula: a smooth base, broad colored glows, domain-warped cloud
