@@ -540,64 +540,12 @@
           "radius": 40,
           "nodes": [
             {
-              "catch": "blue",
-              "release": "red"
-            },
-            {
-              "catch": "blue",
-              "release": "red"
-            },
-            {
-              "catch": "blue",
-              "release": "blue"
-            },
-            {
-              "catch": "blue",
-              "release": "blue"
-            }
-          ]
-        },
-        {
-          "sides": 6,
-          "radius": 30,
-          "nodes": [
-            {
               "catch": "red",
               "release": "red"
             },
-            {
-              "catch": "red",
-              "release": "red"
-            },
-            {
-              "catch": "red",
-              "release": "red"
-            },
-            {
-              "catch": "red",
-              "release": "red"
-            },
-            {
-              "catch": "red",
-              "release": "red"
-            },
-            {
-              "catch": "red",
-              "release": "red"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "layers": [
-        {
-          "sides": 3,
-          "radius": 40,
-          "nodes": [
             {
               "catch": "gold",
-              "release": "red"
+              "release": "blue"
             },
             {
               "catch": "gold",
@@ -610,9 +558,17 @@
           ]
         },
         {
-          "sides": 6,
+          "sides": 8,
           "radius": 30,
           "nodes": [
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
             {
               "catch": "red",
               "release": "red"

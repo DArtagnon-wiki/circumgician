@@ -584,37 +584,19 @@
         },
         {
           "sides": 3,
-          "radius": 40,
-          "nodes": [
-            {
-              "catch": "violet",
-              "release": "violet"
-            },
-            {
-              "catch": "violet",
-              "release": "violet"
-            },
-            {
-              "catch": "teal",
-              "release": "violet"
-            }
-          ]
-        },
-        {
-          "sides": 3,
           "radius": 30,
           "nodes": [
             {
-              "catch": "violet",
-              "release": "violet"
+              "catch": "red",
+              "release": "red"
             },
             {
-              "catch": "violet",
-              "release": "violet"
+              "catch": "red",
+              "release": "red"
             },
             {
-              "catch": "violet",
-              "release": "violet"
+              "catch": "red",
+              "release": "red"
             }
           ]
         }

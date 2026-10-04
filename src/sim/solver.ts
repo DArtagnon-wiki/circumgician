@@ -138,6 +138,7 @@ export interface Transition {
 export interface SolverOptions {
   maxPlaced?: number // at most this many pieces on the field at once (room); Infinity for no limit
   maxStates?: number // give up (throw) past this many distinct states
+  blocked?: ReadonlySet<string> // layers ("rune.layer") that cannot be filled or pulled: to ask whether a level needs one
 }
 
 export const DEFAULT_ROOM = 5
@@ -494,7 +495,7 @@ export function transitions(level: LevelData, s: Economy, opts: SolverOptions = 
   const pullsAt = (spec: RuneLayerSpec) => up.flatMap((colors, oi) => (colors.some((c) => spec.nodes.some((n) => holdsShield(n, c))) ? [oi] : []))
   level.hand.forEach((hand, r) => {
     for (let k = 0; k < castable(level, r); k++) {
-      if (status(s, r, k) !== 'open') continue
+      if (status(s, r, k) !== 'open' || opts.blocked?.has(`${r}.${k}`)) continue
       out.push(...fill(level, s, r, k, opts))
       for (const oi of pullsAt(hand.layers[k])) out.push(...pull(level, s, r, k, oi, opts))
     }

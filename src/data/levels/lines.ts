@@ -358,9 +358,9 @@ const branchingFinale = [...cast(3, BR.left), ...cast(3, BR.right), ...cast(0, B
 Object.assign(LINES, {
   'hollow-bowls-v2': [
     { name: 'intended', expect: 'won', steps: [...branchingOpening, ...branchingMiddle, ...branchingFinale] },
-    { name: 'the sapphire square turns blues into rubies, first', expect: 'lost', steps: [...cast(4, BR.right), ...branchingOpening, ...branchingMiddle, ...branchingFinale] },
-    { name: 'the amber triangle takes three ambers at the first crux', expect: 'lost', steps: [...branchingOpening, ...cast(5, BR.left), ...branchingMiddle, ...branchingFinale] },
+    { name: 'the amber square takes three ambers at the first crux', expect: 'lost', steps: [...branchingOpening, ...cast(4, BR.left), ...branchingMiddle, ...branchingFinale] },
     { name: 'the pentagon takes the nulls', expect: 'not-won', steps: [...branchingOpening, ...branchingMiddle, ...cast(0, BR.right), ...branchingFinale] },
+    { name: 'the second ruby layer at the wrong boss', expect: 'not-won', steps: [...cast(0, BR.right), ...cast(0, BR.right), ...cast(1, BR.left), ...cast(0, BR.right), ...branchingMiddle, ...branchingFinale] },
   ],
 } satisfies Record<string, Line[]>)
 
