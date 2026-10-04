@@ -347,10 +347,13 @@ Object.assign(LINES, {
   ],
 } satisfies Record<string, Line[]>)
 
-// Hollow Bowls, branching (a debug-pack pilot): two cruxes, the amber funnel
-// that takes every amber and the hollow amethyst rune that takes every null,
-// with the level opening out between them. Each blow is cast on the side of
-// the obstacle it hits.
+// Hollow Bowls, branching (a debug-pack pilot): no decoy runes; what tempts
+// is the order of the real ones. Two ruby layers (4 and 5 damage) strike
+// five-gons of 4 and 5 hp, a three-damage layer strikes a four-gon of 3 or
+// 4 hp, and a rune that fits both is sometimes not ready for the one it
+// should have. Two cruxes close it: the amber funnel that takes every amber,
+// and the hollow amethyst rune that takes every null. Each blow is cast on
+// the side of the boss it hits.
 const BR = { left: at(110, 520), right: at(290, 520) }
 const branchingOpening = [...cast(0, BR.right), ...cast(0, BR.left), ...cast(1, BR.left), ...cast(0, BR.right)]
 const branchingMiddle = [...cast(2, BR.left), ...cast(1, BR.left), ...cast(1, BR.right)]
@@ -358,9 +361,9 @@ const branchingFinale = [...cast(3, BR.left), ...cast(3, BR.right), ...cast(0, B
 Object.assign(LINES, {
   'hollow-bowls-v2': [
     { name: 'intended', expect: 'won', steps: [...branchingOpening, ...branchingMiddle, ...branchingFinale] },
-    { name: 'the amber square takes three ambers at the first crux', expect: 'lost', steps: [...branchingOpening, ...cast(4, BR.left), ...branchingMiddle, ...branchingFinale] },
+    { name: 'the four-damage ruby layer strikes the five-hp layer', expect: 'lost', steps: [...cast(0, BR.right), ...cast(0, BR.right), ...cast(1, BR.left), ...cast(0, BR.right), ...branchingMiddle, ...branchingFinale] },
+    { name: 'the three-damage layer strikes the four-hp layer of the other boss', expect: 'lost', steps: [...cast(0, BR.right), ...cast(0, BR.left), ...cast(0, BR.right), ...cast(1, BR.right), ...branchingMiddle, ...branchingFinale] },
     { name: 'the pentagon takes the nulls', expect: 'not-won', steps: [...branchingOpening, ...branchingMiddle, ...cast(0, BR.right), ...branchingFinale] },
-    { name: 'the second ruby layer at the wrong boss', expect: 'not-won', steps: [...cast(0, BR.right), ...cast(0, BR.right), ...cast(1, BR.left), ...cast(0, BR.right), ...branchingMiddle, ...branchingFinale] },
   ],
 } satisfies Record<string, Line[]>)
 

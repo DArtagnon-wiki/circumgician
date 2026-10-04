@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deadLayers } from './dead'
+import { deadLayers, decoyLayers, layerUses } from './dead'
 import { layer, mote, obstacle, testLevel } from './testFixtures'
 import type { MoteColor } from './types'
 
@@ -44,5 +44,24 @@ describe('dead layers', () => {
       ],
     })
     expect(deadLayers(level)).toEqual([])
+  })
+
+  it('tells a decoy (strikes, but only in lines that lose) from a layer on a winning line', () => {
+    const level = testLevel({
+      motes: motes('red', 3),
+      obstacles: [obstacle(200, 150, [3, 3], [4, 3])],
+      hand: [
+        { layers: [layer(3, 40, 'red'), layer(3, 30, 'red')] }, // strikes the triangle
+        { layers: [layer(3, 40, 'red'), layer(4, 30, 'red')] }, // strikes the square under it
+        { layers: [layer(3, 40, 'red', 'blue'), layer(3, 30, 'red')] }, // strikes the triangle too, and turns the reds blue
+      ],
+    })
+    expect([...layerUses(level)]).toEqual([
+      ['0.0', 'route'],
+      ['1.0', 'route'],
+      ['2.0', 'trap'],
+    ])
+    expect(deadLayers(level)).toEqual([])
+    expect(decoyLayers(level)).toEqual([{ rune: 2, layer: 0 }])
   })
 })
