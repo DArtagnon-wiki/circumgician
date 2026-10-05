@@ -15,10 +15,10 @@ import { decoyLayers, deadLayers } from '../../sim/dead'
 // hp) and should hold off, because the one that fits (five damage) is not
 // ready yet, and it will be wanted later for a layer of four hp or less.
 // Levels that are free of decoys stay so; the rest are the old ones, listed
-// by what is left to rework.
+// by what is left to rework (the two with blocks of ice, levels 12 and 17).
 //
-// A level with a fuse is exempt: its top layers are there to be dug through
-// and burned.
+// A level with a fuse is exempt unless it is built free of decoys: the old ones
+// have top layers that are there to be dug through and burned.
 const DEAD: Record<string, string[]> = {
   'the-long-winter': ['1.2'], // four blue bowls striking a triangle while none is ever on top to strike
 }
@@ -27,7 +27,7 @@ const FREE = new Set(['first-threads', 'changing-colors', 'the-weighing', 'hollo
 describe('runes', () => {
   // The pack, then any debug-pack level that ships lines of its own (pilots).
   for (const level of [...PACK, ...DEBUG_PACK.filter((l) => LINES[l.id])]) {
-    if (level.fuse !== undefined) continue
+    if (level.fuse !== undefined && !FREE.has(level.id)) continue
     it(`${level.id}: no layer is dead`, () => {
       const dead = deadLayers(level).map((d) => `${d.rune}.${d.layer}`)
       expect(dead, level.id).toEqual(DEAD[level.id] ?? [])
