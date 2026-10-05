@@ -50,7 +50,34 @@
     "staves-6",
     "staves-7",
     "staves-8",
-    "staves-9"
+    "staves-9",
+    "staves-10",
+    "staves-page",
+    "staves-knight",
+    "staves-queen",
+    "staves-king",
+    "major-00",
+    "major-01",
+    "major-02",
+    "major-03",
+    "major-04",
+    "major-05",
+    "major-06",
+    "major-07",
+    "major-08",
+    "major-09",
+    "major-10",
+    "major-11",
+    "major-12",
+    "major-13",
+    "major-14",
+    "major-15",
+    "major-16",
+    "major-17",
+    "major-18",
+    "major-19",
+    "major-20",
+    "major-21"
   ],
   "sections": [
     {
@@ -70,8 +97,13 @@
     },
     {
       "title": "Staves",
-      "count": 9,
+      "count": 14,
       "marks": "ranks"
+    },
+    {
+      "title": "Major Arcana",
+      "count": 22,
+      "marks": "roman"
     }
   ],
   "debug": [

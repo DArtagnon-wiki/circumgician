@@ -531,9 +531,360 @@ export const SHAPED: Record<string, Shaped> = {
       { name: 'rune 6, 4 damage, strikes the 4-hp 3-gon of boss 1, blow 5', expect: 'not-won', at: 4, blow: [5, 114, 442] },
     ],
   },
+  'staves-page': {
+    intended: [
+      [0, 114, 442], [1, 286, 442], [2, 114, 442], [3, 114, 442], [4, 114, 442], [5, 286, 442], [5, 286, 442], [4, 114, 442],
+      [4, 286, 442], [5, 286, 442], [3, 114, 442], [3, 286, 442], [5, 114, 442], [1, 286, 442],
+    ],
+    wrong: [
+      { name: 'rune 5, 0 damage, strikes the 3-hp 6-gon of boss 2, blow 3', expect: 'not-won', at: 2, blow: [4, 286, 442] },
+      { name: 'rune 4, 3 damage, strikes the 5-hp 4-gon of boss 1, blow 8', expect: 'not-won', at: 7, blow: [3, 114, 442] },
+      { name: 'rune 4, 4 damage, strikes the 6-hp 4-gon of boss 2, blow 10', expect: 'not-won', at: 9, blow: [3, 286, 442] },
+      { name: 'rune 2, 3 damage, strikes the 4-hp 5-gon of boss 1, blow 13', expect: 'not-won', at: 12, blow: [1, 114, 442] },
+    ],
+  },
+  'staves-knight': {
+    intended: [
+      [0, 286, 442], [0, 286, 442], [1, 114, 442], [2, 114, 442], [0, 286, 442], [3, 286, 442], [4, 114, 442], [2, 114, 442],
+      [3, 286, 442], [5, 286, 442], [2, 114, 442], [0, 114, 442], [1, 114, 442], [0, 286, 442], [4, 114, 442],
+    ],
+    wrong: [
+      { name: 'rune 1, 3 damage, strikes the 4-hp 6-gon of boss 2, blow 3', expect: 'lost', at: 2, blow: [0, 286, 442] },
+      { name: 'rune 5, 5 damage, strikes the 6-hp 6-gon of boss 2, blow 7', expect: 'lost', at: 6, blow: [4, 286, 442] },
+      { name: 'rune 3, 3 damage, strikes the 6-hp 6-gon of boss 2, blow 9', expect: 'not-won', at: 8, blow: [2, 286, 442] },
+      { name: 'rune 1, 5 damage, strikes the 6-hp 3-gon of boss 1, blow 14', expect: 'not-won', at: 13, blow: [0, 114, 442] },
+    ],
+  },
+  'staves-queen': {
+    intended: [
+      [0, 198, 442], [1, 114, 442], [2, 114, 442], [0, 286, 442], [1, 286, 442], [3, 198, 442], [4, 114, 442], [1, 286, 442],
+      [5, 286, 442], [0, 198, 442], [2, 114, 442], [3, 198, 442], [3, 286, 442], [5, 198, 442], [3, 114, 442], [2, 114, 442],
+    ],
+    wrong: [
+      { name: 'rune 1, 5 damage, strikes the 6-hp 6-gon of boss 1, blow 3', expect: 'lost', at: 2, blow: [0, 114, 442] },
+      { name: 'rune 2, 3 damage, strikes the 4-hp 3-gon of boss 1, blow 7', expect: 'not-won', at: 6, blow: [1, 114, 442] },
+      { name: 'rune 4, 4 damage, strikes the 6-hp 6-gon of boss 1, blow 11', expect: 'not-won', at: 10, blow: [3, 114, 442] },
+      { name: 'rune 4, 4 damage, strikes the 5-hp 4-gon of boss 2, blow 14', expect: 'not-won', at: 13, blow: [3, 198, 442] },
+    ],
+  },
+  'staves-10': {
+    intended: [
+      [0, 286, 442], [1, 114, 442], [2, 114, 442], [2, 114, 442], [3, 286, 442], [4, 286, 442], [5, 114, 442], [4, 114, 442],
+      [1, 114, 442], [0, 286, 442], [3, 114, 442], [1, 114, 442], [5, 286, 442],
+    ],
+    wrong: [
+      { name: 'rune 4, 3 damage, strikes the 4-hp 6-gon of boss 2, blow 3', expect: 'lost', at: 2, blow: [3, 286, 442] },
+      { name: 'rune 5, 4 damage, strikes the 5-hp 6-gon of boss 1, blow 6', expect: 'lost', at: 5, blow: [4, 114, 442] },
+      { name: 'rune 2, 4 damage, strikes the 6-hp 3-gon of boss 2, blow 11', expect: 'lost', at: 10, blow: [1, 286, 442] },
+      { name: 'rune 2, 5 damage, strikes the 6-hp 3-gon of boss 2, blow 12', expect: 'not-won', at: 11, blow: [1, 286, 442] },
+    ],
+  },
+  'staves-king': {
+    intended: [
+      [0, 198, 442], [1, 114, 442], [2, 286, 442], [0, 198, 442], [1, 286, 442], [3, 198, 442], [4, 114, 442], [1, 286, 442],
+      [5, 114, 442], [0, 114, 442], [3, 198, 442], [5, 198, 442], [5, 114, 442], [5, 198, 442], [3, 286, 442], [1, 198, 442],
+      [4, 114, 442],
+    ],
+    wrong: [
+      { name: 'rune 2, 3 damage, strikes the 3-hp 5-gon of boss 1, blow 3', expect: 'not-won', at: 2, blow: [1, 114, 442] },
+      { name: 'rune 5, 3 damage, strikes the 5-hp 5-gon of boss 2, blow 6', expect: 'not-won', at: 5, blow: [4, 198, 442] },
+      { name: 'rune 2, 3 damage, strikes the 5-hp 6-gon of boss 1, blow 12', expect: 'not-won', at: 11, blow: [1, 114, 442] },
+      { name: 'rune 2, 3 damage, strikes the 5-hp 6-gon of boss 1, blow 16', expect: 'not-won', at: 15, blow: [1, 114, 442] },
+    ],
+  },
+  'major-16': {
+    gather: true,
+    intended: [
+      [0, 272, 484], [1, 128, 484], [2, 200, 456], [3, 272, 484], [4, 272, 484], [5, 128, 484], [2, 128, 484], [0, 200, 456],
+      [1, 272, 484], [4, 200, 456], [1, 200, 456], [4, 272, 484], [0, 200, 456], [4, 128, 484], [1, 200, 456], [4, 272, 484],
+      [5, 128, 484], [0, 200, 456], [1, 272, 484], [0, 200, 456], [5, 128, 484], [1, 128, 484], [0, 128, 484], [4, 200, 456],
+      [5, 128, 484], [5, 128, 484], [5, 128, 484], [2, 272, 484], [3, 200, 456], [2, 128, 484],
+    ],
+    wrong: [
+      { name: 'rune 4, 3 damage, strikes the 5-hp 5-gon of boss 1, blow 5', expect: 'not-won', at: 4, blow: [3, 128, 484] },
+      { name: 'rune 1, 3 damage, strikes the 3-hp 6-gon of boss 1, blow 12', expect: 'not-won', at: 11, blow: [0, 128, 484] },
+      { name: 'rune 4, 3 damage, strikes the 4-hp 5-gon of boss 3, blow 20', expect: 'not-won', at: 19, blow: [3, 272, 484] },
+      { name: 'rune 3, 4 damage, strikes the 5-hp 5-gon of boss 1, blow 28', expect: 'not-won', at: 27, blow: [2, 128, 484] },
+    ],
+  },
+  'major-19': {
+    gather: true,
+    intended: [
+      [0, 200, 456], [1, 200, 456], [2, 128, 484], [3, 128, 484], [3, 272, 484], [4, 128, 484], [5, 200, 456], [2, 128, 484],
+      [0, 272, 484], [4, 272, 484], [4, 200, 456], [3, 128, 484], [4, 272, 484], [0, 200, 456], [4, 128, 484], [3, 128, 484],
+      [5, 200, 456], [2, 272, 484], [0, 200, 456], [2, 128, 484], [3, 128, 484], [4, 272, 484], [4, 272, 484], [5, 128, 484],
+      [3, 200, 456], [5, 272, 484], [5, 128, 484], [0, 200, 456], [3, 128, 484], [5, 272, 484], [1, 128, 484], [5, 200, 456],
+      [0, 128, 484],
+    ],
+    wrong: [
+      { name: 'rune 5, 5 damage, strikes the 6-hp 6-gon of boss 3, blow 6', expect: 'not-won', at: 5, blow: [4, 272, 484] },
+      { name: 'rune 1, 6 damage, strikes the 6-hp 8-gon of boss 2, blow 13', expect: 'not-won', at: 12, blow: [0, 200, 456] },
+      { name: 'rune 1, 4 damage, strikes the 4-hp 6-gon of boss 1, blow 22', expect: 'lost', at: 21, blow: [0, 128, 484] },
+      { name: 'rune 4, 4 damage, strikes the 8-hp 5-gon of boss 2, blow 29', expect: 'not-won', at: 28, blow: [3, 200, 456] },
+    ],
+  },
+  'major-17': {
+    intended: [
+      [0, 200, 456], [1, 272, 484], [2, 128, 484], [3, 272, 484], [4, 272, 484], [5, 200, 456], [0, 128, 484], [2, 128, 484],
+      [0, 272, 484], [4, 128, 484], [0, 200, 456], [3, 200, 456], [4, 200, 456], [3, 128, 484], [5, 128, 484], [4, 272, 484],
+      [3, 200, 456], [4, 128, 484], [5, 200, 456], [3, 272, 484], [3, 200, 456], [5, 272, 484], [4, 128, 484], [5, 272, 484],
+      [3, 272, 484], [5, 200, 456], [5, 128, 484], [4, 272, 484], [2, 200, 456], [0, 128, 484], [1, 128, 484],
+    ],
+    wrong: [
+      { name: 'rune 5, 4 damage, strikes the 5-hp 4-gon of boss 1, blow 5', expect: 'not-won', at: 4, blow: [4, 128, 484] },
+      { name: 'rune 5, 5 damage, strikes the 7-hp 4-gon of boss 1, blow 13', expect: 'not-won', at: 12, blow: [4, 128, 484] },
+      { name: 'rune 1, 6 damage, strikes the 7-hp 6-gon of boss 2, blow 20', expect: 'not-won', at: 19, blow: [0, 200, 456] },
+      { name: 'rune 2, 5 damage, strikes the 6-hp 6-gon of boss 1, blow 29', expect: 'not-won', at: 28, blow: [1, 128, 484] },
+    ],
+  },
+  'major-20': {
+    gather: true,
+    intended: [
+      [0, 198, 442], [1, 114, 442], [2, 198, 442], [3, 286, 442], [3, 114, 442], [4, 198, 442], [5, 198, 442], [3, 198, 442],
+      [2, 114, 442], [0, 114, 442], [3, 198, 442], [5, 114, 442], [1, 198, 442], [2, 286, 442], [2, 286, 442], [1, 114, 442],
+      [2, 114, 442], [5, 198, 442], [3, 286, 442], [2, 286, 442], [5, 198, 442], [3, 114, 442], [2, 286, 442], [5, 114, 442],
+      [3, 198, 442], [1, 286, 442], [5, 198, 442], [5, 198, 442], [1, 286, 442], [1, 114, 442], [1, 114, 442], [0, 198, 442],
+      [4, 286, 442], [0, 114, 442],
+    ],
+    wrong: [
+      { name: 'rune 5, 0 damage, strikes the 3-hp 3-gon of boss 1, blow 5', expect: 'not-won', at: 4, blow: [4, 114, 442] },
+      { name: 'rune 1, 3 damage, strikes the 3-hp 3-gon of boss 1, blow 14', expect: 'not-won', at: 13, blow: [0, 114, 442] },
+      { name: 'rune 1, 4 damage, strikes the 6-hp 3-gon of boss 1, blow 22', expect: 'not-won', at: 21, blow: [0, 114, 442] },
+      { name: 'rune 2, 4 damage, strikes the 4-hp 3-gon of boss 2, blow 31', expect: 'not-won', at: 30, blow: [1, 198, 442] },
+    ],
+  },
+  'major-13': {
+    gather: true,
+    intended: [
+      [0, 114, 442], [1, 114, 442], [2, 198, 442], [3, 286, 442], [4, 114, 442], [1, 198, 442], [5, 114, 442], [1, 286, 442],
+      [0, 198, 442], [0, 286, 442], [1, 114, 442], [2, 198, 442], [0, 286, 442], [5, 198, 442], [2, 114, 442], [0, 198, 442],
+      [2, 286, 442], [0, 114, 442], [5, 198, 442], [2, 114, 442], [2, 198, 442], [5, 114, 442], [5, 198, 442], [5, 286, 442],
+      [4, 114, 442], [1, 198, 442], [3, 114, 442],
+    ],
+    wrong: [
+
+    ],
+  },
+  'major-15': {
+    gather: true,
+    intended: [
+      [0, 114, 442], [1, 286, 442], [2, 114, 442], [3, 286, 442], [4, 114, 442], [2, 114, 442], [5, 114, 442], [3, 286, 442],
+      [0, 114, 442], [1, 286, 442], [3, 114, 442], [1, 286, 442], [5, 114, 442], [4, 286, 442], [4, 286, 442], [2, 286, 442],
+      [4, 114, 442], [2, 286, 442], [3, 114, 442], [5, 286, 442], [4, 286, 442], [5, 114, 442], [2, 286, 442], [3, 114, 442],
+      [5, 286, 442], [2, 114, 442], [1, 114, 442], [5, 286, 442], [0, 286, 442],
+    ],
+    wrong: [
+
+    ],
+  },
+  'major-11': {
+    intended: [
+      [0, 128, 456], [0, 272, 456], [1, 272, 456], [2, 128, 456], [0, 272, 456], [3, 128, 456], [4, 272, 456], [5, 272, 456],
+      [1, 128, 456], [0, 128, 456], [2, 128, 456], [1, 272, 456], [0, 272, 456], [2, 128, 456], [3, 128, 456], [3, 272, 456],
+      [5, 128, 456], [2, 272, 456], [2, 272, 456], [3, 128, 456], [5, 272, 456], [5, 272, 456], [5, 128, 456], [0, 272, 456],
+      [3, 128, 456],
+    ],
+    wrong: [
+      { name: 'rune 2, 3 damage, strikes the 5-hp 4-gon of boss 1, blow 3', expect: 'not-won', at: 2, blow: [1, 128, 456] },
+      { name: 'rune 1, 3 damage, strikes the 4-hp 6-gon of boss 1, blow 11', expect: 'not-won', at: 10, blow: [0, 128, 456] },
+      { name: 'rune 6, 4 damage, strikes the 7-hp 3-gon of boss 2, blow 17', expect: 'lost', at: 16, blow: [5, 272, 456] },
+      { name: 'rune 4, 5 damage, strikes the 6-hp 5-gon of boss 2, blow 23', expect: 'not-won', at: 22, blow: [3, 272, 456] },
+    ],
+  },
+  'major-08': {
+    intended: [
+      [0, 122, 450], [0, 122, 450], [1, 278, 450], [2, 278, 450], [3, 278, 450], [4, 122, 450], [5, 122, 450], [2, 278, 450],
+      [2, 122, 450], [2, 278, 450], [5, 278, 450], [0, 122, 450], [5, 122, 450], [0, 278, 450], [2, 122, 450], [4, 278, 450],
+      [4, 278, 450], [5, 278, 450], [4, 122, 450], [0, 278, 450], [1, 122, 450], [5, 278, 450],
+    ],
+    wrong: [
+      { name: 'rune 2, 2 damage, strikes the 5-hp 5-gon of boss 1, blow 4', expect: 'lost', at: 3, blow: [1, 122, 450] },
+      { name: 'rune 6, 3 damage, strikes the 5-hp 4-gon of boss 1, blow 9', expect: 'not-won', at: 8, blow: [5, 122, 450] },
+      { name: 'rune 2, 3 damage, strikes the 4-hp 5-gon of boss 1, blow 14', expect: 'not-won', at: 13, blow: [1, 122, 450] },
+      { name: 'rune 1, 4 damage, strikes the 4-hp 8-gon of boss 2, blow 19', expect: 'not-won', at: 18, blow: [0, 278, 450] },
+    ],
+  },
+  'major-06': {
+    intended: [
+      [0, 278, 450], [1, 122, 450], [2, 122, 450], [3, 278, 450], [4, 278, 450], [5, 122, 450], [1, 278, 450], [4, 278, 450],
+      [0, 122, 450], [5, 122, 450], [5, 278, 450], [3, 122, 450], [3, 278, 450], [5, 278, 450], [1, 122, 450], [4, 122, 450],
+      [1, 278, 450], [2, 122, 450], [3, 278, 450], [4, 278, 450],
+    ],
+    wrong: [
+      { name: 'rune 3, 3 damage, strikes the 4-hp 4-gon of boss 2, blow 3', expect: 'lost', at: 2, blow: [2, 278, 450] },
+      { name: 'rune 5, 3 damage, strikes the 5-hp 3-gon of boss 1, blow 8', expect: 'not-won', at: 7, blow: [4, 122, 450] },
+      { name: 'rune 4, 3 damage, strikes the 3-hp 6-gon of boss 1, blow 13', expect: 'not-won', at: 12, blow: [3, 122, 450] },
+      { name: 'rune 3, 4 damage, strikes the 6-hp 3-gon of boss 2, blow 18', expect: 'not-won', at: 17, blow: [2, 278, 450] },
+    ],
+  },
+  'major-07': {
+    gather: true,
+    intended: [
+      [0, 122, 450], [1, 122, 450], [2, 278, 450], [3, 122, 450], [4, 278, 450], [5, 122, 450], [2, 278, 450], [0, 122, 450],
+      [5, 278, 450], [0, 278, 450], [3, 122, 450], [2, 278, 450], [0, 122, 450], [5, 278, 450], [2, 122, 450], [4, 122, 450],
+      [4, 278, 450], [5, 122, 450], [3, 122, 450], [4, 122, 450], [3, 278, 450],
+    ],
+    wrong: [
+
+    ],
+  },
+  'major-10': {
+    gather: true,
+    intended: [
+      [0, 286, 442], [1, 114, 442], [2, 114, 442], [3, 198, 442], [4, 114, 442], [5, 198, 442], [2, 114, 442], [0, 114, 442],
+      [0, 198, 442], [5, 286, 442], [4, 114, 442], [3, 198, 442], [0, 286, 442], [3, 198, 442], [2, 114, 442], [5, 198, 442],
+      [4, 286, 442], [0, 114, 442], [4, 286, 442], [3, 198, 442], [3, 286, 442], [4, 114, 442], [2, 286, 442], [1, 198, 442],
+    ],
+    wrong: [
+
+    ],
+  },
+  'major-04': {
+    gather: true,
+    intended: [
+      [0, 286, 442], [1, 114, 442], [2, 286, 442], [2, 286, 442], [3, 286, 442], [4, 114, 442], [5, 114, 442], [0, 114, 442],
+      [4, 114, 442], [2, 114, 442], [0, 286, 442], [3, 286, 442], [3, 114, 442], [2, 286, 442], [5, 286, 442], [4, 286, 442],
+      [3, 286, 442], [0, 114, 442],
+    ],
+    wrong: [
+
+    ],
+  },
+  'major-05': {
+    intended: [
+      [0, 286, 442], [1, 114, 442], [0, 286, 442], [2, 114, 442], [3, 286, 442], [4, 286, 442], [5, 114, 442], [4, 114, 442],
+      [1, 114, 442], [0, 286, 442], [4, 286, 442], [0, 114, 442], [3, 114, 442], [4, 114, 442], [1, 286, 442], [0, 286, 442],
+      [3, 114, 442], [3, 286, 442], [4, 114, 442],
+    ],
+    wrong: [
+      { name: 'rune 6, 2 damage, strikes the 3-hp 3-gon of boss 2, blow 3', expect: 'not-won', at: 2, blow: [5, 286, 442] },
+      { name: 'rune 6, 3 damage, strikes the 4-hp 3-gon of boss 2, blow 5', expect: 'not-won', at: 4, blow: [5, 286, 442] },
+      { name: 'rune 4, 3 damage, strikes the 6-hp 4-gon of boss 2, blow 13', expect: 'not-won', at: 12, blow: [3, 286, 442] },
+      { name: 'rune 5, 4 damage, strikes the 5-hp 4-gon of boss 2, blow 18', expect: 'not-won', at: 17, blow: [4, 286, 442] },
+    ],
+  },
+  'major-02': {
+    intended: [
+      [0, 122, 450], [0, 278, 450], [1, 278, 450], [2, 122, 450], [1, 122, 450], [3, 122, 450], [0, 278, 450], [4, 278, 450],
+      [5, 122, 450], [2, 278, 450], [4, 122, 450], [0, 278, 450], [2, 122, 450], [0, 122, 450], [3, 122, 450], [5, 278, 450],
+    ],
+    wrong: [
+      { name: 'rune 2, 3 damage, strikes the 5-hp 6-gon of boss 1, blow 3', expect: 'lost', at: 2, blow: [1, 122, 450] },
+      { name: 'rune 5, 5 damage, strikes the 6-hp 5-gon of boss 1, blow 7', expect: 'lost', at: 6, blow: [4, 122, 450] },
+      { name: 'rune 1, 4 damage, strikes the 6-hp 5-gon of boss 2, blow 10', expect: 'not-won', at: 9, blow: [0, 278, 450] },
+      { name: 'rune 4, 4 damage, strikes the 5-hp 3-gon of boss 2, blow 15', expect: 'not-won', at: 14, blow: [3, 278, 450] },
+    ],
+  },
+  'major-03': {
+    intended: [
+      [0, 278, 450], [1, 122, 450], [1, 278, 450], [2, 122, 450], [2, 278, 450], [3, 122, 450], [4, 122, 450], [1, 278, 450],
+      [2, 122, 450], [1, 122, 450], [0, 278, 450], [5, 122, 450], [0, 122, 450], [1, 278, 450], [0, 278, 450], [5, 122, 450],
+      [5, 278, 450],
+    ],
+    wrong: [
+      { name: 'rune 2, 5 damage, strikes the 6-hp 6-gon of boss 2, blow 2', expect: 'not-won', at: 1, blow: [1, 278, 450] },
+      { name: 'rune 5, 4 damage, strikes the 6-hp 4-gon of boss 2, blow 7', expect: 'not-won', at: 6, blow: [4, 278, 450] },
+      { name: 'rune 2, 4 damage, strikes the 6-hp 4-gon of boss 2, blow 10', expect: 'not-won', at: 9, blow: [1, 278, 450] },
+      { name: 'rune 6, 4 damage, strikes the 4-hp 4-gon of boss 2, blow 16', expect: 'not-won', at: 15, blow: [5, 278, 450] },
+    ],
+  },
+  'major-00': {
+    intended: [
+      [0, 286, 442], [1, 114, 442], [0, 286, 442], [2, 114, 442], [3, 114, 442], [4, 114, 442], [1, 286, 442], [5, 114, 442],
+      [3, 114, 442], [0, 114, 442], [0, 286, 442], [5, 114, 442], [3, 114, 442], [2, 286, 442],
+    ],
+    wrong: [
+      { name: 'rune 2, 2 damage, strikes the 5-hp 4-gon of boss 1, blow 3', expect: 'lost', at: 2, blow: [1, 114, 442] },
+      { name: 'rune 2, 3 damage, strikes the 5-hp 4-gon of boss 1, blow 6', expect: 'not-won', at: 5, blow: [1, 114, 442] },
+      { name: 'rune 4, 4 damage, strikes the 6-hp 3-gon of boss 2, blow 9', expect: 'not-won', at: 8, blow: [3, 286, 442] },
+      { name: 'rune 4, 3 damage, strikes the 4-hp 3-gon of boss 2, blow 13', expect: 'not-won', at: 12, blow: [3, 286, 442] },
+    ],
+  },
+  'major-01': {
+    intended: [
+      [0, 114, 442], [1, 286, 442], [2, 114, 442], [1, 114, 442], [3, 286, 442], [4, 114, 442], [5, 286, 442], [1, 286, 442],
+      [5, 114, 442], [0, 286, 442], [3, 114, 442], [3, 114, 442], [5, 286, 442], [2, 114, 442], [3, 114, 442],
+    ],
+    wrong: [
+      { name: 'rune 5, 3 damage, strikes the 3-hp 3-gon of boss 2, blow 3', expect: 'not-won', at: 2, blow: [4, 286, 442] },
+      { name: 'rune 3, 5 damage, strikes the 5-hp 3-gon of boss 2, blow 7', expect: 'lost', at: 6, blow: [2, 286, 442] },
+      { name: 'rune 4, 3 damage, strikes the 6-hp 5-gon of boss 2, blow 10', expect: 'lost', at: 9, blow: [3, 286, 442] },
+      { name: 'rune 4, 4 damage, strikes the 6-hp 3-gon of boss 1, blow 14', expect: 'not-won', at: 13, blow: [3, 114, 442] },
+    ],
+  },
+  'major-12': {
+    intended: [
+      [0, 272, 456], [1, 128, 456], [2, 272, 456], [2, 128, 456], [0, 128, 456], [2, 272, 456], [3, 272, 456], [4, 272, 456],
+      [1, 272, 456], [5, 272, 456], [2, 128, 456], [0, 272, 456], [1, 272, 456], [1, 272, 456], [2, 128, 456], [0, 128, 456],
+      [0, 272, 456], [5, 272, 456], [2, 128, 456], [0, 128, 456], [5, 272, 456], [1, 272, 456], [5, 128, 456], [5, 272, 456],
+      [5, 272, 456], [3, 128, 456],
+    ],
+    wrong: [
+      { name: 'rune 2, 3 damage, strikes the 8-hp 5-gon of boss 2, blow 4', expect: 'lost', at: 3, blow: [1, 272, 456] },
+      { name: 'rune 6, 5 damage, strikes the 5-hp 5-gon of boss 1, blow 11', expect: 'not-won', at: 10, blow: [5, 128, 456] },
+      { name: 'rune 1, 3 damage, strikes the 3-hp 5-gon of boss 1, blow 17', expect: 'not-won', at: 16, blow: [0, 128, 456] },
+      { name: 'rune 4, 3 damage, strikes the 4-hp 4-gon of boss 1, blow 24', expect: 'not-won', at: 23, blow: [3, 128, 456] },
+    ],
+  },
+  'major-14': {
+    intended: [
+      [0, 200, 456], [1, 128, 484], [1, 200, 456], [2, 128, 484], [3, 272, 484], [4, 272, 484], [2, 200, 456], [5, 128, 484],
+      [3, 128, 484], [0, 272, 484], [0, 200, 456], [5, 128, 484], [0, 272, 484], [2, 128, 484], [5, 200, 456], [4, 128, 484],
+      [5, 272, 484], [2, 200, 456], [0, 128, 484], [4, 272, 484], [2, 272, 484], [0, 272, 484], [5, 128, 484], [4, 200, 456],
+      [2, 200, 456], [4, 128, 484], [3, 128, 484], [1, 200, 456],
+    ],
+    wrong: [
+      { name: 'rune 5, 3 damage, strikes the 6-hp 4-gon of boss 1, blow 4', expect: 'not-won', at: 3, blow: [4, 128, 484] },
+      { name: 'rune 1, 4 damage, strikes the 5-hp 5-gon of boss 2, blow 10', expect: 'not-won', at: 9, blow: [0, 200, 456] },
+      { name: 'rune 3, 5 damage, strikes the 7-hp 5-gon of boss 1, blow 18', expect: 'not-won', at: 17, blow: [2, 128, 484] },
+      { name: 'rune 5, 3 damage, strikes the 4-hp 5-gon of boss 2, blow 26', expect: 'not-won', at: 25, blow: [4, 200, 456] },
+    ],
+  },
+  'major-09': {
+    intended: [
+      [0, 200, 456], [1, 128, 484], [2, 272, 484], [3, 200, 456], [0, 200, 456], [4, 128, 484], [1, 272, 484], [5, 200, 456],
+      [5, 200, 456], [0, 272, 484], [0, 128, 484], [0, 272, 484], [5, 128, 484], [1, 128, 484], [4, 200, 456], [5, 272, 484],
+      [1, 200, 456], [5, 128, 484], [4, 200, 456], [1, 200, 456], [4, 200, 456], [2, 128, 484], [3, 272, 484],
+    ],
+    wrong: [
+      { name: 'rune 1, 3 damage, strikes the 6-hp 3-gon of boss 1, blow 4', expect: 'not-won', at: 3, blow: [0, 128, 484] },
+      { name: 'rune 1, 3 damage, strikes the 6-hp 6-gon of boss 1, blow 10', expect: 'not-won', at: 9, blow: [0, 128, 484] },
+      { name: 'rune 3, 4 damage, strikes the 6-hp 4-gon of boss 1, blow 15', expect: 'not-won', at: 14, blow: [2, 128, 484] },
+      { name: 'rune 4, 3 damage, strikes the 4-hp 4-gon of boss 1, blow 21', expect: 'not-won', at: 20, blow: [3, 128, 484] },
+    ],
+  },
+  'major-18': {
+    intended: [
+      [0, 128, 484], [1, 128, 484], [2, 200, 456], [0, 272, 484], [3, 272, 484], [4, 128, 484], [5, 200, 456], [4, 200, 456],
+      [3, 272, 484], [1, 200, 456], [4, 128, 484], [1, 272, 484], [4, 200, 456], [4, 200, 456], [2, 272, 484], [3, 128, 484],
+      [5, 200, 456], [3, 128, 484], [1, 200, 456], [2, 272, 484], [4, 128, 484], [5, 128, 484], [1, 200, 456], [2, 128, 484],
+      [4, 272, 484], [3, 272, 484], [2, 128, 484], [3, 200, 456], [3, 128, 484], [3, 200, 456], [0, 200, 456], [3, 128, 484],
+    ],
+    wrong: [
+      { name: 'rune 6, 3 damage, strikes the 4-hp 5-gon of boss 2, blow 5', expect: 'not-won', at: 4, blow: [5, 200, 456] },
+      { name: 'rune 5, 3 damage, strikes the 3-hp 6-gon of boss 1, blow 13', expect: 'not-won', at: 12, blow: [4, 128, 484] },
+      { name: 'rune 4, 3 damage, strikes the 4-hp 5-gon of boss 3, blow 20', expect: 'not-won', at: 19, blow: [3, 272, 484] },
+      { name: 'rune 1, 4 damage, strikes the 6-hp 4-gon of boss 1, blow 30', expect: 'not-won', at: 29, blow: [0, 128, 484] },
+    ],
+  },
+  'major-21': {
+    intended: [
+      [0, 128, 484], [0, 200, 456], [1, 200, 456], [2, 272, 484], [3, 128, 484], [4, 272, 484], [5, 272, 484], [4, 200, 456],
+      [0, 128, 484], [3, 272, 484], [1, 272, 484], [2, 272, 484], [4, 128, 484], [4, 200, 456], [3, 128, 484], [3, 200, 456],
+      [1, 128, 484], [2, 128, 484], [4, 200, 456], [1, 200, 456], [5, 272, 484], [0, 128, 484], [2, 200, 456], [4, 200, 456],
+      [3, 272, 484], [5, 200, 456], [3, 128, 484], [1, 272, 484], [2, 200, 456], [0, 128, 484], [1, 272, 484], [5, 200, 456],
+      [5, 200, 456], [2, 200, 456], [2, 128, 484],
+    ],
+    wrong: [
+      { name: 'rune 1, 2 damage, strikes the 3-hp 4-gon of boss 3, blow 5', expect: 'not-won', at: 4, blow: [0, 272, 484] },
+      { name: 'rune 5, 5 damage, strikes the 5-hp 4-gon of boss 3, blow 14', expect: 'lost', at: 13, blow: [4, 272, 484] },
+      { name: 'rune 3, 4 damage, strikes the 6-hp 4-gon of boss 3, blow 23', expect: 'lost', at: 22, blow: [2, 272, 484] },
+      { name: 'rune 6, 4 damage, strikes the 4-hp 7-gon of boss 2, blow 31', expect: 'not-won', at: 30, blow: [5, 200, 456] },
+    ],
+  },
 }
 
-const cast = ([slot, x, y]: Blow, gather: boolean): ScriptStep[] => [...(gather ? [{ gather: slot, at: { x, y } }] : []), { place: slot, at: { x, y } }, { feed: slot }, { tap: slot }]
+const cast = ([slot, x, y]: Blow, gather: boolean): ScriptStep[] => [...(gather ? [{ wait: 2 }, { gather: slot, at: { x, y } }] : []), { place: slot, at: { x, y } }, { feed: slot }, { tap: slot }]
 
 export function shapedLines(): Record<string, Line[]> {
   return Object.fromEntries(
