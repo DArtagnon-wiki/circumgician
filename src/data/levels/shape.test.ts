@@ -11,6 +11,12 @@ const SHAPE: Record<string, { cruxes: number; holdOff: number; corridor?: number
   'hollow-bowls-v2': { cruxes: 2, holdOff: 4 },
   // register.mjs: begin
   'the-long-stair': { cruxes: 8, holdOff: 45 },
+  'the-hungry-circle': { cruxes: 1, holdOff: 4 },
+  'patience': { cruxes: 1, holdOff: 7 },
+  'crowded-circle': { cruxes: 1, holdOff: 13 },
+  'the-sacrifice': { cruxes: 2, holdOff: 6 },
+  'the-wildcard': { cruxes: 2, holdOff: 10 },
+  'the-price': { cruxes: 2, holdOff: 9 },
   // register.mjs: end
 }
 

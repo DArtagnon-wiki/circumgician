@@ -74,27 +74,22 @@
   "obstacles": [
     {
       "x": 128,
-      "y": 168,
+      "y": 150,
       "layers": [
         {
-          "sides": 3,
-          "radius": 40,
-          "hp": 3
+          "sides": 5,
+          "hp": 4,
+          "radius": 34
         },
         {
           "sides": 5,
-          "radius": 37,
-          "hp": 4
+          "hp": 4,
+          "radius": 31
         },
         {
-          "sides": 3,
-          "radius": 34,
-          "hp": 3
-        },
-        {
-          "sides": 6,
-          "radius": 31,
-          "hp": 5
+          "sides": 4,
+          "hp": 5,
+          "radius": 28
         }
       ],
       "look": {
@@ -103,12 +98,17 @@
     },
     {
       "x": 306,
-      "y": 118,
+      "y": 136,
       "layers": [
         {
-          "sides": 4,
-          "radius": 26,
-          "hp": 4
+          "sides": 5,
+          "hp": 5,
+          "radius": 34
+        },
+        {
+          "sides": 5,
+          "hp": 4,
+          "radius": 31
         }
       ],
       "look": {
@@ -121,64 +121,6 @@
     {
       "layers": [
         {
-          "sides": 3,
-          "radius": 40,
-          "nodes": [
-            {
-              "catch": "red",
-              "release": "red"
-            },
-            {
-              "catch": "red",
-              "release": "red"
-            },
-            {
-              "catch": "red",
-              "release": "red"
-            }
-          ]
-        },
-        {
-          "sides": 3,
-          "radius": 40,
-          "nodes": [
-            {
-              "catch": "red",
-              "release": "red"
-            },
-            {
-              "catch": "red",
-              "release": "red"
-            },
-            {
-              "catch": "red",
-              "release": "red"
-            }
-          ]
-        },
-        {
-          "sides": 3,
-          "radius": 30,
-          "nodes": [
-            {
-              "catch": "red",
-              "release": "red"
-            },
-            {
-              "catch": "red",
-              "release": "red"
-            },
-            {
-              "catch": "red",
-              "release": "red"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "layers": [
-        {
           "sides": 4,
           "radius": 40,
           "nodes": [
@@ -202,38 +144,64 @@
         },
         {
           "sides": 5,
-          "radius": 44,
-          "nodes": [
-            {
-              "catch": "red",
-              "release": "gold"
-            },
-            {
-              "catch": "red",
-              "release": "gold"
-            },
-            {
-              "catch": "red",
-              "release": "gold"
-            },
-            {
-              "catch": "red",
-              "release": "gold"
-            },
-            {
-              "catch": "red",
-              "release": "annihilating"
-            }
-          ]
-        },
-        {
-          "sides": 6,
           "radius": 30,
           "nodes": [
             {
               "catch": "red",
               "release": "red"
             },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "layers": [
+        {
+          "sides": 5,
+          "radius": 48,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "teal"
+            }
+          ]
+        },
+        {
+          "sides": 5,
+          "radius": 30,
+          "nodes": [
             {
               "catch": "red",
               "release": "red"
@@ -262,67 +230,49 @@
       "layers": [
         {
           "sides": 4,
-          "radius": 70,
-          "nodes": [
-            {
-              "catch": "gold",
-              "release": "gold"
-            },
-            {
-              "catch": "gold",
-              "release": "gold"
-            },
-            {
-              "catch": "gold",
-              "release": "gold"
-            },
-            {
-              "catch": "gold",
-              "release": "gold"
-            }
-          ]
-        },
-        {
-          "sides": 4,
-          "radius": 30,
-          "nodes": [
-            {
-              "catch": "gold",
-              "release": "gold"
-            },
-            {
-              "catch": "gold",
-              "release": "gold"
-            },
-            {
-              "catch": "gold",
-              "release": "gold"
-            },
-            {
-              "catch": "gold",
-              "release": "gold"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "layers": [
-        {
-          "sides": 3,
           "radius": 40,
           "nodes": [
             {
-              "catch": "gold",
-              "release": "annihilating"
+              "catch": "red",
+              "release": "red"
             },
             {
-              "catch": "gold",
-              "release": "annihilating"
+              "catch": "red",
+              "release": "red"
             },
             {
-              "catch": "gold",
+              "catch": "red",
+              "release": "teal"
+            },
+            {
+              "catch": "red",
               "release": "annihilating"
+            }
+          ]
+        },
+        {
+          "sides": 5,
+          "radius": 48,
+          "nodes": [
+            {
+              "catch": "teal",
+              "release": "violet"
+            },
+            {
+              "catch": "teal",
+              "release": "violet"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
             }
           ]
         },
@@ -331,20 +281,72 @@
           "radius": 30,
           "nodes": [
             {
-              "catch": "gold",
-              "release": "gold"
+              "catch": "red",
+              "release": "red"
             },
             {
-              "catch": "gold",
-              "release": "gold"
+              "catch": "red",
+              "release": "red"
             },
             {
-              "catch": "gold",
-              "release": "gold"
+              "catch": "red",
+              "release": "red"
             },
             {
-              "catch": "gold",
-              "release": "gold"
+              "catch": "red",
+              "release": "red"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "layers": [
+        {
+          "sides": 4,
+          "radius": 40,
+          "nodes": [
+            {
+              "catch": "violet",
+              "release": "red"
+            },
+            {
+              "catch": "violet",
+              "release": "violet"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            }
+          ]
+        },
+        {
+          "sides": 5,
+          "radius": 30,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
             }
           ]
         }
