@@ -1,6 +1,6 @@
 import { Application, type Renderer } from 'pixi.js'
 import { GameScene } from './GameScene'
-import { PACK, DEBUG_PACK } from '../data/levels/pack'
+import { PACK, DEBUG_PACK, PACK_PLACES } from '../data/levels/pack'
 import type { LevelData } from '../sim/types'
 import { showMenu } from '../ui/Menu'
 import { showHowToPlay } from '../ui/HowToPlay'
@@ -104,6 +104,7 @@ export class AppShell {
     this.showBackdrop()
     this.overlay = showLevelSelect({
       levels: PACK,
+      places: PACK_PLACES,
       isCompleted: isLevelCompleted,
       onSelect: (index) => this.startLevel(PACK, index),
       onBack: () => this.showMenu(),

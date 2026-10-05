@@ -12,7 +12,7 @@ import type { PackManifest } from '../data/levels/pack'
 import type { LevelData, MoteColor } from '../sim/types'
 
 const st = new EditorState()
-let manifest: PackManifest = { levels: [], debug: [] }
+let manifest: PackManifest = { levels: [], sections: [], debug: [] }
 let pendingDiscard: string | null = null
 
 // ---------------------------------------------------------------- layout

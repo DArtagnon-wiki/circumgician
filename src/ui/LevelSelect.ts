@@ -4,6 +4,9 @@ import { addFiligree, divider } from './ornament'
 
 export interface LevelSelectActions {
   levels: LevelData[]
+  // Where each level sits in the deck: its section (a suit, or the Major
+  // Arcana) and its mark there. Sections get a heading and a tab.
+  places?: { section: { title: string }; mark: string }[]
   isCompleted: (id: string) => boolean
   onSelect: (index: number) => void
   onBack: () => void
@@ -30,7 +33,7 @@ export function showLevelSelect(actions: LevelSelectActions): HTMLElement {
 
   const title = document.createElement('h2')
   title.className = 'levels-title gilt-text'
-  title.textContent = 'Select a Level'
+  title.textContent = actions.places ? 'Draw a Card' : 'Select a Level'
 
   // The frame keeps its filigree still while the rows scroll inside it,
   // should they outgrow a short screen.
@@ -40,12 +43,29 @@ export function showLevelSelect(actions: LevelSelectActions): HTMLElement {
   const rows = document.createElement('div')
   rows.className = 'level-rows'
   list.append(rows)
+  // A tab per section scrolls its heading to the top of the list.
+  const tabs = document.createElement('div')
+  tabs.className = 'level-tabs'
+  let section: { title: string } | undefined
   actions.levels.forEach((level, index) => {
+    const place = actions.places?.[index]
+    if (place && place.section !== section) {
+      section = place.section
+      const heading = document.createElement('div')
+      heading.className = 'level-section gilt-text'
+      heading.textContent = section.title
+      rows.appendChild(heading)
+      const tab = document.createElement('button')
+      tab.className = 'level-tab'
+      tab.textContent = section.title
+      tab.addEventListener('click', () => rows.scrollTo({ top: rows.scrollTop + heading.getBoundingClientRect().top - rows.getBoundingClientRect().top, behavior: 'smooth' }))
+      tabs.appendChild(tab)
+    }
     const button = document.createElement('button')
     button.className = 'level-btn'
     const num = document.createElement('span')
     num.className = 'level-num'
-    num.textContent = String(index + 1)
+    num.textContent = place?.mark ?? String(index + 1)
     const name = document.createElement('span')
     name.className = 'level-name'
     name.textContent = level.name
@@ -89,7 +109,7 @@ export function showLevelSelect(actions: LevelSelectActions): HTMLElement {
   backButton.addEventListener('click', actions.onBack)
   footer.append(howButton, backButton)
 
-  overlay.append(title, divider(), list, debugSection, footer)
+  overlay.append(title, divider(), ...(tabs.childElementCount ? [tabs] : []), list, debugSection, footer)
   document.body.appendChild(overlay)
   return overlay
 }

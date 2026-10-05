@@ -1,0 +1,771 @@
+{
+  "version": 1,
+  "id": "swords-queen",
+  "name": "Queen of Swords",
+  "field": {
+    "x": 30,
+    "y": 340,
+    "w": 340,
+    "h": 370
+  },
+  "blockers": [],
+  "motes": [
+    {
+      "color": "gold",
+      "x": 311,
+      "y": 550
+    },
+    {
+      "color": "gold",
+      "x": 294,
+      "y": 598
+    },
+    {
+      "color": "gold",
+      "x": 260,
+      "y": 635
+    },
+    {
+      "color": "gold",
+      "x": 213,
+      "y": 653
+    },
+    {
+      "color": "blue",
+      "x": 163,
+      "y": 647
+    },
+    {
+      "color": "blue",
+      "x": 121,
+      "y": 619
+    },
+    {
+      "color": "blue",
+      "x": 96,
+      "y": 575
+    },
+    {
+      "color": "blue",
+      "x": 86,
+      "y": 525
+    },
+    {
+      "color": "blue",
+      "x": 95,
+      "y": 475
+    },
+    {
+      "color": "blue",
+      "x": 121,
+      "y": 432
+    },
+    {
+      "color": "blue",
+      "x": 162,
+      "y": 403
+    },
+    {
+      "color": "gold",
+      "x": 212,
+      "y": 397
+    },
+    {
+      "color": "gold",
+      "x": 259,
+      "y": 414
+    },
+    {
+      "color": "gold",
+      "x": 293,
+      "y": 452
+    },
+    {
+      "color": "gold",
+      "x": 311,
+      "y": 499
+    },
+    {
+      "color": "blue",
+      "x": 200,
+      "y": 459
+    },
+    {
+      "color": "blue",
+      "x": 200,
+      "y": 510
+    },
+    {
+      "color": "blue",
+      "x": 200,
+      "y": 561
+    },
+    {
+      "color": "gold",
+      "x": 200,
+      "y": 613
+    },
+    {
+      "color": "gold",
+      "x": 211,
+      "y": 567
+    }
+  ],
+  "obstacles": [
+    {
+      "x": 75,
+      "y": 172,
+      "look": {
+        "style": "magma"
+      },
+      "layers": [
+        {
+          "sides": 5,
+          "hp": 3,
+          "radius": 34
+        },
+        {
+          "sides": 4,
+          "hp": 5,
+          "radius": 32
+        },
+        {
+          "sides": 6,
+          "hp": 5,
+          "radius": 30
+        },
+        {
+          "sides": 3,
+          "hp": 6,
+          "radius": 28
+        },
+        {
+          "sides": 4,
+          "hp": 5,
+          "radius": 26
+        },
+        {
+          "sides": 6,
+          "hp": 5,
+          "radius": 24
+        },
+        {
+          "sides": 4,
+          "hp": 6,
+          "radius": 22
+        }
+      ]
+    },
+    {
+      "x": 200,
+      "y": 167,
+      "look": {
+        "style": "magma",
+        "moons": 2
+      },
+      "layers": [
+        {
+          "sides": 5,
+          "hp": 3,
+          "radius": 34
+        },
+        {
+          "sides": 3,
+          "hp": 4,
+          "radius": 31
+        },
+        {
+          "sides": 5,
+          "hp": 6,
+          "radius": 28
+        },
+        {
+          "sides": 4,
+          "hp": 3,
+          "radius": 25
+        },
+        {
+          "sides": 4,
+          "hp": 3,
+          "radius": 22
+        }
+      ]
+    },
+    {
+      "x": 325,
+      "y": 172,
+      "look": {
+        "style": "magma"
+      },
+      "layers": [
+        {
+          "sides": 5,
+          "hp": 6,
+          "radius": 34
+        },
+        {
+          "sides": 3,
+          "hp": 4,
+          "radius": 31
+        },
+        {
+          "sides": 3,
+          "hp": 6,
+          "radius": 28
+        },
+        {
+          "sides": 4,
+          "hp": 3,
+          "radius": 25
+        }
+      ]
+    }
+  ],
+  "hand": [
+    {
+      "layers": [
+        {
+          "sides": 3,
+          "radius": 40,
+          "nodes": [
+            {
+              "catch": "blue",
+              "release": "blue"
+            },
+            {
+              "catch": "blue",
+              "release": "gold"
+            },
+            {
+              "catch": "blue",
+              "release": "blue"
+            }
+          ]
+        },
+        {
+          "sides": 5,
+          "radius": 48,
+          "nodes": [
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "blue"
+            },
+            {
+              "catch": "gold",
+              "release": "teal"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            }
+          ]
+        },
+        {
+          "sides": 4,
+          "radius": 40,
+          "nodes": [
+            {
+              "catch": "violet",
+              "release": "teal"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "teal"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            }
+          ]
+        },
+        {
+          "sides": 3,
+          "radius": 40,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "teal"
+            },
+            {
+              "catch": "blue",
+              "release": "gold"
+            },
+            {
+              "catch": "blue",
+              "release": "blue"
+            }
+          ]
+        },
+        {
+          "sides": 4,
+          "radius": 30,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "layers": [
+        {
+          "sides": 3,
+          "radius": 40,
+          "nodes": [
+            {
+              "catch": "blue",
+              "release": "teal"
+            },
+            {
+              "catch": "blue",
+              "release": "blue"
+            },
+            {
+              "catch": "blue",
+              "release": "teal"
+            }
+          ]
+        },
+        {
+          "sides": 5,
+          "radius": 48,
+          "nodes": [
+            {
+              "catch": "teal",
+              "release": "violet"
+            },
+            {
+              "catch": "teal",
+              "release": "blue"
+            },
+            {
+              "catch": "teal",
+              "release": "gold"
+            },
+            {
+              "catch": "teal",
+              "release": "violet"
+            },
+            {
+              "catch": "teal",
+              "release": "violet"
+            }
+          ]
+        },
+        {
+          "sides": 6,
+          "radius": 62,
+          "nodes": [
+            {
+              "catch": "teal",
+              "release": "gold"
+            },
+            {
+              "catch": "teal",
+              "release": "red"
+            },
+            {
+              "catch": "teal",
+              "release": "red"
+            },
+            {
+              "catch": "teal",
+              "release": "blue"
+            },
+            {
+              "catch": "teal",
+              "release": "red"
+            },
+            {
+              "catch": "violet",
+              "release": "blue"
+            }
+          ]
+        },
+        {
+          "sides": 5,
+          "radius": 48,
+          "nodes": [
+            {
+              "catch": "teal",
+              "release": "gold"
+            },
+            {
+              "catch": "teal",
+              "release": "violet"
+            },
+            {
+              "catch": "teal",
+              "release": "violet"
+            },
+            {
+              "catch": "red",
+              "release": "violet"
+            },
+            {
+              "catch": "blue",
+              "release": "blue"
+            }
+          ]
+        },
+        {
+          "sides": 6,
+          "radius": 62,
+          "nodes": [
+            {
+              "catch": "violet",
+              "release": "violet"
+            },
+            {
+              "catch": "violet",
+              "release": "violet"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            }
+          ]
+        },
+        {
+          "sides": 4,
+          "radius": 30,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "layers": [
+        {
+          "sides": 6,
+          "radius": 62,
+          "nodes": [
+            {
+              "catch": "blue",
+              "release": "gold"
+            },
+            {
+              "catch": "blue",
+              "release": "blue"
+            },
+            {
+              "catch": "blue",
+              "release": "teal"
+            },
+            {
+              "catch": "blue",
+              "release": "teal"
+            },
+            {
+              "catch": "blue",
+              "release": "gold"
+            },
+            {
+              "catch": "blue",
+              "release": "blue"
+            }
+          ]
+        },
+        {
+          "sides": 5,
+          "radius": 48,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "teal"
+            },
+            {
+              "catch": "blue",
+              "release": "gold"
+            },
+            {
+              "catch": "blue",
+              "release": "blue"
+            },
+            {
+              "catch": "blue",
+              "release": "gold"
+            }
+          ]
+        },
+        {
+          "sides": 4,
+          "radius": 30,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "layers": [
+        {
+          "sides": 6,
+          "radius": 62,
+          "nodes": [
+            {
+              "catch": "violet",
+              "release": "teal"
+            },
+            {
+              "catch": "violet",
+              "release": "violet"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            }
+          ]
+        },
+        {
+          "sides": 3,
+          "radius": 30,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "layers": [
+        {
+          "sides": 4,
+          "radius": 40,
+          "nodes": [
+            {
+              "catch": "violet",
+              "release": "violet"
+            },
+            {
+              "catch": "blue",
+              "release": "teal"
+            },
+            {
+              "catch": "blue",
+              "release": "gold"
+            },
+            {
+              "catch": "blue",
+              "release": "teal"
+            }
+          ]
+        },
+        {
+          "sides": 3,
+          "radius": 40,
+          "nodes": [
+            {
+              "catch": "violet",
+              "release": "blue"
+            },
+            {
+              "catch": "gold",
+              "release": "blue"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            }
+          ]
+        },
+        {
+          "sides": 4,
+          "radius": 30,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "layers": [
+        {
+          "sides": 6,
+          "radius": 62,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "teal"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            }
+          ]
+        },
+        {
+          "sides": 3,
+          "radius": 40,
+          "nodes": [
+            {
+              "catch": "violet",
+              "release": "violet"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            },
+            {
+              "catch": "gold",
+              "release": "gold"
+            }
+          ]
+        },
+        {
+          "sides": 4,
+          "radius": 30,
+          "nodes": [
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            },
+            {
+              "catch": "red",
+              "release": "red"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "goal": {
+    "type": "clearAll"
+  },
+  "palette": "warm",
+  "fuse": 9
+}

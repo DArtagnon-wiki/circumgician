@@ -243,13 +243,44 @@
 .level-btn:hover {
   border-color: var(--gilt-line);
 }
+.level-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  max-width: 330px;
+  margin-bottom: 10px;
+}
+.level-tab {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(217, 184, 114, 0.3);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--gilt-bright);
+  font: 600 12px/1 var(--font-display);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+.level-tab:hover {
+  border-color: var(--gilt-line);
+}
+.level-section {
+  margin: 8px 2px 0;
+  font: 600 15px/1.2 var(--font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.level-section:first-child {
+  margin-top: 0;
+}
 .level-num {
   flex: none;
-  width: 28px;
+  min-width: 28px;
   height: 28px;
+  padding: 0 4px;
   display: grid;
   place-items: center;
-  border-radius: 50%;
+  border-radius: 14px;
   border: 1px solid var(--gilt-line);
   font: 600 13px/1 var(--font-display);
   color: var(--gilt-bright);

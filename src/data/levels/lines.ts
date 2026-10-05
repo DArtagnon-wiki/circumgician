@@ -40,14 +40,14 @@ const castLayer = (slot: number, p: Spot, layer: number): ScriptStep[] => [place
 
 export const LINES: Record<string, Line[]> = {
   // Levels 1-3 are calm: plenty of every color, nothing that loses for good.
-  'first-threads': [
+  'coins-ace': [
     { name: 'intended', expect: 'won', steps: [...cast(0, at(120, 470)), ...cast(1, at(280, 590))] },
     // Recoverable by kicking motes into the rings, so only "not won" untouched.
     { name: 'both runes off their motes', expect: 'not-won', steps: [place(0, at(300, 420)), place(1, at(110, 630))] },
   ],
   // The blue square fills at once and waits, unlinked, until the pentagon's
   // blow breaks the triangle. A spare blue layer forgives an early tap.
-  'changing-colors': [
+  'coins-2': [
     {
       name: 'intended',
       expect: 'won',
@@ -57,7 +57,7 @@ export const LINES: Record<string, Line[]> = {
   ],
   // Where you drop picks the triangle a blow strikes: match 5, 4 and 3 to the
   // strengths. A spare blue triangle forgives a mis-aim.
-  'the-weighing': [
+  'coins-3': [
     { name: 'intended', expect: 'won', steps: [...cast(0, at(290, 430)), ...cast(1, at(110, 480)), ...cast(2, at(160, 610)), ...cast(3, at(290, 430))] },
     { name: 'the pentagon to the left', expect: 'not-won', steps: [...cast(0, at(110, 470))] },
   ],
@@ -105,31 +105,31 @@ const crownToCrux = [...cast(0, CR.ruby), ...cast(1, CR.sapphire), place(2, CR.r
 const crownPull = [place(5, CR.well), feed(5)]
 const ashenToCrux = [...cast(0, AK.ruby), ...cast(1, AK.sapphire), ...cast(2, AK.ruby), ...cast(3, AK.sapphire), ...cast(2, AK.well), ...cast(4, AK.well), ...cast(4, AK.right), ...cast(4, AK.well)]
 Object.assign(LINES, {
-  'hollow-bowls': [
+  'staves-4': [
     { name: 'intended', expect: 'won', steps: [...hollowToCrux, ...cast(5, HB.hollowWell), ...cast(0, HB.hollowWell)] },
     { name: 'the amethyst triangle takes the nulls', expect: 'not-won', steps: [...hollowToCrux, ...cast(0, HB.hollowWell)] },
   ],
-  'two-hands': [
+  'staves-5': [
     { name: 'intended', expect: 'won', steps: [...twoHandsToCrux, place(5, TH.left), feed(5), place(2, TH.right), feed(2), tap(5)] },
     { name: 'the triangle that turns red and sapphire into amber, first', expect: 'not-won', steps: [...cast(0, TH.ruby), ...cast(1, TH.sapphire), ...cast(0, TH.ruby), ...twoHandsToCrux.slice(6), place(5, TH.left), feed(5), place(2, TH.right), feed(2), tap(5)] },
     { name: 'a jade decoy for the square', expect: 'not-won', steps: [...twoHandsToCrux, ...cast(3, TH.right)] },
   ],
-  'borrowed-light': [
+  'staves-6': [
     { name: 'intended', expect: 'won', steps: [...borrowedToCrux, ...cast(5, BL.left), ...cast(3, BL.sapphire), ...cast(5, BL.ruby)] },
     { name: 'the finisher first', expect: 'not-won', steps: [...borrowedToCrux, ...cast(3, BL.left)] },
   ],
-  'the-aegis': [
+  'staves-7': [
     { name: 'intended', expect: 'won', steps: [...aegisToCrux, ...aegisPull, ...cast(3, AE.left), ...castLayer(5, AE.right, 1), tapLayer(5, 0)] },
     { name: 'the sapphire triangle takes the pentagon its blues', expect: 'not-won', steps: [...cast(0, AE.ruby), ...cast(0, AE.sapphire), ...cast(1, AE.sapphire)] },
     { name: 'a jade decoy', expect: 'not-won', steps: [...aegisToCrux, ...cast(4, AE.well)] },
     { name: 'the second striker first', expect: 'not-won', steps: [...aegisToCrux, ...aegisPull, ...castLayer(5, AE.right, 1), ...cast(3, AE.left)] },
   ],
-  'the-ashen-key': [
+  'staves-8': [
     { name: 'intended', expect: 'won', steps: [...ashenToCrux, ...cast(5, AK.well), ...cast(3, AK.well), ...cast(5, AK.well)] },
     { name: 'the amber square that gives back ruby, first', expect: 'not-won', steps: [...cast(0, AK.ruby), ...cast(1, AK.sapphire), ...cast(0, AK.ruby), ...ashenToCrux.slice(6), ...cast(5, AK.well), ...cast(3, AK.well), ...cast(5, AK.well)] },
     { name: 'an amber square burns the void', expect: 'not-won', steps: [...ashenToCrux, ...cast(1, AK.well), ...cast(5, AK.well)] },
   ],
-  'the-crown': [
+  'staves-9': [
     { name: 'intended', expect: 'won', steps: [...crownToCrux, ...crownPull, ...cast(3, CR.left), ...castLayer(5, CR.right, 1), tapLayer(5, 0)] },
     { name: 'the ruby triangle takes the pentagon its reds', expect: 'not-won', steps: [...cast(0, CR.ruby), ...cast(0, CR.ruby), ...crownToCrux.slice(3)] },
     { name: 'the striker first: its ash cup takes a jade', expect: 'not-won', steps: [...crownToCrux, place(3, CR.left), feed(3), ...crownPull, tap(3)] },

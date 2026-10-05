@@ -4,54 +4,74 @@ import { intendedLine } from './lines'
 import { runScript } from '../../sim/headless'
 import { profileLevel, tensionAlong, tensionBands } from '../../sim/solver'
 
-// The pack's tension progression, checked with the economy solver (see
-// `npm run analyze-levels`). Every level can be won without waste and takes
+// The deck's progression, checked with the economy solver (see `npm run
+// analyze-levels`). Every level can be won without waste, and within a
+// section of the deck (a suit, or the Major Arcana: an `arc`) each takes
 // more blows than the one before (a blow is a fill and a detonation: two
-// moves). The first three stay calm along their intended line. From the
-// fourth on, each has a crux at the given blow: whatever path led there,
-// every winning line is tense (.9+) with at least half its moves losing,
-// and after it only clean-up (.35 at most on any line). The crux starts at
-// the last blow and moves back toward two thirds; everything else has
-// motes to spare. The ice and frost levels start a second arc (`arc`): back
-// to the sixth level's length, building to the eleventh's; so do the fire
-// levels, and the levels of nulls, pairs and borrowed cups. Where a level
-// has other moves besides fills and detonations (a pair's two pieces
-// latching on, say), `moves` is its shortest win in moves. A level with a
-// live decoy (a rune fillable from the start whose use quietly costs the
-// level) builds up to its crux higher than .5: `buildUp` is how high. A
-// `shaped` level is built bead by bead, with several cruxes and no decoys:
-// tension along one line says little about it, so it is held to the shape of
-// its graph instead (shape.test.ts).
+// moves). The first three Coins stay calm along their intended line. Most
+// levels are `shaped`: built bead by bead, with several cruxes and no
+// decoys, they are held to the shape of their graph (shape.test.ts) rather
+// than to tension along one line. The hand-made ones (some of the Staves)
+// have one crux at the given blow: whatever path led there, every winning
+// line is tense (.9+) with at least half its moves losing, and after it only
+// clean-up (.35 at most on any line); their crux moves no nearer the end
+// from one to the next. Where a level has other moves besides fills and
+// detonations (a pair's two pieces latching on, say), `moves` is its
+// shortest win in moves. A level with a live decoy (a rune fillable from the
+// start whose use quietly costs the level) builds up to its crux higher than
+// .5: `buildUp` is how high.
 const PROGRESSION: Record<string, { blows: number; crux?: number; arc?: true; moves?: number; buildUp?: number; shaped?: true }> = {
-  'first-threads': { blows: 2 },
-  'changing-colors': { blows: 3 },
-  'the-weighing': { blows: 4 },
-  'the-hungry-circle': { blows: 5, shaped: true },
-  patience: { blows: 6, shaped: true },
-  'crowded-circle': { blows: 7, shaped: true },
-  'the-sacrifice': { blows: 8, shaped: true },
-  'the-wildcard': { blows: 9, shaped: true },
-  'the-price': { blows: 10, shaped: true },
-  circumgician: { blows: 12, shaped: true },
-  'the-crux': { blows: 15, shaped: true },
-  'amber-in-ice': { blows: 7, crux: 6, arc: true },
-  frostbite: { blows: 9, shaped: true },
-  'the-rescue': { blows: 10, shaped: true },
-  'two-winters': { blows: 12, shaped: true },
-  'deep-winter': { blows: 13, shaped: true },
-  'the-long-winter': { blows: 15, crux: 10 },
-  kindling: { blows: 7, arc: true, shaped: true },
-  'short-fuse': { blows: 9, shaped: true },
-  firebreak: { blows: 10, shaped: true },
-  backdraft: { blows: 12, shaped: true },
-  wildfire: { blows: 13, shaped: true },
-  phoenix: { blows: 15, shaped: true },
-  'hollow-bowls': { blows: 7, crux: 6, arc: true },
-  'two-hands': { blows: 8, crux: 7, moves: 17, buildUp: 0.8 },
-  'borrowed-light': { blows: 9, crux: 7 },
-  'the-aegis': { blows: 10, crux: 8, buildUp: 0.8 },
-  'the-ashen-key': { blows: 11, crux: 9, buildUp: 0.8 },
-  'the-crown': { blows: 12, crux: 10, moves: 25, buildUp: 0.8 },
+  'coins-ace': { blows: 2 },
+  'coins-2': { blows: 3 },
+  'coins-3': { blows: 4 },
+  'coins-4': { blows: 5, shaped: true },
+  'coins-5': { blows: 6, shaped: true },
+  'coins-6': { blows: 7, shaped: true },
+  'coins-7': { blows: 8, shaped: true },
+  'coins-8': { blows: 9, shaped: true },
+  'coins-9': { blows: 10, shaped: true },
+  'coins-10': { blows: 11, shaped: true },
+  'coins-page': { blows: 12, shaped: true },
+  'coins-knight': { blows: 13, shaped: true },
+  'coins-queen': { blows: 14, shaped: true },
+  'coins-king': { blows: 15, shaped: true },
+  'cups-ace': { blows: 4, arc: true, shaped: true },
+  'cups-2': { blows: 5, shaped: true },
+  'cups-3': { blows: 6, shaped: true },
+  'cups-4': { blows: 7, shaped: true },
+  'cups-5': { blows: 8, shaped: true },
+  'cups-6': { blows: 9, shaped: true },
+  'cups-7': { blows: 10, shaped: true },
+  'cups-8': { blows: 11, shaped: true },
+  'cups-9': { blows: 12, shaped: true },
+  'cups-10': { blows: 13, shaped: true },
+  'cups-page': { blows: 14, shaped: true },
+  'cups-knight': { blows: 15, shaped: true },
+  'cups-queen': { blows: 16, shaped: true },
+  'cups-king': { blows: 17, shaped: true },
+  'swords-ace': { blows: 4, arc: true, shaped: true },
+  'swords-2': { blows: 5, shaped: true },
+  'swords-3': { blows: 6, shaped: true },
+  'swords-4': { blows: 7, shaped: true },
+  'swords-5': { blows: 8, shaped: true },
+  'swords-6': { blows: 9, shaped: true },
+  'swords-7': { blows: 10, shaped: true },
+  'swords-8': { blows: 11, shaped: true },
+  'swords-9': { blows: 12, shaped: true },
+  'swords-10': { blows: 13, shaped: true },
+  'swords-page': { blows: 14, shaped: true },
+  'swords-knight': { blows: 15, shaped: true },
+  'swords-queen': { blows: 16, shaped: true },
+  'swords-king': { blows: 17, shaped: true },
+  'staves-ace': { blows: 4, arc: true, shaped: true },
+  'staves-2': { blows: 5, shaped: true },
+  'staves-3': { blows: 6, shaped: true },
+  'staves-4': { blows: 7, crux: 6 },
+  'staves-5': { blows: 8, crux: 7, moves: 17, buildUp: 0.8 },
+  'staves-6': { blows: 9, crux: 7 },
+  'staves-7': { blows: 10, crux: 8, buildUp: 0.8 },
+  'staves-8': { blows: 11, crux: 9, buildUp: 0.8 },
+  'staves-9': { blows: 12, crux: 10, moves: 25, buildUp: 0.8 },
 }
 
 describe('pack tension progression', () => {

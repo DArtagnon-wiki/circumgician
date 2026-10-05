@@ -15,14 +15,14 @@ import { decoyLayers, deadLayers } from '../../sim/dead'
 // hp) and should hold off, because the one that fits (five damage) is not
 // ready yet, and it will be wanted later for a layer of four hp or less.
 // Levels that are free of decoys stay so; the rest are the old ones, listed
-// by what is left to rework (the two with blocks of ice, levels 12 and 17).
+// by what is left to rework.
 //
 // A level with a fuse is exempt unless it is built free of decoys: the old ones
 // have top layers that are there to be dug through and burned.
 const DEAD: Record<string, string[]> = {
   'the-long-winter': ['1.2'], // four blue bowls striking a triangle while none is ever on top to strike
 }
-const FREE = new Set(['first-threads', 'changing-colors', 'the-weighing', 'hollow-bowls', 'borrowed-light', 'hollow-bowls-v2', ...Object.keys(SHAPED)])
+const FREE = new Set(['coins-ace', 'coins-2', 'coins-3', 'staves-4', 'staves-6', 'hollow-bowls-v2', ...Object.keys(SHAPED)])
 
 describe('runes', () => {
   // The pack, then any debug-pack level that ships lines of its own (pilots).
