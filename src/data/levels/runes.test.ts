@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { DEBUG_PACK, PACK } from './pack'
 import { LINES } from './lines'
+import { SHAPED } from './lines.shaped'
 import { decoyLayers, deadLayers } from '../../sim/dead'
 
 // Every rune layer has to be good for something: hit an obstacle, latch on,
@@ -21,7 +22,7 @@ import { decoyLayers, deadLayers } from '../../sim/dead'
 const DEAD: Record<string, string[]> = {
   'the-long-winter': ['1.2'], // four blue bowls striking a triangle while none is ever on top to strike
 }
-const FREE = new Set(['first-threads', 'changing-colors', 'the-weighing', 'hollow-bowls', 'borrowed-light', 'hollow-bowls-v2'])
+const FREE = new Set(['first-threads', 'changing-colors', 'the-weighing', 'hollow-bowls', 'borrowed-light', 'hollow-bowls-v2', ...Object.keys(SHAPED)])
 
 describe('runes', () => {
   // The pack, then any debug-pack level that ships lines of its own (pilots).

@@ -1,4 +1,5 @@
 import type { ScriptStep } from '../../sim/headless'
+import { shapedLines } from './lines.shaped'
 
 // Each curated level ships with its intended solution (must win for every
 // drift seed, wasting no blow) and at least one plausible wrong line (must
@@ -366,6 +367,9 @@ Object.assign(LINES, {
     { name: 'the pentagon takes the nulls', expect: 'not-won', steps: [...branchingOpening, ...branchingMiddle, ...cast(0, BR.right), ...branchingFinale] },
   ],
 } satisfies Record<string, Line[]>)
+
+// The levels built bead by bead keep their lines in lines.shaped.ts.
+Object.assign(LINES, shapedLines())
 
 // The line a level is designed to be played along.
 export const intendedLine = (id: string): Line | undefined => LINES[id]?.find((line) => line.name === 'intended')

@@ -18,8 +18,11 @@ import { profileLevel, tensionAlong, tensionBands } from '../../sim/solver'
 // has other moves besides fills and detonations (a pair's two pieces
 // latching on, say), `moves` is its shortest win in moves. A level with a
 // live decoy (a rune fillable from the start whose use quietly costs the
-// level) builds up to its crux higher than .5: `buildUp` is how high.
-const PROGRESSION: Record<string, { blows: number; crux?: number; arc?: true; moves?: number; buildUp?: number }> = {
+// level) builds up to its crux higher than .5: `buildUp` is how high. A
+// `shaped` level is built bead by bead, with several cruxes and no decoys:
+// tension along one line says little about it, so it is held to the shape of
+// its graph instead (shape.test.ts).
+const PROGRESSION: Record<string, { blows: number; crux?: number; arc?: true; moves?: number; buildUp?: number; shaped?: true }> = {
   'first-threads': { blows: 2 },
   'changing-colors': { blows: 3 },
   'the-weighing': { blows: 4 },
@@ -58,6 +61,7 @@ describe('pack tension progression', () => {
     for (let i = 1; i < steps.length; i++) {
       if (steps[i].arc) continue
       expect(steps[i].blows, PACK[i].id).toBeGreaterThan(steps[i - 1].blows)
+      if (steps[i].shaped || steps[i - 1].shaped) continue
       const after = (s: { blows: number; crux?: number }) => (s.crux === undefined ? -1 : s.blows - s.crux)
       expect(after(steps[i]), PACK[i].id).toBeGreaterThanOrEqual(after(steps[i - 1]))
     }
@@ -66,12 +70,13 @@ describe('pack tension progression', () => {
   for (const level of PACK) {
     const step = PROGRESSION[level.id]
     if (!step) continue
-    it(`${level.id}: ${step.blows} blows${step.crux ? `, crux at blow ${step.crux}` : ', calm'}`, () => {
+    it(`${level.id}: ${step.blows} blows${step.shaped ? ', shaped' : step.crux ? `, crux at blow ${step.crux}` : ', calm'}`, () => {
       const p = profileLevel(level)
       expect(p.winnable).toBe(true)
       expect(p.cleanest).toBe(0)
       const { bands, fewestMoves } = tensionBands(level)
       expect(fewestMoves).toBe(step.moves ?? 2 * step.blows)
+      if (step.shaped) return
       const run = runScript(level, intendedLine(level.id)!.steps, { seed: 1 })
       const points = tensionAlong(level, run.moves)!
       const beats = points.map((b) => b.tension.tension)
