@@ -13,140 +13,140 @@
   "motes": [
     {
       "color": "red",
-      "x": 185,
+      "x": 94,
       "y": 418,
       "tether": 4
     },
     {
       "color": "red",
-      "x": 215,
+      "x": 170,
       "y": 418,
       "tether": 4
     },
     {
-      "color": "teal",
-      "x": 170,
-      "y": 442,
-      "tether": 4
-    },
-    {
-      "color": "teal",
-      "x": 200,
-      "y": 442,
-      "tether": 4
-    },
-    {
-      "color": "teal",
-      "x": 230,
-      "y": 442,
+      "color": "red",
+      "x": 121,
+      "y": 637,
       "tether": 4
     },
     {
       "color": "red",
-      "x": 155,
-      "y": 466,
+      "x": 123,
+      "y": 418,
       "tether": 4
     },
     {
       "color": "red",
-      "x": 185,
-      "y": 466,
+      "x": 148,
+      "y": 418,
       "tether": 4
     },
     {
       "color": "red",
-      "x": 215,
-      "y": 466,
+      "x": 162,
+      "y": 453,
       "tether": 4
     },
     {
       "color": "red",
-      "x": 245,
-      "y": 466,
+      "x": 157,
+      "y": 478,
+      "tether": 4
+    },
+    {
+      "color": "red",
+      "x": 150,
+      "y": 510,
+      "tether": 4
+    },
+    {
+      "color": "red",
+      "x": 144,
+      "y": 535,
+      "tether": 4
+    },
+    {
+      "color": "red",
+      "x": 139,
+      "y": 559,
+      "tether": 4
+    },
+    {
+      "color": "red",
+      "x": 133,
+      "y": 584,
+      "tether": 4
+    },
+    {
+      "color": "red",
+      "x": 127,
+      "y": 608,
       "tether": 4
     },
     {
       "color": "teal",
-      "x": 140,
-      "y": 490,
+      "x": 336,
+      "y": 523,
       "tether": 4
     },
     {
       "color": "teal",
-      "x": 170,
-      "y": 490,
+      "x": 324,
+      "y": 556,
       "tether": 4
     },
     {
       "color": "teal",
-      "x": 200,
-      "y": 490,
+      "x": 300,
+      "y": 581,
       "tether": 4
     },
     {
       "color": "teal",
-      "x": 230,
-      "y": 490,
+      "x": 267,
+      "y": 592,
       "tether": 4
     },
     {
       "color": "teal",
-      "x": 260,
-      "y": 490,
-      "tether": 4
-    },
-    {
-      "color": "red",
-      "x": 155,
-      "y": 514,
-      "tether": 4
-    },
-    {
-      "color": "red",
-      "x": 185,
-      "y": 514,
-      "tether": 4
-    },
-    {
-      "color": "red",
-      "x": 215,
-      "y": 514,
-      "tether": 4
-    },
-    {
-      "color": "red",
-      "x": 245,
-      "y": 514,
+      "x": 233,
+      "y": 585,
       "tether": 4
     },
     {
       "color": "teal",
-      "x": 170,
-      "y": 538,
+      "x": 206,
+      "y": 563,
       "tether": 4
     },
     {
       "color": "teal",
-      "x": 200,
-      "y": 538,
+      "x": 190,
+      "y": 531,
       "tether": 4
     },
     {
       "color": "teal",
-      "x": 230,
-      "y": 538,
+      "x": 263,
+      "y": 602,
       "tether": 4
     },
     {
-      "color": "red",
-      "x": 185,
-      "y": 562,
+      "color": "teal",
+      "x": 263,
+      "y": 637,
       "tether": 4
     },
     {
-      "color": "red",
-      "x": 215,
-      "y": 562,
+      "color": "teal",
+      "x": 252,
+      "y": 644,
+      "tether": 4
+    },
+    {
+      "color": "teal",
+      "x": 287,
+      "y": 644,
       "tether": 4
     }
   ],

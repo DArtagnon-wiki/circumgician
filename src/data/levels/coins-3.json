@@ -11,147 +11,147 @@
   "blockers": [],
   "motes": [
     {
-      "color": "red",
-      "x": 237.5,
-      "y": 432.5,
+      "color": "blue",
+      "x": 233,
+      "y": 431,
       "tether": 4
     },
     {
-      "color": "red",
-      "x": 244.5,
-      "y": 406.3,
+      "color": "gold",
+      "x": 214,
+      "y": 453,
       "tether": 4
     },
     {
-      "color": "red",
-      "x": 263.8,
-      "y": 387,
+      "color": "gold",
+      "x": 186,
+      "y": 453,
       "tether": 4
     },
     {
-      "color": "red",
-      "x": 290,
+      "color": "gold",
+      "x": 167,
+      "y": 431,
+      "tether": 4
+    },
+    {
+      "color": "gold",
+      "x": 167,
+      "y": 402,
+      "tether": 4
+    },
+    {
+      "color": "gold",
+      "x": 186,
       "y": 380,
       "tether": 4
     },
     {
-      "color": "red",
-      "x": 316.3,
-      "y": 387,
+      "color": "gold",
+      "x": 214,
+      "y": 380,
       "tether": 4
     },
     {
-      "color": "red",
-      "x": 335.5,
-      "y": 406.3,
-      "tether": 4
-    },
-    {
-      "color": "red",
-      "x": 342.5,
-      "y": 432.5,
+      "color": "blue",
+      "x": 233,
+      "y": 402,
       "tether": 4
     },
     {
       "color": "red",
-      "x": 290,
-      "y": 445,
+      "x": 233,
+      "y": 539,
+      "tether": 4
+    },
+    {
+      "color": "blue",
+      "x": 214,
+      "y": 562,
+      "tether": 4
+    },
+    {
+      "color": "blue",
+      "x": 186,
+      "y": 562,
+      "tether": 4
+    },
+    {
+      "color": "blue",
+      "x": 167,
+      "y": 539,
+      "tether": 4
+    },
+    {
+      "color": "blue",
+      "x": 167,
+      "y": 511,
+      "tether": 4
+    },
+    {
+      "color": "blue",
+      "x": 186,
+      "y": 488,
+      "tether": 4
+    },
+    {
+      "color": "blue",
+      "x": 214,
+      "y": 488,
       "tether": 4
     },
     {
       "color": "red",
-      "x": 290,
-      "y": 465,
+      "x": 233,
+      "y": 511,
       "tether": 4
     },
     {
       "color": "red",
-      "x": 277.5,
-      "y": 480,
+      "x": 233,
+      "y": 648,
       "tether": 4
     },
     {
-      "color": "gold",
-      "x": 89,
-      "y": 454.3,
+      "color": "red",
+      "x": 214,
+      "y": 670,
       "tether": 4
     },
     {
-      "color": "gold",
-      "x": 131,
-      "y": 454.3,
+      "color": "red",
+      "x": 186,
+      "y": 670,
       "tether": 4
     },
     {
-      "color": "gold",
-      "x": 154,
-      "y": 479.6,
+      "color": "red",
+      "x": 167,
+      "y": 648,
       "tether": 4
     },
     {
-      "color": "gold",
-      "x": 128.3,
-      "y": 505.7,
+      "color": "red",
+      "x": 167,
+      "y": 619,
       "tether": 4
     },
     {
-      "color": "gold",
-      "x": 91.7,
-      "y": 505.7,
+      "color": "red",
+      "x": 186,
+      "y": 597,
       "tether": 4
     },
     {
-      "color": "gold",
-      "x": 66,
-      "y": 479.6,
+      "color": "red",
+      "x": 214,
+      "y": 597,
       "tether": 4
     },
     {
-      "color": "blue",
-      "x": 160,
-      "y": 565,
-      "tether": 4
-    },
-    {
-      "color": "blue",
-      "x": 145,
-      "y": 592.5,
-      "tether": 4
-    },
-    {
-      "color": "blue",
-      "x": 175,
-      "y": 592.5,
-      "tether": 4
-    },
-    {
-      "color": "blue",
-      "x": 187.5,
-      "y": 627.5,
-      "tether": 4
-    },
-    {
-      "color": "blue",
-      "x": 179.4,
-      "y": 646.9,
-      "tether": 4
-    },
-    {
-      "color": "blue",
-      "x": 160,
-      "y": 655,
-      "tether": 4
-    },
-    {
-      "color": "blue",
-      "x": 140.6,
-      "y": 646.9,
-      "tether": 4
-    },
-    {
-      "color": "blue",
-      "x": 132.5,
-      "y": 627.5,
+      "color": "red",
+      "x": 233,
+      "y": 619,
       "tether": 4
     }
   ],

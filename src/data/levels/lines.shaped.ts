@@ -574,7 +574,7 @@ export const SHAPED: Record<string, Shaped> = {
     ],
     wrong: [
       { name: 'rune 4, 3 damage, strikes the 4-hp 6-gon of boss 2, blow 3', expect: 'lost', at: 2, blow: [3, 286, 442] },
-      { name: 'rune 5, 4 damage, strikes the 5-hp 6-gon of boss 1, blow 6', expect: 'lost', at: 5, blow: [4, 114, 442] },
+      { name: 'rune 5, 4 damage, strikes the 5-hp 6-gon of boss 1, blow 6', expect: 'not-won', at: 5, blow: [4, 114, 442] },
       { name: 'rune 2, 4 damage, strikes the 6-hp 3-gon of boss 2, blow 11', expect: 'lost', at: 10, blow: [1, 286, 442] },
       { name: 'rune 2, 5 damage, strikes the 6-hp 3-gon of boss 2, blow 12', expect: 'not-won', at: 11, blow: [1, 286, 442] },
     ],

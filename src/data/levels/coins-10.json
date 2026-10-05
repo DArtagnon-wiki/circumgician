@@ -12,83 +12,83 @@
   "motes": [
     {
       "color": "violet",
-      "x": 132,
-      "y": 437
-    },
-    {
-      "color": "violet",
-      "x": 132,
-      "y": 378
-    },
-    {
-      "color": "gold",
-      "x": 268,
-      "y": 437
-    },
-    {
-      "color": "gold",
-      "x": 268,
-      "y": 378
-    },
-    {
-      "color": "gold",
-      "x": 200,
-      "y": 477
-    },
-    {
-      "color": "gold",
-      "x": 200,
-      "y": 418
-    },
-    {
-      "color": "violet",
-      "x": 132,
-      "y": 514
-    },
-    {
-      "color": "violet",
-      "x": 132,
-      "y": 455
-    },
-    {
-      "color": "gold",
-      "x": 268,
-      "y": 514
-    },
-    {
-      "color": "gold",
-      "x": 268,
-      "y": 455
-    },
-    {
-      "color": "violet",
-      "x": 132,
-      "y": 595
-    },
-    {
-      "color": "violet",
-      "x": 132,
-      "y": 536
-    },
-    {
-      "color": "gold",
-      "x": 242,
-      "y": 565
-    },
-    {
-      "color": "violet",
-      "x": 174,
-      "y": 603
+      "x": 91,
+      "y": 458
     },
     {
       "color": "violet",
       "x": 106,
-      "y": 643
+      "y": 413
+    },
+    {
+      "color": "violet",
+      "x": 106,
+      "y": 637
+    },
+    {
+      "color": "violet",
+      "x": 106,
+      "y": 473
+    },
+    {
+      "color": "violet",
+      "x": 106,
+      "y": 595
+    },
+    {
+      "color": "violet",
+      "x": 150,
+      "y": 614
+    },
+    {
+      "color": "violet",
+      "x": 143,
+      "y": 493
+    },
+    {
+      "color": "violet",
+      "x": 174,
+      "y": 449
     },
     {
       "color": "gold",
-      "x": 242,
-      "y": 643
+      "x": 320,
+      "y": 551
+    },
+    {
+      "color": "gold",
+      "x": 288,
+      "y": 590
+    },
+    {
+      "color": "gold",
+      "x": 237,
+      "y": 590
+    },
+    {
+      "color": "gold",
+      "x": 205,
+      "y": 551
+    },
+    {
+      "color": "gold",
+      "x": 205,
+      "y": 499
+    },
+    {
+      "color": "gold",
+      "x": 237,
+      "y": 460
+    },
+    {
+      "color": "gold",
+      "x": 288,
+      "y": 460
+    },
+    {
+      "color": "gold",
+      "x": 320,
+      "y": 499
     }
   ],
   "obstacles": [

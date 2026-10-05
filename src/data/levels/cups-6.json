@@ -13,128 +13,128 @@
   "motes": [
     {
       "color": "blue",
-      "x": 200,
-      "y": 480,
+      "x": 158,
+      "y": 422,
       "tether": 4
     },
     {
       "color": "blue",
-      "x": 214.3,
-      "y": 476.3,
-      "tether": 4
-    },
-    {
-      "color": "blue",
-      "x": 231.2,
-      "y": 483.5,
-      "tether": 4
-    },
-    {
-      "color": "blue",
-      "x": 242.8,
-      "y": 502.4,
-      "tether": 4
-    },
-    {
-      "color": "blue",
-      "x": 241.7,
-      "y": 528.5,
-      "tether": 4
-    },
-    {
-      "color": "blue",
-      "x": 224.2,
-      "y": 552.9,
-      "tether": 4
-    },
-    {
-      "color": "blue",
-      "x": 192.5,
-      "y": 565.4,
-      "tether": 4
-    },
-    {
-      "color": "blue",
-      "x": 155.1,
-      "y": 558.2,
-      "tether": 4
-    },
-    {
-      "color": "blue",
-      "x": 124.4,
-      "y": 529.4,
-      "tether": 4
-    },
-    {
-      "color": "blue",
-      "x": 112.6,
-      "y": 484.9,
-      "tether": 4
-    },
-    {
-      "color": "blue",
-      "x": 127.2,
-      "y": 436.9,
-      "tether": 4
-    },
-    {
-      "color": "blue",
-      "x": 167.9,
-      "y": 401.1,
-      "tether": 4
-    },
-    {
-      "color": "gold",
-      "x": 200,
-      "y": 520,
-      "tether": 4
-    },
-    {
-      "color": "gold",
-      "x": 183.5,
-      "y": 522.7,
-      "tether": 4
-    },
-    {
-      "color": "gold",
-      "x": 165.8,
-      "y": 511.1,
-      "tether": 4
-    },
-    {
-      "color": "gold",
-      "x": 158.2,
-      "y": 486.4,
-      "tether": 4
-    },
-    {
-      "color": "gold",
-      "x": 169.4,
-      "y": 457.9,
-      "tether": 4
-    },
-    {
-      "color": "gold",
-      "x": 200,
+      "x": 127,
       "y": 440,
+      "tether": 4
+    },
+    {
+      "color": "blue",
+      "x": 106,
+      "y": 498,
+      "tether": 4
+    },
+    {
+      "color": "blue",
+      "x": 97,
+      "y": 565,
+      "tether": 4
+    },
+    {
+      "color": "blue",
+      "x": 119,
+      "y": 464,
+      "tether": 4
+    },
+    {
+      "color": "blue",
+      "x": 100,
+      "y": 542,
+      "tether": 4
+    },
+    {
+      "color": "blue",
+      "x": 162,
+      "y": 599,
+      "tether": 4
+    },
+    {
+      "color": "blue",
+      "x": 128,
+      "y": 633,
+      "tether": 4
+    },
+    {
+      "color": "blue",
+      "x": 103,
+      "y": 604,
+      "tether": 4
+    },
+    {
+      "color": "blue",
+      "x": 107,
+      "y": 526,
+      "tether": 4
+    },
+    {
+      "color": "blue",
+      "x": 138,
+      "y": 507,
+      "tether": 4
+    },
+    {
+      "color": "blue",
+      "x": 165,
+      "y": 550,
+      "tether": 4
+    },
+    {
+      "color": "gold",
+      "x": 336,
+      "y": 527,
+      "tether": 4
+    },
+    {
+      "color": "gold",
+      "x": 317,
+      "y": 565,
+      "tether": 4
+    },
+    {
+      "color": "gold",
+      "x": 282,
+      "y": 589,
       "tether": 4
     },
     {
       "color": "gold",
       "x": 240,
-      "y": 445,
+      "y": 588,
       "tether": 4
     },
     {
       "color": "gold",
-      "x": 272.3,
-      "y": 476.5,
+      "x": 206,
+      "y": 563,
       "tether": 4
     },
     {
       "color": "gold",
-      "x": 279.9,
-      "y": 526,
+      "x": 189,
+      "y": 524,
+      "tether": 4
+    },
+    {
+      "color": "gold",
+      "x": 263,
+      "y": 617,
+      "tether": 4
+    },
+    {
+      "color": "gold",
+      "x": 240,
+      "y": 644,
+      "tether": 4
+    },
+    {
+      "color": "gold",
+      "x": 283,
+      "y": 644,
       "tether": 4
     }
   ],

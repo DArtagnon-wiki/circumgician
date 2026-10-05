@@ -6,6 +6,7 @@ import { endlessBest } from './progress'
 
 export interface MenuActions {
   onPlay: () => void
+  onReading: () => void
   onEndless: () => void
   onHowToPlay: () => void
 }
@@ -35,7 +36,12 @@ export function showMenu(actions: MenuActions): HTMLElement {
   }
   const buttons = document.createElement('div')
   buttons.className = 'menu-buttons'
-  buttons.append(button('Play', 'primary', actions.onPlay), button('Endless', '', actions.onEndless), button('How to play', 'ghost', actions.onHowToPlay))
+  buttons.append(
+    button('Play', 'primary', actions.onPlay),
+    button('Draw your reading', '', actions.onReading),
+    button('Endless', '', actions.onEndless),
+    button('How to play', 'ghost', actions.onHowToPlay),
+  )
 
   const best = endlessBest()
   const bestLine = document.createElement('div')

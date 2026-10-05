@@ -5,6 +5,8 @@ import type { LevelData } from '../sim/types'
 import { showMenu } from '../ui/Menu'
 import { showHowToPlay } from '../ui/HowToPlay'
 import { showLevelSelect } from '../ui/LevelSelect'
+import { showSpread } from '../ui/Spread'
+import { drawReading, loadReading, markReadingCard, nextCard, saveReading } from '../ui/reading'
 import { showHUD, showRunOver } from '../ui/HUD'
 import { endlessBest, isLevelCompleted, markLevelCompleted, recordEndlessRun } from '../ui/progress'
 import { endlessLevel } from '../sim/endless'
@@ -12,6 +14,15 @@ import { isDebugMode } from '../debug/DebugPanel'
 import { textures, texturesReady } from '../render/textures'
 import { MenuBackdrop } from '../render/ZoneBackground'
 import { governor, quality } from '../render/Quality'
+
+// Where each pack level sits, by id (a reading names its cards by id).
+const PACK_INDEX = new Map(PACK.map((level, i) => [level.id, i]))
+const inDeck = (id: string) => PACK_INDEX.has(id)
+
+// A level played as one card of a reading: its place in the spread.
+interface PlayContext {
+  reading?: number
+}
 
 // Owns the single PIXI Application for the whole session (menu -> level ->
 // menu round-trips reuse it, avoiding WebGL context churn) and the one
@@ -61,7 +72,12 @@ export class AppShell {
     this.teardownScene()
     this.clearOverlay()
     this.showBackdrop()
-    this.overlay = showMenu({ onPlay: () => this.showLevelSelect(), onEndless: () => this.startEndless(), onHowToPlay: () => this.showHowToPlay() })
+    this.overlay = showMenu({
+      onPlay: () => this.showLevelSelect(),
+      onReading: () => this.showReading(false, true),
+      onEndless: () => this.startEndless(),
+      onHowToPlay: () => this.showHowToPlay(),
+    })
   }
 
   // Stacks above whatever screen is showing; closing returns to it.
@@ -114,8 +130,43 @@ export class AppShell {
     })
   }
 
+  // The reading in progress (or a new one, drawn now), laid out as a spread.
+  // From the menu, a reading already finished gives way to a new one.
+  showReading(fresh = false, drawIfDone = false): void {
+    let reading = loadReading(inDeck)
+    if (!reading || (drawIfDone && nextCard(reading) < 0)) {
+      reading = drawReading(PACK.map((level) => level.id))
+      saveReading(reading)
+      fresh = true
+    }
+    this.teardownScene()
+    this.clearOverlay()
+    this.showBackdrop()
+    const cards = reading.ids.map((id, place) => {
+      const index = PACK_INDEX.get(id)!
+      return { level: PACK[index], mark: PACK_PLACES[index]?.mark ?? String(index + 1), section: PACK_PLACES[index]?.section.title ?? '', done: reading.done[place] }
+    })
+    this.overlay = showSpread({
+      cards,
+      next: nextCard(reading),
+      fresh,
+      onPlay: (place) => this.playReadingCard(place),
+      onDraw: () => {
+        saveReading(drawReading(PACK.map((level) => level.id)))
+        this.showReading(true)
+      },
+      onBack: () => this.showMenu(),
+    })
+  }
+
+  private playReadingCard(place: number): void {
+    const reading = loadReading(inDeck)
+    if (!reading) return this.showReading()
+    this.startLevel(PACK, PACK_INDEX.get(reading.ids[place])!, { reading: place })
+  }
+
   // Debug fixtures run through the same path but never mark completion.
-  startLevel(pack: LevelData[], index: number): void {
+  startLevel(pack: LevelData[], index: number, context: PlayContext = {}): void {
     this.teardownScene()
     this.clearOverlay()
     this.hideBackdrop()
@@ -125,23 +176,32 @@ export class AppShell {
     scene.mount(this.app, level, {
       onWon: () => {
         if (isReal) markLevelCompleted(level.id)
-        this.showResult('won', pack, index)
+        const reading = context.reading !== undefined ? loadReading(inDeck) : null
+        if (reading && context.reading !== undefined) markReadingCard(reading, context.reading)
+        this.showResult('won', pack, index, context)
       },
-      onLost: () => this.showResult('lost', pack, index),
-      onMenu: () => this.showLevelSelect(),
+      onLost: () => this.showResult('lost', pack, index, context),
+      onMenu: () => (context.reading !== undefined ? this.showReading() : this.showLevelSelect()),
     })
     this.scene = scene
   }
 
   // The result overlays the frozen board; Undo on a loss drops back into it.
-  private showResult(result: 'won' | 'lost', pack: LevelData[], index: number): void {
+  // In a reading, Next goes to the next card still to win (or back to the
+  // spread once all are), and the way back is to the spread.
+  private showResult(result: 'won' | 'lost', pack: LevelData[], index: number, context: PlayContext = {}): void {
     const hasNext = pack === PACK && index < pack.length - 1
+    const reading = context.reading !== undefined ? loadReading(inDeck) : null
+    const nextPlace = reading ? nextCard(reading) : -1
+    const next = reading
+      ? { onNext: nextPlace >= 0 ? () => this.playReadingCard(nextPlace) : () => this.showReading(), nextLabel: nextPlace >= 0 ? 'Next card' : 'Finish the reading' }
+      : { onNext: hasNext ? () => this.startLevel(pack, index + 1) : undefined }
     this.clearOverlay()
     this.overlay = showHUD(
       result,
       {
-        onRetry: () => this.startLevel(pack, index),
-        onNext: hasNext ? () => this.startLevel(pack, index + 1) : undefined,
+        onRetry: () => this.startLevel(pack, index, context),
+        ...next,
         onUndo:
           result === 'lost' && this.scene?.sim.canUndo
             ? () => {
@@ -149,7 +209,8 @@ export class AppShell {
                 this.scene?.undo()
               }
             : undefined,
-        onLevelSelect: () => this.showLevelSelect(),
+        onLevelSelect: () => (reading ? this.showReading() : this.showLevelSelect()),
+        ...(reading ? { backLabel: 'Reading' } : {}),
         onViewBoard: (v) => this.scene?.setViewing(v),
       },
       this.scene?.recap(),

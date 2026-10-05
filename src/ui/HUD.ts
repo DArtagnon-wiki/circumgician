@@ -74,8 +74,10 @@ const LOSS_LINES: Record<LossReason, string> = {
 export interface HUDActions {
   onRetry: () => void
   onNext?: () => void // omitted on the final level
+  nextLabel?: string // 'Next' unless said
   onUndo?: () => void // offered on a loss
   onLevelSelect: () => void
+  backLabel?: string // 'Levels' unless said (a reading goes back to its spread)
   onViewBoard?: (viewing: boolean) => void // the board brightens while viewed
 }
 
@@ -128,13 +130,13 @@ export function showHUD(result: HUDResult, actions: HUDActions, recap?: Recap): 
   }
 
   if (result === 'won') {
-    if (actions.onNext) buttonRow.append(makeButton('Next', actions.onNext, true))
+    if (actions.onNext) buttonRow.append(makeButton(actions.nextLabel ?? 'Next', actions.onNext, true))
     buttonRow.append(makeButton('Replay', actions.onRetry, !actions.onNext))
   } else {
     buttonRow.append(makeButton('Retry', actions.onRetry, true))
     if (actions.onUndo) buttonRow.append(makeButton('Undo', actions.onUndo, false))
   }
-  buttonRow.append(makeButton('Levels', actions.onLevelSelect, false))
+  buttonRow.append(makeButton(actions.backLabel ?? 'Levels', actions.onLevelSelect, false))
 
   card.append(title)
   if (recap && result === 'won' && recap.wasted === 0) card.append(subtitle('Not a blow wasted.'))

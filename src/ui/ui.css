@@ -179,6 +179,9 @@
   align-items: center;
   gap: 12px;
 }
+.menu-buttons .btn.wide {
+  min-width: 250px;
+}
 .menu-best {
   min-height: 1.2em;
   margin-top: 6px;
@@ -745,4 +748,102 @@ body:has(.result-overlay.viewing) :is(.game-hud, .endless-score) {
 .result-overlay.viewing .result-peek {
   display: flex;
   animation: fade-in 0.35s ease-out both;
+}
+
+/* ------------------------------------------------------------------
+   A reading: three cards, past, present and future
+   ------------------------------------------------------------------ */
+
+.spread {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 360px;
+  margin: 6px 0 2px;
+  perspective: 700px;
+}
+.tarot-card {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 112px;
+  aspect-ratio: 2 / 3.3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 6px 10px;
+  border-radius: 12px;
+  color: var(--ink);
+  font-family: var(--font-text);
+  cursor: pointer;
+  transition:
+    transform 0.12s,
+    box-shadow 0.25s,
+    border-color 0.25s;
+}
+.tarot-card:active {
+  transform: scale(0.97);
+}
+.tarot-card:focus-visible {
+  outline: 2px solid var(--gilt-bright);
+  outline-offset: 2px;
+}
+.tarot-card.next {
+  border-color: rgba(255, 240, 200, 0.85);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    inset 0 0 0 4px rgba(8, 4, 20, 0.28),
+    inset 0 0 0 5px var(--gilt-faint),
+    0 0 22px rgba(217, 184, 114, 0.45),
+    var(--shadow);
+}
+.tarot-card.done {
+  opacity: 0.78;
+}
+.tarot-card.fresh {
+  animation: card-turn 0.6s ease-out both;
+}
+@keyframes card-turn {
+  from {
+    opacity: 0;
+    transform: rotateY(90deg) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.card-position {
+  font: 600 10px/1 var(--font-display);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.card-mark {
+  font-size: clamp(24px, 8vw, 32px);
+  font-weight: 600;
+  line-height: 1;
+}
+.card-name {
+  font-size: 15px;
+  line-height: 1.15;
+}
+.card-suit {
+  font: 600 9px/1 var(--font-display);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gilt);
+  opacity: 0.85;
+}
+.card-seal {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+}
+.reading-line {
+  min-height: 2.7em;
+  margin: 4px 0 6px;
+  font-size: 16px;
 }

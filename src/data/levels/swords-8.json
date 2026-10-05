@@ -12,83 +12,83 @@
   "motes": [
     {
       "color": "violet",
-      "x": 137,
-      "y": 405
+      "x": 154,
+      "y": 506
     },
     {
       "color": "violet",
-      "x": 126,
-      "y": 434
+      "x": 106,
+      "y": 496
+    },
+    {
+      "color": "violet",
+      "x": 115,
+      "y": 428
+    },
+    {
+      "color": "violet",
+      "x": 160,
+      "y": 457
+    },
+    {
+      "color": "violet",
+      "x": 149,
+      "y": 628
+    },
+    {
+      "color": "violet",
+      "x": 99,
+      "y": 601
+    },
+    {
+      "color": "violet",
+      "x": 108,
+      "y": 532
+    },
+    {
+      "color": "violet",
+      "x": 162,
+      "y": 541
     },
     {
       "color": "blue",
       "x": 263,
-      "y": 405
-    },
-    {
-      "color": "blue",
-      "x": 251,
-      "y": 434
-    },
-    {
-      "color": "blue",
-      "x": 200,
-      "y": 458
-    },
-    {
-      "color": "violet",
-      "x": 189,
-      "y": 487
-    },
-    {
-      "color": "violet",
-      "x": 137,
-      "y": 514
-    },
-    {
-      "color": "violet",
-      "x": 126,
-      "y": 543
+      "y": 422
     },
     {
       "color": "blue",
       "x": 263,
-      "y": 514
+      "y": 466
     },
     {
       "color": "blue",
-      "x": 251,
-      "y": 543
+      "x": 263,
+      "y": 510
     },
     {
       "color": "blue",
-      "x": 200,
-      "y": 569
+      "x": 263,
+      "y": 554
     },
     {
-      "color": "violet",
-      "x": 189,
+      "color": "blue",
+      "x": 263,
       "y": 598
     },
     {
-      "color": "violet",
-      "x": 137,
-      "y": 622
-    },
-    {
-      "color": "violet",
-      "x": 126,
-      "y": 651
-    },
-    {
       "color": "blue",
       "x": 263,
-      "y": 622
+      "y": 641
     },
     {
       "color": "blue",
-      "x": 251,
-      "y": 651
+      "x": 247,
+      "y": 583
+    },
+    {
+      "color": "blue",
+      "x": 291,
+      "y": 583
     }
   ],
   "obstacles": [

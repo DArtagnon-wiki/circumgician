@@ -11,93 +11,93 @@
   "blockers": [],
   "motes": [
     {
-      "color": "red",
-      "x": 99,
-      "y": 442.5,
+      "color": "blue",
+      "x": 273,
+      "y": 542,
       "tether": 4
     },
     {
-      "color": "red",
-      "x": 141,
-      "y": 442.5,
+      "color": "blue",
+      "x": 261,
+      "y": 573,
       "tether": 4
     },
     {
-      "color": "red",
-      "x": 164,
-      "y": 467.8,
+      "color": "blue",
+      "x": 239,
+      "y": 597,
       "tether": 4
     },
     {
-      "color": "red",
-      "x": 146.6,
-      "y": 489.4,
-      "tether": 4
-    },
-    {
-      "color": "red",
-      "x": 120,
-      "y": 497.5,
+      "color": "blue",
+      "x": 208,
+      "y": 609,
       "tether": 4
     },
     {
       "color": "red",
-      "x": 93.4,
-      "y": 489.4,
+      "x": 176,
+      "y": 605,
       "tether": 4
     },
     {
       "color": "red",
-      "x": 76,
-      "y": 467.8,
+      "x": 148,
+      "y": 586,
+      "tether": 4
+    },
+    {
+      "color": "red",
+      "x": 132,
+      "y": 558,
+      "tether": 4
+    },
+    {
+      "color": "red",
+      "x": 125,
+      "y": 525,
+      "tether": 4
+    },
+    {
+      "color": "red",
+      "x": 132,
+      "y": 492,
+      "tether": 4
+    },
+    {
+      "color": "red",
+      "x": 148,
+      "y": 464,
+      "tether": 4
+    },
+    {
+      "color": "red",
+      "x": 176,
+      "y": 445,
       "tether": 4
     },
     {
       "color": "blue",
-      "x": 280,
-      "y": 565.1,
+      "x": 208,
+      "y": 441,
       "tether": 4
     },
     {
       "color": "blue",
-      "x": 310.2,
-      "y": 542.7,
+      "x": 239,
+      "y": 453,
       "tether": 4
     },
     {
       "color": "blue",
-      "x": 332,
-      "y": 573.4,
+      "x": 261,
+      "y": 477,
       "tether": 4
     },
     {
       "color": "blue",
-      "x": 306.8,
-      "y": 605.9,
-      "tether": 4
-    },
-    {
-      "color": "blue",
-      "x": 280,
-      "y": 637.3,
-      "tether": 4
-    },
-    {
-      "color": "blue",
-      "x": 253.2,
-      "y": 605.9,
-      "tether": 4
-    },
-    {
-      "color": "blue",
-      "x": 228,
-      "y": 573.4,
-      "tether": 4
-    },
-    {
-      "color": "blue",
-      "x": 249.8,
-      "y": 542.7,
+      "x": 273,
+      "y": 508,
       "tether": 4
     }
   ],

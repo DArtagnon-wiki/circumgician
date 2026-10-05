@@ -11,81 +11,81 @@
   "blockers": [],
   "motes": [
     {
-      "color": "red",
-      "x": 130,
-      "y": 494.7,
-      "tether": 4
-    },
-    {
-      "color": "red",
-      "x": 110,
-      "y": 468.3,
-      "tether": 4
-    },
-    {
-      "color": "red",
-      "x": 150,
-      "y": 468.3,
-      "tether": 4
-    },
-    {
-      "color": "red",
-      "x": 90,
-      "y": 465.3,
-      "tether": 4
-    },
-    {
-      "color": "red",
-      "x": 170,
-      "y": 465.3,
-      "tether": 4
-    },
-    {
-      "color": "red",
-      "x": 70,
-      "y": 482.2,
-      "tether": 4
-    },
-    {
-      "color": "red",
-      "x": 190,
-      "y": 482.2,
+      "color": "blue",
+      "x": 232,
+      "y": 455,
       "tether": 4
     },
     {
       "color": "blue",
-      "x": 245,
-      "y": 555.6,
+      "x": 208,
+      "y": 477,
+      "tether": 4
+    },
+    {
+      "color": "red",
+      "x": 177,
+      "y": 469,
+      "tether": 4
+    },
+    {
+      "color": "red",
+      "x": 165,
+      "y": 438,
+      "tether": 4
+    },
+    {
+      "color": "red",
+      "x": 177,
+      "y": 408,
       "tether": 4
     },
     {
       "color": "blue",
-      "x": 266.3,
-      "y": 534.4,
+      "x": 208,
+      "y": 399,
       "tether": 4
     },
     {
       "color": "blue",
-      "x": 293.8,
-      "y": 534.4,
+      "x": 232,
+      "y": 422,
       "tether": 4
     },
     {
       "color": "blue",
-      "x": 315,
-      "y": 555.6,
+      "x": 231,
+      "y": 631,
+      "tether": 4
+    },
+    {
+      "color": "red",
+      "x": 200,
+      "y": 652,
+      "tether": 4
+    },
+    {
+      "color": "red",
+      "x": 169,
+      "y": 631,
+      "tether": 4
+    },
+    {
+      "color": "red",
+      "x": 169,
+      "y": 593,
+      "tether": 4
+    },
+    {
+      "color": "red",
+      "x": 200,
+      "y": 572,
       "tether": 4
     },
     {
       "color": "blue",
-      "x": 268.8,
-      "y": 585.6,
-      "tether": 4
-    },
-    {
-      "color": "blue",
-      "x": 291.3,
-      "y": 585.6,
+      "x": 231,
+      "y": 593,
       "tether": 4
     }
   ],
