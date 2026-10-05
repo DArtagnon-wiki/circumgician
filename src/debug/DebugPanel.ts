@@ -12,14 +12,31 @@ export interface DebugPanelActions {
 
 // Only shown with ?debug=1. Exercises detonation and collapse paths without
 // playing a level through, and can draw every placed rune's catch ring.
+// It stays out of the way: a small gear in the corner, and the tools open
+// only when asked for (the obstacles, and their details, sit right under
+// where an open panel would be).
 export function createDebugPanel(actions: DebugPanelActions): HTMLElement {
+  const root = document.createElement('div')
+  root.style.cssText = 'position: fixed; top: 6px; left: 6px; z-index: 1000; font: 12px sans-serif; color: white;'
+  const gear = document.createElement('button')
+  gear.textContent = '⚙'
+  gear.title = 'Debug tools'
+  gear.setAttribute('aria-label', 'Debug tools')
+  gear.setAttribute('aria-expanded', 'false')
+  gear.style.cssText = `
+    cursor: pointer; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 13px;
+    background: rgba(0,0,0,0.45); color: rgba(255,255,255,0.8); font-size: 16px; line-height: 26px;
+  `
   const panel = document.createElement('div')
   panel.style.cssText = `
-    position: fixed; top: 8px; left: 8px; z-index: 1000; flex-direction: column; align-items: stretch;
-    display: flex; gap: 6px; align-items: center; flex-wrap: wrap; max-width: 90vw;
-    background: rgba(0,0,0,0.65); padding: 6px 8px; border-radius: 8px;
-    font: 12px sans-serif; color: white;
+    display: none; flex-direction: column; align-items: stretch; gap: 6px; margin-top: 4px;
+    max-width: 90vw; background: rgba(0,0,0,0.65); padding: 6px 8px; border-radius: 8px;
   `
+  gear.addEventListener('click', () => {
+    const open = panel.style.display === 'none'
+    panel.style.display = open ? 'flex' : 'none'
+    gear.setAttribute('aria-expanded', String(open))
+  })
   const button = (label: string, onClick: () => void) => {
     const b = document.createElement('button')
     b.textContent = label
@@ -39,9 +56,10 @@ export function createDebugPanel(actions: DebugPanelActions): HTMLElement {
   stats.style.cssText = 'font: 11px monospace; opacity: 0.85;'
   panel.appendChild(stats)
   const timer = window.setInterval(() => {
-    if (!panel.isConnected) return window.clearInterval(timer)
-    stats.textContent = actions.stats()
+    if (!root.isConnected) return window.clearInterval(timer)
+    if (panel.style.display !== 'none') stats.textContent = actions.stats()
   }, 250)
-  document.body.appendChild(panel)
-  return panel
+  root.append(gear, panel)
+  document.body.appendChild(root)
+  return root
 }
